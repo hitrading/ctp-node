@@ -258,4 +258,31 @@ export abstract class CtpClient extends EventEmitter {
       }
     });
   }
+
+  /**
+   * Submit a fire-and-forget order/action. Exchange-bound inserts get no
+   * success response from CTP (only a rejection), so this resolves as soon as
+   * CTP accepts the send and rejects if the send is refused. Track the order's
+   * actual lifecycle (accepted / filled / cancelled) via the rtn-order and
+   * rtn-trade events, correlating by orderRef.
+   */
+  protected submit(send: (id: number) => number): Promise<void> {
+    const id = this.nextRequestId();
+    let rc: number;
+    try {
+      rc = send(id);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+    if (rc === 0) return Promise.resolve();
+    const msg =
+      rc === -10001
+        ? "blocked by pre-trade risk"
+        : rc === -10002
+          ? "rate limited (order rate exceeded)"
+          : rc === -10003
+            ? "blocked by max position cost"
+            : `order rejected by CTP API (code ${rc})`;
+    return Promise.reject(new Error(msg));
+  }
 }

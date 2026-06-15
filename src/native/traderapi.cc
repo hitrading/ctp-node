@@ -198,7 +198,12 @@ int Trader::fireArmed(const ArmSpec &spec) {
   std::memset(&f, 0, sizeof(f));
   std::memcpy(&f, spec.orderTemplate.data(),
               std::min(spec.orderTemplate.size(), sizeof(f)));
-  RiskVerdict v = risk_.check(f.LimitPrice, 0.0, f.VolumeTotalOriginal);
+  // Deviation check is intentionally skipped (refPrice 0) for armed orders:
+  // they fire on fast moves where the limit can legitimately differ from the
+  // last print, and silently blocking the armed order would be worse. Volume,
+  // notional (multiplier-aware), kill-switch and rate limit still apply.
+  RiskVerdict v = risk_.check(f.InstrumentID, f.LimitPrice, 0.0,
+                              f.VolumeTotalOriginal);
   if (!v.ok)
     return CTP_RISK_BLOCKED;
   if (!risk_.allowRate())

@@ -60,7 +60,9 @@ td.on("front-connected", async () => {
   // Promise-based queries return all rows:
   const positions = await td.reqQryInvestorPosition({ brokerId, investorId });
 
-  // Orders go through the C++ risk gate:
+  // Orders go through the C++ risk gate. reqOrderInsert resolves on submission
+  // (CTP sends no ack for an accepted order); track the outcome via rtn-order /
+  // rtn-trade. orderRef is auto-assigned a unique value if you leave it blank.
   await td.reqOrderInsert({
     brokerId, investorId, instrumentId: "rb2510",
     direction: "0",            // see Direction enum
@@ -106,7 +108,8 @@ Direction.Sell;  // "1"
 ## API shape
 
 - `new MarketData(flowPath, fronts)` / `new Trader(flowPath, fronts)` — `fronts` is a `tcp://` address or an array.
-- Requests are camelCase methods taking a `Partial<...>` of the CTP field object and returning a `Promise`. `reqQry*` resolve with an array of rows.
+- Requests are camelCase methods taking a `Partial<...>` of the CTP field object and returning a `Promise`. `reqQry*` resolve with an array of rows; most requests resolve with the single response row.
+- Exchange-bound inserts/actions (`reqOrderInsert`, `reqOrderAction`, …) resolve on **submission** — CTP returns no success response for an accepted order, only `rtn-order` / `rtn-trade` (correlate by `orderRef`). They reject only if the send is refused (risk gate, rate limit, or a CTP API error code).
 - Streaming events use kebab-case names (`rtn-depth-market-data`, `rtn-order`, …); handlers get `(data, options)` where `options` carries `{ requestId?, isLast?, rspInfo? }`.
 - `client.droppedRecords` reports records dropped under backpressure.
 - `client.close()` releases the underlying CTP API.

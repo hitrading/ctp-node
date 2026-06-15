@@ -81,7 +81,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
     if (risk) {
-      RiskVerdict v = risk->check(f.LimitPrice, risk->refPrice(f.InstrumentID), f.VolumeTotalOriginal);
+      RiskVerdict v = risk->check(f.InstrumentID, f.LimitPrice, risk->refPrice(f.InstrumentID), f.VolumeTotalOriginal);
       if (!v.ok) return CTP_RISK_BLOCKED;
       if (f.CombOffsetFlag[0] == '0' &&
           !risk->allowOpen(f.InstrumentID, f.LimitPrice, f.VolumeTotalOriginal))

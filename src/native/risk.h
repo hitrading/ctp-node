@@ -55,8 +55,10 @@ public:
   void resume();                          // kill-switch off
   bool isHalted() const { return halted_.load(std::memory_order_relaxed); }
 
-  // Validation only, no side effects. refPrice<=0 skips deviation/notional.
-  RiskVerdict check(double price, double refPrice, int volume) const;
+  // Validation only, no side effects. refPrice<=0 skips deviation; the
+  // instrument's multiplier (if set) is applied to the notional check.
+  RiskVerdict check(const std::string &instrumentId, double price,
+                    double refPrice, int volume) const;
 
   // Rate gate (consumes a token). Call right before sending.
   bool allowRate() { return limiter_.tryAcquire(); }
@@ -88,10 +90,15 @@ private:
   std::unordered_map<std::string, double> refPrices_;
 
   struct Pos {
-    double longVol = 0, longCost = 0, shortVol = 0, shortCost = 0, mult = 1.0;
+    double longVol = 0, longCost = 0, shortVol = 0, shortCost = 0;
   };
   mutable std::mutex posMutex_;
   std::unordered_map<std::string, Pos> positions_;
+  // Contract multipliers are static metadata kept separate from position state
+  // so resetPositions() (which syncPositions calls) does not wipe them.
+  std::unordered_map<std::string, double> multipliers_;
+  // Look up an instrument's multiplier (1.0 if unset). Caller holds posMutex_.
+  double multiplierLocked(const std::string &instrumentId) const;
 };
 
 } // namespace ctp

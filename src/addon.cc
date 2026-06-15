@@ -81,11 +81,11 @@ Napi::Value RiskSelfTest(const Napi::CallbackInfo &info) {
   cfg.maxPriceDeviation = 0.02;
   eng.configure(cfg);
 
-  out.Set("normal", Verdict(env, eng.check(3500.0, 3500.0, 1)));
-  out.Set("tooBig", Verdict(env, eng.check(3500.0, 3500.0, 10)));
-  out.Set("offPrice", Verdict(env, eng.check(3500.0, 3000.0, 1)));
+  out.Set("normal", Verdict(env, eng.check("rb2510", 3500.0, 3500.0, 1)));
+  out.Set("tooBig", Verdict(env, eng.check("rb2510", 3500.0, 3500.0, 10)));
+  out.Set("offPrice", Verdict(env, eng.check("rb2510", 3500.0, 3000.0, 1)));
   eng.halt();
-  out.Set("halted", Verdict(env, eng.check(3500.0, 3500.0, 1)));
+  out.Set("halted", Verdict(env, eng.check("rb2510", 3500.0, 3500.0, 1)));
 
   ctp::RateLimiter rl;
   rl.configure(2.0, 2.0);

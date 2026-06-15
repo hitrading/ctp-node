@@ -64,7 +64,12 @@ double RiskEngine::refPrice(const std::string &instrumentId) const {
 
 void RiskEngine::setMultiplier(const std::string &instrumentId, double mult) {
   std::lock_guard<std::mutex> lk(posMutex_);
-  positions_[instrumentId].mult = mult > 0.0 ? mult : 1.0;
+  multipliers_[instrumentId] = mult > 0.0 ? mult : 1.0;
+}
+
+double RiskEngine::multiplierLocked(const std::string &instrumentId) const {
+  auto it = multipliers_.find(instrumentId);
+  return it != multipliers_.end() ? it->second : 1.0;
 }
 
 void RiskEngine::seedPosition(const std::string &instrumentId, bool isLong,
@@ -88,8 +93,8 @@ void RiskEngine::resetPositions() {
 void RiskEngine::onTrade(const std::string &instrumentId, bool isBuy,
                          bool isOpen, double price, double volume) {
   std::lock_guard<std::mutex> lk(posMutex_);
+  const double cost = price * volume * multiplierLocked(instrumentId);
   Pos &p = positions_[instrumentId];
-  const double cost = price * volume * p.mult;
   if (isOpen) {
     if (isBuy) {
       p.longVol += volume;
@@ -126,16 +131,13 @@ bool RiskEngine::allowOpen(const std::string &instrumentId, double price,
     return true;
   std::lock_guard<std::mutex> lk(posMutex_);
   double total = 0.0;
-  double mult = 1.0;
   for (const auto &kv : positions_)
     total += kv.second.longCost + kv.second.shortCost;
-  auto it = positions_.find(instrumentId);
-  if (it != positions_.end())
-    mult = it->second.mult;
-  return total + price * volume * mult <= maxCost;
+  return total + price * volume * multiplierLocked(instrumentId) <= maxCost;
 }
 
-RiskVerdict RiskEngine::check(double price, double refPrice, int volume) const {
+RiskVerdict RiskEngine::check(const std::string &instrumentId, double price,
+                              double refPrice, int volume) const {
   if (halted_.load(std::memory_order_relaxed))
     return {false, "trading halted (kill-switch)"};
 
@@ -155,8 +157,12 @@ RiskVerdict RiskEngine::check(double price, double refPrice, int volume) const {
 
   const double maxNotional = maxNotional_.load(std::memory_order_relaxed);
   if (maxNotional > 0.0 && price > 0.0) {
-    // TODO(multiplier): multiply by contract size once instrument info exists.
-    const double notional = price * static_cast<double>(volume);
+    double mult;
+    {
+      std::lock_guard<std::mutex> lk(posMutex_); // only when notional is capped
+      mult = multiplierLocked(instrumentId);
+    }
+    const double notional = price * static_cast<double>(volume) * mult;
     if (notional > maxNotional)
       return {false, "order notional exceeds maxNotional"};
   }

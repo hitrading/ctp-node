@@ -55,15 +55,20 @@ export interface ArmHandle {
 export class Trader extends TraderBase {
   private broker?: string;
   private investor?: string;
+  private orderRefSeq = 0;
 
   constructor(flowPath: string, fronts: string | string[]) {
     super(new native.Trader(flowPath, fronts), native.__layoutData(), TRADER_EVENTS);
-    // Remember credentials from the login response so sync* needs no args.
+    // Remember credentials from the login response so sync* needs no args, and
+    // seed the order-ref counter past the broker's max so auto-assigned refs
+    // never collide with a prior session's (CTP rejects duplicate refs).
     this.on("rsp-user-login", (d: unknown) => {
-      const r = d as { brokerId?: string; userId?: string } | undefined;
+      const r = d as { brokerId?: string; userId?: string; maxOrderRef?: string } | undefined;
       if (r) {
         this.broker = r.brokerId;
         this.investor = r.userId;
+        const mx = r.maxOrderRef ? parseInt(r.maxOrderRef, 10) : NaN;
+        if (Number.isFinite(mx) && mx > this.orderRefSeq) this.orderRefSeq = mx;
       }
     });
     this.start();
@@ -74,6 +79,28 @@ export class Trader extends TraderBase {
   }
   getTradingDay(): string {
     return this.native.getTradingDay();
+  }
+
+  /** Assign a unique numeric OrderRef when the caller left it blank. CTP treats
+   *  OrderRef as a per-session sequence and rejects a duplicate or non-numeric
+   *  ref with "不允许重复报单", so an unset ref would otherwise collide. */
+  private withAutoOrderRef(order: Partial<InputOrder>): Partial<InputOrder> {
+    if (order.orderRef === undefined || order.orderRef === "") {
+      return { ...order, orderRef: String(++this.orderRefSeq) };
+    }
+    return order;
+  }
+
+  /**
+   * Insert an order through the C++ pre-trade risk gate. Resolves on submission:
+   * CTP sends no success acknowledgement for an accepted order - only
+   * OnRtnOrder / OnRtnTrade (surfaced as the rtn-order / rtn-trade events;
+   * correlate by orderRef). It rejects only if the send itself is refused (risk
+   * gate, rate limit, or a CTP API error code). A blank orderRef is assigned a
+   * unique numeric value automatically.
+   */
+  reqOrderInsert(req: Partial<InputOrder> = {}): Promise<void> {
+    return super.reqOrderInsert(this.withAutoOrderRef(req));
   }
 
   /** Publish pre-trade risk limits to the C++ enforcer (takes effect at once). */
@@ -160,8 +187,36 @@ export class Trader extends TraderBase {
     return this;
   }
 
+  /**
+   * Run a CTP query with flow-control retries. CTP rate-limits queries (~1/sec)
+   * and one issued too soon after login can be rejected or come back empty
+   * before the account is ready. With `requireNonEmpty`, an empty result is
+   * treated as not-ready-yet and retried (for data that must exist, e.g. an
+   * instrument); otherwise empty is returned as-is (e.g. a genuinely flat
+   * position book, so a flat account doesn't waste the full retry budget).
+   */
+  private async queryWithRetry<T>(
+    query: () => Promise<T[]>,
+    requireNonEmpty: boolean,
+    attempts = 5
+  ): Promise<T[]> {
+    let lastErr: unknown;
+    for (let i = 0; i < attempts; i++) {
+      if (i > 0) await sleep(1100); // respect the ~1/sec query limit
+      try {
+        const rows = await query();
+        if (!requireNonEmpty || rows.length > 0) return rows;
+      } catch (e) {
+        lastErr = e; // flow-control rejection - back off and retry
+      }
+    }
+    if (lastErr) throw lastErr;
+    return [];
+  }
+
   /** Fetch contract multipliers from CTP and apply them. No args queries all
-   *  instruments (one request); otherwise queries the given symbols. */
+   *  instruments (one request); otherwise queries the given symbols. Retries
+   *  through cold-start flow control so the multiplier is reliably applied. */
   async syncMultipliers(instrumentIds?: string[]): Promise<number> {
     let count = 0;
     const apply = (rows: unknown[]) => {
@@ -174,11 +229,11 @@ export class Trader extends TraderBase {
     };
     if (instrumentIds && instrumentIds.length) {
       for (let i = 0; i < instrumentIds.length; i++) {
-        apply(await this.reqQryInstrument({ instrumentId: instrumentIds[i] }));
+        apply(await this.queryWithRetry(() => this.reqQryInstrument({ instrumentId: instrumentIds[i] }), true));
         if (i < instrumentIds.length - 1) await sleep(1100); // query flow control
       }
     } else {
-      apply(await this.reqQryInstrument({}));
+      apply(await this.queryWithRetry(() => this.reqQryInstrument({}), true));
     }
     return count;
   }
@@ -188,7 +243,10 @@ export class Trader extends TraderBase {
   async syncPositions(opts?: { brokerId?: string; investorId?: string }): Promise<number> {
     const brokerId = opts?.brokerId ?? this.broker;
     const investorId = opts?.investorId ?? this.investor;
-    const rows = (await this.reqQryInvestorPosition({ brokerId, investorId })) as Array<{
+    const rows = (await this.queryWithRetry(
+      () => this.reqQryInvestorPosition({ brokerId, investorId }),
+      false
+    )) as Array<{
       instrumentId: string;
       posiDirection: string;
       position: number;
@@ -214,7 +272,7 @@ export class Trader extends TraderBase {
     md.attachArm(this);
     const bytes = this.encode(
       STRUCT_ID.InputOrder,
-      spec.order as Record<string, unknown>
+      this.withAutoOrderRef(spec.order) as Record<string, unknown>
     );
     const id: number = this.native.arm(
       spec.instrumentId,

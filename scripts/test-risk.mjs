@@ -51,6 +51,15 @@ check(!/position/i.test(String(closing)), `closing order not capped -> ${closing
 td._applyTestTrade("rb2610", false, false, 3100, 1); // close 1 of the long 2 -> release half
 check(Math.abs(td.positionCost() - 30000) < 1, `position cost after partial close = ${td.positionCost()} (expect 30000)`);
 
+// ----- regression: resetPositions() must NOT wipe multipliers -----
+// syncPositions() calls resetPositions() before re-seeding; if the multiplier
+// lived in the same map it would be lost, and the next fill would be costed at
+// x1 (the live bug: positionCost 3180 instead of 31800).
+td.resetPositions();
+check(Math.abs(td.positionCost()) < 1, `positionCost cleared by reset -> ${td.positionCost()}`);
+td._applyTestTrade("rb2610", true, true, 3000, 1); // open BUY 1 @ 3000 after a reset
+check(Math.abs(td.positionCost() - 30000) < 1, `multiplier survived resetPositions: cost = ${td.positionCost()} (expect 30000 = 3000*1*10, NOT 3000)`);
+
 console.log(`RISK TEST: ${pass} pass, ${fail} fail`);
 td.close();
 process.exitCode = fail ? 1 : 0;

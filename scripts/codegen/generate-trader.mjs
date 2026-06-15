@@ -154,7 +154,7 @@ for (const r of req) {
   rc += `    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));\n`;
   if (r.name === "ReqOrderInsert") {
     rc += `    if (risk) {\n`;
-    rc += `      RiskVerdict v = risk->check(f.LimitPrice, risk->refPrice(f.InstrumentID), f.VolumeTotalOriginal);\n`;
+    rc += `      RiskVerdict v = risk->check(f.InstrumentID, f.LimitPrice, risk->refPrice(f.InstrumentID), f.VolumeTotalOriginal);\n`;
     rc += `      if (!v.ok) return CTP_RISK_BLOCKED;\n`;
     rc += `      if (f.CombOffsetFlag[0] == '0' &&\n          !risk->allowOpen(f.InstrumentID, f.LimitPrice, f.VolumeTotalOriginal))\n        return CTP_POSITION_LIMIT;\n`;
     rc += `      if (!risk->allowRate()) return CTP_RATE_LIMITED;\n`;
@@ -190,13 +190,26 @@ ts += `]);
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export abstract class TraderBase extends CtpClient {
 `;
+// Exchange-bound inserts/actions get no success response (only OnRtn*), so they
+// resolve on submission via submit(); everything else waits for its OnRsp*.
+const FIRE = new Set([
+  "ReqOrderInsert", "ReqOrderAction", "ReqExecOrderInsert", "ReqExecOrderAction",
+  "ReqForQuoteInsert", "ReqQuoteInsert", "ReqQuoteAction", "ReqBatchOrderAction",
+  "ReqOptionSelfCloseInsert", "ReqOptionSelfCloseAction", "ReqCombActionInsert",
+]);
 req.forEach((r, i) => {
   const method = camelCase(r.name);
-  const multi = r.name.startsWith("ReqQry");
-  const ret = multi ? "unknown[]" : "unknown";
-  ts += `  ${method}(req: Partial<S.${r.struct}> = {}): Promise<${ret}> {\n`;
-  ts += `    return this.request((id) => this.native._req(${i + 1}, this.encode(STRUCT_ID.${r.struct}, req as Record<string, unknown>), id), ${!multi});\n`;
-  ts += `  }\n`;
+  const enc = `this.encode(STRUCT_ID.${r.struct}, req as Record<string, unknown>)`;
+  if (FIRE.has(r.name)) {
+    ts += `  ${method}(req: Partial<S.${r.struct}> = {}): Promise<void> {\n`;
+    ts += `    return this.submit((id) => this.native._req(${i + 1}, ${enc}, id));\n`;
+    ts += `  }\n`;
+  } else {
+    const multi = r.name.startsWith("ReqQry");
+    ts += `  ${method}(req: Partial<S.${r.struct}> = {}): Promise<${multi ? "unknown[]" : "unknown"}> {\n`;
+    ts += `    return this.request((id) => this.native._req(${i + 1}, ${enc}, id), ${!multi});\n`;
+    ts += `  }\n`;
+  }
 });
 ts += `}\n`;
 

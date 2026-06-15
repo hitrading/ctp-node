@@ -353,8 +353,8 @@ export abstract class TraderBase extends CtpClient {
   reqUserLoginWithOtp(req: Partial<S.ReqUserLoginWithOTP> = {}): Promise<unknown> {
     return this.request((id) => this.native._req(11, this.encode(STRUCT_ID.ReqUserLoginWithOTP, req as Record<string, unknown>), id), true);
   }
-  reqOrderInsert(req: Partial<S.InputOrder> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(12, this.encode(STRUCT_ID.InputOrder, req as Record<string, unknown>), id), true);
+  reqOrderInsert(req: Partial<S.InputOrder> = {}): Promise<void> {
+    return this.submit((id) => this.native._req(12, this.encode(STRUCT_ID.InputOrder, req as Record<string, unknown>), id));
   }
   reqParkedOrderInsert(req: Partial<S.ParkedOrder> = {}): Promise<unknown> {
     return this.request((id) => this.native._req(13, this.encode(STRUCT_ID.ParkedOrder, req as Record<string, unknown>), id), true);
@@ -362,8 +362,8 @@ export abstract class TraderBase extends CtpClient {
   reqParkedOrderAction(req: Partial<S.ParkedOrderAction> = {}): Promise<unknown> {
     return this.request((id) => this.native._req(14, this.encode(STRUCT_ID.ParkedOrderAction, req as Record<string, unknown>), id), true);
   }
-  reqOrderAction(req: Partial<S.InputOrderAction> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(15, this.encode(STRUCT_ID.InputOrderAction, req as Record<string, unknown>), id), true);
+  reqOrderAction(req: Partial<S.InputOrderAction> = {}): Promise<void> {
+    return this.submit((id) => this.native._req(15, this.encode(STRUCT_ID.InputOrderAction, req as Record<string, unknown>), id));
   }
   reqQryMaxOrderVolume(req: Partial<S.QryMaxOrderVolume> = {}): Promise<unknown[]> {
     return this.request((id) => this.native._req(16, this.encode(STRUCT_ID.QryMaxOrderVolume, req as Record<string, unknown>), id), false);
@@ -377,32 +377,32 @@ export abstract class TraderBase extends CtpClient {
   reqRemoveParkedOrderAction(req: Partial<S.RemoveParkedOrderAction> = {}): Promise<unknown> {
     return this.request((id) => this.native._req(19, this.encode(STRUCT_ID.RemoveParkedOrderAction, req as Record<string, unknown>), id), true);
   }
-  reqExecOrderInsert(req: Partial<S.InputExecOrder> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(20, this.encode(STRUCT_ID.InputExecOrder, req as Record<string, unknown>), id), true);
+  reqExecOrderInsert(req: Partial<S.InputExecOrder> = {}): Promise<void> {
+    return this.submit((id) => this.native._req(20, this.encode(STRUCT_ID.InputExecOrder, req as Record<string, unknown>), id));
   }
-  reqExecOrderAction(req: Partial<S.InputExecOrderAction> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(21, this.encode(STRUCT_ID.InputExecOrderAction, req as Record<string, unknown>), id), true);
+  reqExecOrderAction(req: Partial<S.InputExecOrderAction> = {}): Promise<void> {
+    return this.submit((id) => this.native._req(21, this.encode(STRUCT_ID.InputExecOrderAction, req as Record<string, unknown>), id));
   }
-  reqForQuoteInsert(req: Partial<S.InputForQuote> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(22, this.encode(STRUCT_ID.InputForQuote, req as Record<string, unknown>), id), true);
+  reqForQuoteInsert(req: Partial<S.InputForQuote> = {}): Promise<void> {
+    return this.submit((id) => this.native._req(22, this.encode(STRUCT_ID.InputForQuote, req as Record<string, unknown>), id));
   }
-  reqQuoteInsert(req: Partial<S.InputQuote> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(23, this.encode(STRUCT_ID.InputQuote, req as Record<string, unknown>), id), true);
+  reqQuoteInsert(req: Partial<S.InputQuote> = {}): Promise<void> {
+    return this.submit((id) => this.native._req(23, this.encode(STRUCT_ID.InputQuote, req as Record<string, unknown>), id));
   }
-  reqQuoteAction(req: Partial<S.InputQuoteAction> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(24, this.encode(STRUCT_ID.InputQuoteAction, req as Record<string, unknown>), id), true);
+  reqQuoteAction(req: Partial<S.InputQuoteAction> = {}): Promise<void> {
+    return this.submit((id) => this.native._req(24, this.encode(STRUCT_ID.InputQuoteAction, req as Record<string, unknown>), id));
   }
-  reqBatchOrderAction(req: Partial<S.InputBatchOrderAction> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(25, this.encode(STRUCT_ID.InputBatchOrderAction, req as Record<string, unknown>), id), true);
+  reqBatchOrderAction(req: Partial<S.InputBatchOrderAction> = {}): Promise<void> {
+    return this.submit((id) => this.native._req(25, this.encode(STRUCT_ID.InputBatchOrderAction, req as Record<string, unknown>), id));
   }
-  reqOptionSelfCloseInsert(req: Partial<S.InputOptionSelfClose> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(26, this.encode(STRUCT_ID.InputOptionSelfClose, req as Record<string, unknown>), id), true);
+  reqOptionSelfCloseInsert(req: Partial<S.InputOptionSelfClose> = {}): Promise<void> {
+    return this.submit((id) => this.native._req(26, this.encode(STRUCT_ID.InputOptionSelfClose, req as Record<string, unknown>), id));
   }
-  reqOptionSelfCloseAction(req: Partial<S.InputOptionSelfCloseAction> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(27, this.encode(STRUCT_ID.InputOptionSelfCloseAction, req as Record<string, unknown>), id), true);
+  reqOptionSelfCloseAction(req: Partial<S.InputOptionSelfCloseAction> = {}): Promise<void> {
+    return this.submit((id) => this.native._req(27, this.encode(STRUCT_ID.InputOptionSelfCloseAction, req as Record<string, unknown>), id));
   }
-  reqCombActionInsert(req: Partial<S.InputCombAction> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(28, this.encode(STRUCT_ID.InputCombAction, req as Record<string, unknown>), id), true);
+  reqCombActionInsert(req: Partial<S.InputCombAction> = {}): Promise<void> {
+    return this.submit((id) => this.native._req(28, this.encode(STRUCT_ID.InputCombAction, req as Record<string, unknown>), id));
   }
   reqQryOrder(req: Partial<S.QryOrder> = {}): Promise<unknown[]> {
     return this.request((id) => this.native._req(29, this.encode(STRUCT_ID.QryOrder, req as Record<string, unknown>), id), false);
