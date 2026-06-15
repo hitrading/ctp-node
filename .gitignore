@@ -1,0 +1,13 @@
+node_modules/
+build/
+dist/
+prebuilds/
+*.node
+*.log
+
+# CTP runtime flow directories
+flow/
+flowMd/
+flowTd/
+con*.dat
+*.con

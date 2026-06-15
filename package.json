@@ -1,0 +1,46 @@
+{
+  "name": "ctp-node",
+  "version": "0.0.0",
+  "description": "High-performance, type-safe CTP (Chinese futures) binding for Node.js",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "src/",
+    "tradeapi/",
+    "prebuilds/",
+    "binding.gyp"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "gen": "node scripts/codegen/generate.mjs && node scripts/codegen/generate-trader.mjs",
+    "build:native": "node-gyp rebuild",
+    "build:ts": "tsc",
+    "build": "npm run gen && npm run build:native && npm run build:ts",
+    "prebuild": "prebuildify --napi --strip",
+    "install": "node-gyp-build",
+    "test": "node scripts/test-codec.mjs && node scripts/test-md.mjs && node scripts/test-trader.mjs",
+    "bench": "node scripts/bench-decode.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.3",
+    "node-addon-api": "^8.3.0",
+    "node-gyp": "^11.2.0",
+    "prebuildify": "^6.0.1",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "node-gyp-build": "^4.8.4"
+  },
+  "license": "Apache-2.0"
+}

@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+*.dll binary
+*.lib binary
+*.so binary
+*.node binary
+*.exp binary
+
+# CTP SDK: binary libs + GB-encoded headers — never EOL/charset normalize.
+tradeapi/** -text
