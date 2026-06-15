@@ -135,11 +135,14 @@ export function encodeStruct(
     if (v === undefined || v === null) continue;
     switch (f.kind) {
       case 0: {
-        // Write up to the FULL field width. The buffer is zero-initialized, so a
-        // shorter value keeps its trailing NUL; a value that exactly fills a
-        // fixed-width char[N] (e.g. a multi-leg combOffsetFlag) is not truncated.
+        // CTP char[N] fields hold up to N-1 bytes + a reserved NUL terminator
+        // (including the comb*Flag arrays, which are at most N-1 legs), so always
+        // keep the last byte 0. The buffer is zero-initialized, so writing at most
+        // N-1 bytes leaves a valid NUL-terminated (or shorter) string; over-long
+        // input is truncated rather than sent to CTP without a terminator.
         const bytes = encodeStr(String(v));
-        out.set(bytes.subarray(0, Math.min(bytes.length, f.size)), f.offset);
+        const cap = f.size === 1 ? 1 : f.size - 1;
+        out.set(bytes.subarray(0, Math.min(bytes.length, cap)), f.offset);
         break;
       }
       case 1:

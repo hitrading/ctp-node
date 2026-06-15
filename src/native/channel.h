@@ -8,7 +8,7 @@
  * (zero-copy) into plain objects. Backpressure: drop-newest + a counter when
  * full, so the CTP thread is never blocked.
  *
- * Slot header layout (fixed; the JS drain in channel.ts must match):
+ * Slot header layout (fixed; the JS drain in client.ts must match):
  *   [0]  int32 eventType
  *   [4]  int32 requestId
  *   [8]  int32 isLast      (-1 undefined / 0 false / 1 true)

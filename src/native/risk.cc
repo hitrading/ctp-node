@@ -349,6 +349,12 @@ RiskVerdict RiskEngine::check(const std::string &instrumentId, double price,
   if (volume <= 0)
     return block("order volume must be positive");
 
+  // Reject a non-finite limit price (NaN/Inf) here, at the validation point, so
+  // it can't reach tryReserveOpen and poison the reserved cost. A market/any-
+  // price order legitimately has price 0 (finite), so isfinite allows it.
+  if (!std::isfinite(price))
+    return block("order price is not finite");
+
   const int maxVol = maxOrderVolume_.load(std::memory_order_relaxed);
   if (maxVol > 0 && volume > maxVol)
     return block("order volume exceeds maxOrderVolume");
