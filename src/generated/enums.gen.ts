@@ -980,6 +980,14 @@ export enum VirementAvailAbility {
   Repeal = "2",
 }
 
+/** TThostFtdcVirementTradeCodeType */
+export enum VirementTradeCode {
+  BankBankToFuture = "102001",
+  BankFutureToBank = "102002",
+  FutureBankToFuture = "202001",
+  FutureFutureToBank = "202002",
+}
+
 /** TThostFtdcAMLGenStatusType */
 export enum AMLGenStatus {
   Program = "0",
@@ -1608,6 +1616,14 @@ export enum MonthBillTradeSum {
   ByInstrument = "0",
   ByDayInsPrc = "1",
   ByDayIns = "2",
+}
+
+/** TThostFtdcFBTTradeCodeEnumType */
+export enum FBTTradeCodeEnum {
+  BankLaunchBankToBroker = "102001",
+  BrokerLaunchBankToBroker = "202001",
+  BankLaunchBrokerToBank = "102002",
+  BrokerLaunchBrokerToBank = "202002",
 }
 
 /** TThostFtdcOTPTypeType */

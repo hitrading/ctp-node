@@ -100,6 +100,10 @@ void RiskEngine::resetPositions() {
 
 void RiskEngine::onTrade(const std::string &instrumentId, bool isBuy,
                          bool isOpen, double price, double volume) {
+  // Real CTP fills are always positive; ignore malformed data rather than let a
+  // negative price/volume corrupt the tracked cost (defense in depth).
+  if (price <= 0.0 || volume <= 0.0)
+    return;
   std::lock_guard<std::mutex> lk(posMutex_);
   const double cost = price * volume * multiplierLocked(instrumentId);
   Pos &p = positions_[instrumentId];

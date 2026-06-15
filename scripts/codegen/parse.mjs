@@ -9,7 +9,10 @@
 import { readFile } from "node:fs/promises";
 import { typedefTypeName } from "./naming.mjs";
 
-const RE_DEFINE = /^#define\s+THOST_FTDC_([A-Za-z0-9]+)_(\w+)\s+'(.)'/;
+// Value is usually a single char ('0'), but a few CTP enum families use
+// multi-char codes (e.g. '102001'); capture the whole quoted value so none
+// are silently dropped.
+const RE_DEFINE = /^#define\s+THOST_FTDC_([A-Za-z0-9]+)_(\w+)\s+'([^']+)'/;
 const RE_TD_ARRAY = /^typedef\s+char\s+(TThostFtdc\w+Type)\s*\[\s*(\d+)\s*\]/;
 const RE_TD_SCALAR = /^typedef\s+(char|int|short|double)\s+(TThostFtdc\w+Type)\s*;/;
 const RE_TD_ALIAS = /^typedef\s+(TThostFtdc\w+Type)\s+(TThostFtdc\w+Type)\s*;/;
