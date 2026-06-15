@@ -60,10 +60,11 @@ export enum MarketDataEvent {
 export class MarketData extends CtpClient {
   constructor(flowPath: string, fronts: string | string[]) {
     super(new native.MarketData(flowPath, fronts), native.__layoutData(), MD_EVENTS);
-    // SimNow's MD OnRspUserLogin returns requestId 0. Scope the id-0 fallback to
-    // the login response event only, so an id-0 sub/unsub/error response can't
-    // hijack a pending login() if subscribe is called before login resolves.
-    this.zeroIdFallbackEvent = MD_BASE + 4; // rsp-user-login
+    // SimNow's MD login/logout responses come back with requestId 0. Scope the
+    // id-0 fallback to those two events (which are never concurrent) so an id-0
+    // sub/unsub/error response can't hijack a pending login()/logout().
+    this.zeroIdFallbackEvents.add(MD_BASE + 4); // rsp-user-login
+    this.zeroIdFallbackEvents.add(MD_BASE + 5); // rsp-user-logout
     this.start();
   }
 

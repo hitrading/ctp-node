@@ -89,14 +89,15 @@ export abstract class CtpClient extends EventEmitter {
   private readPos = 0;
   private readonly pending = new Map<number, Pending>();
   private reqSeq = 0;
-  /** Event id whose requestId-0 response should resolve the oldest pending
-   *  request (0 = off). Needed only for SimNow market-data login, which doesn't
-   *  echo the id; scoping it to the login event means an unrelated id-0 response
-   *  (sub/unsub/error) can't hijack a pending login. The trader echoes ids and
-   *  leaves this off. */
-  protected zeroIdFallbackEvent = 0;
-  /** A request whose response never arrives (front dropped a reply, silent flow
-   *  control) rejects after this many ms, so awaiters don't hang forever. */
+  /** Event ids whose requestId-0 response should resolve the oldest pending
+   *  request. Needed only for SimNow market-data login/logout, which don't echo
+   *  the id; scoping to those events means an unrelated id-0 response
+   *  (sub/unsub/error) can't hijack them. The trader echoes ids and leaves this
+   *  empty. */
+  protected readonly zeroIdFallbackEvents = new Set<number>();
+  /** A request that goes idle this long (no response and, for multi-row queries,
+   *  no further rows) rejects, so awaiters don't hang forever. The timer resets
+   *  on each row, so a large streaming query isn't cut off by total duration. */
   protected requestTimeoutMs = 30000;
 
   protected constructor(
@@ -208,7 +209,7 @@ export abstract class CtpClient extends EventEmitter {
     if (isLastRaw !== -1 && this.pending.size > 0) {
       let key: number | undefined =
         reqId !== 0 && this.pending.has(reqId) ? reqId : undefined;
-      if (key === undefined && reqId === 0 && evt === this.zeroIdFallbackEvent) {
+      if (key === undefined && reqId === 0 && this.zeroIdFallbackEvents.has(evt)) {
         key = this.pending.keys().next().value;
       }
       const p = key !== undefined ? this.pending.get(key) : undefined;
@@ -228,6 +229,8 @@ export abstract class CtpClient extends EventEmitter {
             if (p.timer) clearTimeout(p.timer);
             this.pending.delete(key);
             p.resolve(p.single ? p.rows[0] : p.rows);
+          } else {
+            this.armRequestTimer(key, p); // more rows expected: reset idle timeout
           }
         }
       }
@@ -301,14 +304,21 @@ export abstract class CtpClient extends EventEmitter {
         reject(new Error(msg));
         return;
       }
-      // Backstop: if no response ever arrives, fail rather than hang forever.
-      if (this.requestTimeoutMs > 0) {
-        entry.timer = setTimeout(() => {
-          if (this.pending.delete(id)) reject(new Error("request timed out"));
-        }, this.requestTimeoutMs);
-        if (typeof entry.timer.unref === "function") entry.timer.unref();
-      }
+      // Backstop: if the request goes idle (no response / no further rows for a
+      // multi-row query), fail rather than hang forever.
+      this.armRequestTimer(id, entry);
     });
+  }
+
+  /** (Re)arm a pending request's idle timeout. Called at send and reset on each
+   *  row, so a long streaming query isn't cut off by total elapsed time. */
+  private armRequestTimer(id: number, entry: Pending): void {
+    if (this.requestTimeoutMs <= 0) return;
+    if (entry.timer) clearTimeout(entry.timer);
+    entry.timer = setTimeout(() => {
+      if (this.pending.delete(id)) entry.reject(new Error("request timed out"));
+    }, this.requestTimeoutMs);
+    if (typeof entry.timer.unref === "function") entry.timer.unref();
   }
 
   /**
