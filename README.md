@@ -47,13 +47,15 @@ const td = new Trader("./flow/td/", "tcp://180.168.146.187:10202");
 
 // Pre-trade risk, enforced in C++ on every order:
 td.riskSet({ maxOrderVolume: 10, maxOrdersPerSec: 20, maxPriceDeviation: 0.02, maxPositionCost: 5_000_000 });
-td.setMultiplier("rb2510", 10); // contract multiplier (for the position-cost cap)
-td.trackMarketData(md);         // feed live prices for the price-deviation guard
-// td.seedFromPositions(await td.reqQryInvestorPosition({ brokerId, investorId })); // seed existing positions
+td.trackMarketData(md); // feed live prices for the price-deviation guard
 
 td.on("front-connected", async () => {
   await td.reqAuthenticate({ brokerId, userId, appId, authCode });
   await td.reqUserLogin({ brokerId, userId, password });
+
+  // Risk inputs are fetched from CTP automatically — no manual multipliers/seeding:
+  await td.syncMultipliers(); // contract multipliers (reqQryInstrument)
+  await td.syncPositions();   // existing open-position cost (reqQryInvestorPosition)
 
   // Promise-based queries return all rows:
   const positions = await td.reqQryInvestorPosition({ brokerId, investorId });

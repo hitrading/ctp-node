@@ -10,8 +10,10 @@ import { native } from "./native-binding.js";
 import { TraderBase, TRADER_EVENTS, TraderEvent } from "./generated/trader.gen.js";
 import { STRUCT_ID } from "./generated/structs.gen.js";
 import type { CallbackOptions } from "./client.js";
-import type { Order, Trade, InputOrder, TradingAccount } from "./generated/structs.gen.js";
+import type { Order, Trade, InputOrder, RspUserLogin } from "./generated/structs.gen.js";
 import type { MarketData } from "./market-data.js";
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** Pre-trade risk limits, enforced in C++ before each order is sent. */
 export interface RiskConfig {
@@ -51,8 +53,19 @@ export interface ArmHandle {
 }
 
 export class Trader extends TraderBase {
+  private broker?: string;
+  private investor?: string;
+
   constructor(flowPath: string, fronts: string | string[]) {
     super(new native.Trader(flowPath, fronts), native.__layoutData(), TRADER_EVENTS);
+    // Remember credentials from the login response so sync* needs no args.
+    this.on("rsp-user-login", (d: unknown) => {
+      const r = d as { brokerId?: string; userId?: string } | undefined;
+      if (r) {
+        this.broker = r.brokerId;
+        this.investor = r.userId;
+      }
+    });
     this.start();
   }
 
@@ -121,17 +134,69 @@ export class Trader extends TraderBase {
       openCost: number;
     }>
   ): this {
+    // Aggregate by instrument+side (CTP may return several rows per instrument).
+    const agg = new Map<string, { id: string; long: boolean; vol: number; cost: number }>();
     for (const p of positions) {
-      if (p.position > 0) {
-        this.seedPosition(p.instrumentId, p.posiDirection === "2" ? "long" : "short", p.position, p.openCost);
-      }
+      if (!(p.position > 0)) continue;
+      const long = p.posiDirection === "2";
+      const key = `${p.instrumentId}|${long}`;
+      const e = agg.get(key) ?? { id: p.instrumentId, long, vol: 0, cost: 0 };
+      e.vol += p.position;
+      e.cost += p.openCost;
+      agg.set(key, e);
     }
+    for (const e of agg.values()) this.seedPosition(e.id, e.long ? "long" : "short", e.vol, e.cost);
     return this;
   }
 
   /** Current total open-position cost tracked by the C++ risk engine. */
   positionCost(): number {
     return this.native.positionCost();
+  }
+
+  /** Clear all tracked position cost. */
+  resetPositions(): this {
+    this.native.resetPositions();
+    return this;
+  }
+
+  /** Fetch contract multipliers from CTP and apply them. No args queries all
+   *  instruments (one request); otherwise queries the given symbols. */
+  async syncMultipliers(instrumentIds?: string[]): Promise<number> {
+    let count = 0;
+    const apply = (rows: unknown[]) => {
+      for (const r of rows as Array<{ instrumentId: string; volumeMultiple: number }>) {
+        if (r.volumeMultiple > 0) {
+          this.setMultiplier(r.instrumentId, r.volumeMultiple);
+          count++;
+        }
+      }
+    };
+    if (instrumentIds && instrumentIds.length) {
+      for (let i = 0; i < instrumentIds.length; i++) {
+        apply(await this.reqQryInstrument({ instrumentId: instrumentIds[i] }));
+        if (i < instrumentIds.length - 1) await sleep(1100); // query flow control
+      }
+    } else {
+      apply(await this.reqQryInstrument({}));
+    }
+    return count;
+  }
+
+  /** Seed open-position cost from CTP (reqQryInvestorPosition). Uses the
+   *  logged-in account unless brokerId/investorId are supplied. */
+  async syncPositions(opts?: { brokerId?: string; investorId?: string }): Promise<number> {
+    const brokerId = opts?.brokerId ?? this.broker;
+    const investorId = opts?.investorId ?? this.investor;
+    const rows = (await this.reqQryInvestorPosition({ brokerId, investorId })) as Array<{
+      instrumentId: string;
+      posiDirection: string;
+      position: number;
+      openCost: number;
+    }>;
+    this.resetPositions();
+    this.seedFromPositions(rows);
+    return rows.filter((r) => r.position > 0).length;
   }
 
   /** @internal test-only: feed a synthetic fill into the position-cost tracker. */
@@ -175,7 +240,7 @@ export class Trader extends TraderBase {
   on(event: "rtn-trade", cb: (data: Trade, opts: CallbackOptions) => void): this;
   on(event: "front-connected", cb: (data: undefined, opts: CallbackOptions) => void): this;
   on(event: "front-disconnected", cb: (reason: number, opts: CallbackOptions) => void): this;
-  on(event: "rsp-user-login", cb: (data: TradingAccount, opts: CallbackOptions) => void): this;
+  on(event: "rsp-user-login", cb: (data: RspUserLogin, opts: CallbackOptions) => void): this;
   on(event: "err-rtn-order-insert", cb: (data: InputOrder, opts: CallbackOptions) => void): this;
   on(event: string, cb: (...args: never[]) => void): this;
   on(event: string, cb: (...args: never[]) => void): this {

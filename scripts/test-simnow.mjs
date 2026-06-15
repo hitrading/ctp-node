@@ -28,6 +28,7 @@ const cfg = {
   placeOrder: env.CTP_PLACE_ORDER === "1",
   arm: env.CTP_ARM === "1",
   devDemo: env.CTP_DEV_DEMO === "1",
+  riskLive: env.CTP_RISK_LIVE === "1",
   skipAuth: env.CTP_SKIP_AUTH === "1",
 };
 
@@ -144,6 +145,31 @@ td.on("front-connected", async () => {
         .then(() => "SENT (unexpected!)")
         .catch((e) => e.message);
       log(`deviation demo: BUY @ ${bad} vs live≈${lastSeenPrice} -> ${r}`);
+    }
+
+    if (cfg.riskLive) {
+      log("--- live position-cost verification (auto multiplier + auto position) ---");
+      const inst = await td.reqQryInstrument({ instrumentId: cfg.symbol });
+      log(`reqQryInstrument ${cfg.symbol}: volumeMultiple=${inst[0]?.volumeMultiple}`);
+      await sleep(1100);
+      log(`syncMultipliers applied ${await td.syncMultipliers([cfg.symbol])}`);
+      td.riskSet({ maxPositionCost: 100_000_000 }); // high: won't block, just track
+      const buyPx = Math.round((lastSeenPrice || 3200) + 30);
+      log(`opening BUY 1 @ ${buyPx} (marketable -> should fill) ...`);
+      await td
+        .reqOrderInsert({ brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: cfg.symbol, orderRef: "rlopen", direction: "0", combOffsetFlag: "0", combHedgeFlag: "1", orderPriceType: "2", limitPrice: buyPx, volumeTotalOriginal: 1, timeCondition: "3", volumeCondition: "1", contingentCondition: "1", forceCloseReason: "0", isAutoSuspend: 0, userForceClose: 0 })
+        .then(() => log("open accepted")).catch((e) => log("open:", e.message));
+      await sleep(2500);
+      log(`positionCost after fill (auto from OnRtnTrade) = ${td.positionCost()}  (expect ~ ${buyPx}*10)`);
+      await sleep(1100);
+      log(`syncPositions seeded ${await td.syncPositions()} position(s); positionCost = ${td.positionCost()}`);
+      await sleep(1100);
+      const sellPx = Math.round((lastSeenPrice || 3100) - 30);
+      log(`closing SELL 1 @ ${sellPx} (平今) to flatten ...`);
+      await td
+        .reqOrderInsert({ brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: cfg.symbol, orderRef: "rlclose", direction: "1", combOffsetFlag: "3", combHedgeFlag: "1", orderPriceType: "2", limitPrice: sellPx, volumeTotalOriginal: 1, timeCondition: "3", volumeCondition: "1", contingentCondition: "1", forceCloseReason: "0", isAutoSuspend: 0, userForceClose: 0 })
+        .then(() => log("close accepted")).catch((e) => log("close:", e.message));
+      await sleep(1500);
     }
   } catch (e) {
     log("TD flow FAILED:", e.message, "errorId=", e.errorId);

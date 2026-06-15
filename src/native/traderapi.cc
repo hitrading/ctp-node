@@ -84,6 +84,7 @@ private:
   Napi::Value SetMultiplier(const Napi::CallbackInfo &info);
   Napi::Value SeedPosition(const Napi::CallbackInfo &info);
   Napi::Value PositionCost(const Napi::CallbackInfo &info);
+  Napi::Value ResetPositions(const Napi::CallbackInfo &info);
   Napi::Value ApplyTestTrade(const Napi::CallbackInfo &info);
   Napi::Value Start(const Napi::CallbackInfo &info);
   Napi::Value Buffer(const Napi::CallbackInfo &info);
@@ -121,6 +122,7 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("setMultiplier", &Trader::SetMultiplier),
           InstanceMethod("seedPosition", &Trader::SeedPosition),
           InstanceMethod("positionCost", &Trader::PositionCost),
+          InstanceMethod("resetPositions", &Trader::ResetPositions),
           InstanceMethod("_applyTestTrade", &Trader::ApplyTestTrade),
           InstanceMethod("_start", &Trader::Start),
           InstanceMethod("_buffer", &Trader::Buffer),
@@ -312,6 +314,11 @@ Napi::Value Trader::SeedPosition(const Napi::CallbackInfo &info) {
 
 Napi::Value Trader::PositionCost(const Napi::CallbackInfo &info) {
   return Napi::Number::New(info.Env(), risk_.currentPositionCost());
+}
+
+Napi::Value Trader::ResetPositions(const Napi::CallbackInfo &info) {
+  risk_.resetPositions();
+  return info.Env().Undefined();
 }
 
 // test-only: (instrumentId, isBuy, isOpen, price, volume)
