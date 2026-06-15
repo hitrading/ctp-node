@@ -40,6 +40,11 @@ public:
   // Feed depth ticks to a Trader's arm registry (or nullptr to detach).
   void setArmRegistry(ArmRegistry *r) { armReg_.store(r, std::memory_order_relaxed); }
 
+  // Detach the api pointer before the owning MarketData releases it, so a
+  // late/teardown callback (or the test tick hook) can't dereference a freed
+  // api. Published atomically: OnRtnDepthMarketData reads it lock-free.
+  void clearApi() { api_.store(nullptr, std::memory_order_relaxed); }
+
   void OnFrontConnected() override;
   void OnFrontDisconnected(int nReason) override;
   void OnHeartBeatWarning(int nTimeLapse) override;
@@ -66,7 +71,7 @@ public:
   void OnRtnForQuoteRsp(CThostFtdcForQuoteRspField *p) override;
 
 private:
-  CThostFtdcMdApi *api_;
+  std::atomic<CThostFtdcMdApi *> api_;
   EventChannel *ch_;
   std::atomic<ArmRegistry *> armReg_{nullptr};
 };

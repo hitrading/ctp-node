@@ -89,11 +89,12 @@ export abstract class CtpClient extends EventEmitter {
   private readPos = 0;
   private readonly pending = new Map<number, Pending>();
   private reqSeq = 0;
-  /** Resolve a response whose server requestId is 0 against the oldest pending
-   *  request. Needed only for SimNow market-data login (it doesn't echo the id);
-   *  the trader echoes ids, so leaving this off avoids cross-delivering an
-   *  unrelated id-0 response to a pending query. MarketData opts in. */
-  protected zeroIdFallback = false;
+  /** Event id whose requestId-0 response should resolve the oldest pending
+   *  request (0 = off). Needed only for SimNow market-data login, which doesn't
+   *  echo the id; scoping it to the login event means an unrelated id-0 response
+   *  (sub/unsub/error) can't hijack a pending login. The trader echoes ids and
+   *  leaves this off. */
+  protected zeroIdFallbackEvent = 0;
   /** A request whose response never arrives (front dropped a reply, silent flow
    *  control) rejects after this many ms, so awaiters don't hang forever. */
   protected requestTimeoutMs = 30000;
@@ -199,15 +200,15 @@ export abstract class CtpClient extends EventEmitter {
     };
 
     // Responses (Rsp*) carry isLast (0/1); streaming pushes (Rtn*, front, …)
-    // use -1. Correlate a response to its pending request by requestId. Only
-    // when zeroIdFallback is enabled (MarketData) do we fall back to the oldest
-    // pending request for a server requestId of 0 — SimNow's market-data login
-    // doesn't echo it. The trader echoes ids, so it leaves the fallback off to
-    // avoid attaching an unrelated id-0 response to a pending query.
+    // use -1. Correlate a response to its pending request by requestId; only for
+    // the configured zeroIdFallbackEvent (MarketData's login) do we resolve a
+    // server requestId of 0 against the oldest pending request — SimNow's MD
+    // login doesn't echo the id. Scoping to that one event keeps an unrelated
+    // id-0 response from hijacking a pending request.
     if (isLastRaw !== -1 && this.pending.size > 0) {
       let key: number | undefined =
         reqId !== 0 && this.pending.has(reqId) ? reqId : undefined;
-      if (key === undefined && reqId === 0 && this.zeroIdFallback) {
+      if (key === undefined && reqId === 0 && evt === this.zeroIdFallbackEvent) {
         key = this.pending.keys().next().value;
       }
       const p = key !== undefined ? this.pending.get(key) : undefined;

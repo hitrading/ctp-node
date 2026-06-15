@@ -151,12 +151,16 @@ void MarketData::doClose() {
   if (closed_)
     return;
   closed_ = true;
+  // Detach the SPI's api pointer BEFORE releasing the api, so a late callback
+  // (or the test tick hook) can never dereference the freed api.
+  if (spi_) {
+    spi_->clearApi();
+    spi_->setArmRegistry(nullptr);
+  }
   if (api_) {
     api_->Release(); // stops the CTP callback thread (no more push / onTick)
     api_ = nullptr;
   }
-  if (spi_)
-    spi_->setArmRegistry(nullptr);
   armReg_.reset();
   if (ch_)
     ch_->stop(); // abort doorbell TSF
@@ -297,7 +301,7 @@ Napi::Value MarketData::AttachArm(const Napi::CallbackInfo &info) {
 
 Napi::Value MarketData::InjectTestTick(const Napi::CallbackInfo &info) {
   // Drive the real SPI path (so arm triggers are evaluated too).
-  if (spi_) {
+  if (spi_ && !closed_) {
     CThostFtdcDepthMarketDataField f;
     std::memset(&f, 0, sizeof(f));
     std::snprintf(f.InstrumentID, sizeof(f.InstrumentID), "%s", "rb2510");

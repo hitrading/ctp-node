@@ -77,8 +77,11 @@ void MdSpi::OnRspUnSubForQuoteRsp(CThostFtdcSpecificInstrumentField *p,
 }
 
 void MdSpi::OnRtnDepthMarketData(CThostFtdcDepthMarketDataField *p) {
-  if (p && api_) {
-    const char *td = api_->GetTradingDay();
+  // Load the api once: a concurrent close() (clearApi) must not let us deref a
+  // freed api between the null-check and the call.
+  CThostFtdcMdApi *api = api_.load(std::memory_order_relaxed);
+  if (p && api) {
+    const char *td = api->GetTradingDay();
     if (td)
       std::snprintf(p->TradingDay, sizeof(p->TradingDay), "%s", td);
   }

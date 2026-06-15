@@ -81,6 +81,10 @@ double RiskEngine::multiplierLocked(const std::string &instrumentId) const {
 
 void RiskEngine::seedPosition(const std::string &instrumentId, bool isLong,
                               double volume, double cost) {
+  // Reject non-finite/negative seeds so a bad value can't poison positionCost
+  // (a NaN would silently disable the cost cap, since NaN > cap is false).
+  if (!std::isfinite(volume) || !std::isfinite(cost) || volume < 0.0 || cost < 0.0)
+    return;
   std::lock_guard<std::mutex> lk(posMutex_);
   Pos &p = positions_[instrumentId];
   if (isLong) {
@@ -100,9 +104,10 @@ void RiskEngine::resetPositions() {
 
 void RiskEngine::onTrade(const std::string &instrumentId, bool isBuy,
                          bool isOpen, double price, double volume) {
-  // Real CTP fills are always positive; ignore malformed data rather than let a
-  // negative price/volume corrupt the tracked cost (defense in depth).
-  if (price <= 0.0 || volume <= 0.0)
+  // Real CTP fills are always positive & finite; ignore malformed data rather
+  // than let a negative/NaN price/volume corrupt the tracked cost. The !(>0)
+  // form (not <=0) also rejects NaN, which would silently void the cost cap.
+  if (!(price > 0.0) || !(volume > 0.0))
     return;
   std::lock_guard<std::mutex> lk(posMutex_);
   const double cost = price * volume * multiplierLocked(instrumentId);
@@ -349,7 +354,9 @@ RiskVerdict RiskEngine::check(const std::string &instrumentId, double price,
     return block("order volume exceeds maxOrderVolume");
 
   const double dev = maxPriceDeviation_.load(std::memory_order_relaxed);
-  if (dev > 0.0 && refPrice > 0.0) {
+  // price > 0 guard: a market/any-price order has LimitPrice 0, which must NOT
+  // be measured against the reference (|0-ref|/ref = 1.0 would always trip).
+  if (dev > 0.0 && refPrice > 0.0 && price > 0.0) {
     const double diff = std::fabs(price - refPrice) / refPrice;
     if (diff > dev)
       return block("order price deviates too far from reference");
