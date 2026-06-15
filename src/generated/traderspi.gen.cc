@@ -24,6 +24,8 @@ void TraderSpi::OnRspAuthenticate(CThostFtdcRspAuthenticateField *p, CThostFtdcR
 }
 
 void TraderSpi::OnRspUserLogin(CThostFtdcRspUserLoginField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  if (p && risk_)
+    risk_->setSession(p->FrontID, p->SessionID);
   ch_->push(ET_RspUserLogin, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_RspUserLogin : -1, p, p ? (int)sizeof(*p) : 0);
 }
 

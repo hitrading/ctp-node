@@ -114,6 +114,10 @@ for (const s of spi) {
   } else if (s.name === "OnRspOrderInsert" || s.name === "OnErrRtnOrderInsert") {
     // insertion rejected (no OnRtnOrder will follow) -> drop the reservation
     c += `  if (p && risk_)\n    risk_->releaseReservation(p->OrderRef);\n`;
+  } else if (s.name === "OnRspUserLogin") {
+    // publish our session synchronously on login, so reservation keys
+    // (front:session:orderRef) are correct before any order can be sent
+    c += `  if (p && risk_)\n    risk_->setSession(p->FrontID, p->SessionID);\n`;
   }
   c += `  ch_->push(ET_${member(s.name)}, ${reqId}, ${isLast}, ${errId}, ${errMsg}, ${sid}, ${ptr}, ${len});\n`;
   c += `}\n\n`;

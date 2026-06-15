@@ -60,6 +60,10 @@ export enum MarketDataEvent {
 export class MarketData extends CtpClient {
   constructor(flowPath: string, fronts: string | string[]) {
     super(new native.MarketData(flowPath, fronts), native.__layoutData(), MD_EVENTS);
+    // SimNow's MD OnRspUserLogin returns requestId 0; only one request (login)
+    // is ever in flight here, so resolving an id-0 response against the oldest
+    // pending request is safe and necessary.
+    this.zeroIdFallback = true;
     this.start();
   }
 

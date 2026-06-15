@@ -70,6 +70,7 @@ interface Pending {
   resolve: (v: unknown) => void;
   reject: (e: unknown) => void;
   single: boolean;
+  timer?: ReturnType<typeof setTimeout>;
 }
 
 export abstract class CtpClient extends EventEmitter {
@@ -88,6 +89,14 @@ export abstract class CtpClient extends EventEmitter {
   private readPos = 0;
   private readonly pending = new Map<number, Pending>();
   private reqSeq = 0;
+  /** Resolve a response whose server requestId is 0 against the oldest pending
+   *  request. Needed only for SimNow market-data login (it doesn't echo the id);
+   *  the trader echoes ids, so leaving this off avoids cross-delivering an
+   *  unrelated id-0 response to a pending query. MarketData opts in. */
+  protected zeroIdFallback = false;
+  /** A request whose response never arrives (front dropped a reply, silent flow
+   *  control) rejects after this many ms, so awaiters don't hang forever. */
+  protected requestTimeoutMs = 30000;
 
   protected constructor(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,6 +110,19 @@ export abstract class CtpClient extends EventEmitter {
     this.layouts = parseLayouts(layoutBlob);
     this.decoders = new Array(this.layouts.length);
     this.events = events;
+    // A dropped connection won't deliver in-flight responses - fail them fast.
+    this.on("front-disconnected", () => this.rejectAllPending("front disconnected"));
+  }
+
+  /** Reject and clear every in-flight request (on disconnect / close). */
+  private rejectAllPending(reason: string): void {
+    if (this.pending.size === 0) return;
+    const err = new Error(reason);
+    for (const [id, p] of this.pending) {
+      if (p.timer) clearTimeout(p.timer);
+      this.pending.delete(id);
+      p.reject(err);
+    }
   }
 
   /** Wire up the ring view + doorbell. Subclasses call this in their ctor. */
@@ -121,6 +143,7 @@ export abstract class CtpClient extends EventEmitter {
   }
 
   close(): void {
+    this.rejectAllPending("client closed");
     this.native.close();
   }
 
@@ -176,18 +199,21 @@ export abstract class CtpClient extends EventEmitter {
     };
 
     // Responses (Rsp*) carry isLast (0/1); streaming pushes (Rtn*, front, …)
-    // use -1. Correlate a response to its pending request by requestId, but
-    // fall back to the oldest pending request when the server returns
-    // requestId 0 — SimNow's market-data login, for one, does not echo it.
+    // use -1. Correlate a response to its pending request by requestId. Only
+    // when zeroIdFallback is enabled (MarketData) do we fall back to the oldest
+    // pending request for a server requestId of 0 — SimNow's market-data login
+    // doesn't echo it. The trader echoes ids, so it leaves the fallback off to
+    // avoid attaching an unrelated id-0 response to a pending query.
     if (isLastRaw !== -1 && this.pending.size > 0) {
       let key: number | undefined =
         reqId !== 0 && this.pending.has(reqId) ? reqId : undefined;
-      if (key === undefined && reqId === 0) {
+      if (key === undefined && reqId === 0 && this.zeroIdFallback) {
         key = this.pending.keys().next().value;
       }
       const p = key !== undefined ? this.pending.get(key) : undefined;
       if (p && key !== undefined) {
         if (rspInfo) {
+          if (p.timer) clearTimeout(p.timer);
           this.pending.delete(key);
           p.reject(
             Object.assign(
@@ -198,6 +224,7 @@ export abstract class CtpClient extends EventEmitter {
         } else {
           if (value !== undefined) p.rows.push(value);
           if (isLastRaw === 1) {
+            if (p.timer) clearTimeout(p.timer);
             this.pending.delete(key);
             p.resolve(p.single ? p.rows[0] : p.rows);
           }
@@ -252,12 +279,13 @@ export abstract class CtpClient extends EventEmitter {
   protected request<T>(send: (id: number) => number, single = false): Promise<T> {
     const id = this.nextRequestId();
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, {
+      const entry: Pending = {
         rows: [],
         resolve: resolve as (v: unknown) => void,
         reject,
         single,
-      });
+      };
+      this.pending.set(id, entry);
       let rc: number;
       try {
         rc = send(id);
@@ -270,6 +298,14 @@ export abstract class CtpClient extends EventEmitter {
         this.pending.delete(id);
         const msg = this.riskRejectMessage(rc) ?? `request rejected by CTP API (code ${rc})`;
         reject(new Error(msg));
+        return;
+      }
+      // Backstop: if no response ever arrives, fail rather than hang forever.
+      if (this.requestTimeoutMs > 0) {
+        entry.timer = setTimeout(() => {
+          if (this.pending.delete(id)) reject(new Error("request timed out"));
+        }, this.requestTimeoutMs);
+        if (typeof entry.timer.unref === "function") entry.timer.unref();
       }
     });
   }
