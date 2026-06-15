@@ -27,6 +27,7 @@ const cfg = {
   symbol: env.CTP_SYMBOL ?? "rb2610",
   placeOrder: env.CTP_PLACE_ORDER === "1",
   arm: env.CTP_ARM === "1",
+  devDemo: env.CTP_DEV_DEMO === "1",
   skipAuth: env.CTP_SKIP_AUTH === "1",
 };
 
@@ -61,7 +62,9 @@ md.on("front-connected", async () => {
 });
 md.on("front-disconnected", (reason) => log("MD front-disconnected", reason));
 let tickCount = 0;
+let lastSeenPrice = 0;
 md.on("rtn-depth-market-data", (t) => {
+  lastSeenPrice = t.lastPrice;
   if (tickCount++ < 5)
     log(`tick ${t.instrumentId} last=${t.lastPrice} bid=${t.bidPrice1} ask=${t.askPrice1} vol=${t.volume} @${t.updateTime}`);
 });
@@ -122,6 +125,25 @@ td.on("front-connected", async () => {
         },
       });
       setTimeout(() => log("arm fireCount =", td._armFireCount()), 4000);
+    }
+
+    if (cfg.devDemo) {
+      td.riskSet({ maxPriceDeviation: 0.05 });
+      td.trackMarketData(md);
+      log("maxPriceDeviation 5% + trackMarketData(md); waiting for live ref price...");
+      await sleep(2500);
+      const bad = Math.round((lastSeenPrice || 3000) * 1.2); // +20% -> should be blocked
+      const r = await td
+        .reqOrderInsert({
+          brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: cfg.symbol,
+          orderRef: "dev1", direction: "0", combOffsetFlag: "0", combHedgeFlag: "1",
+          orderPriceType: "2", limitPrice: bad, volumeTotalOriginal: 1,
+          timeCondition: "3", volumeCondition: "1", contingentCondition: "1",
+          forceCloseReason: "0", isAutoSuspend: 0, userForceClose: 0,
+        })
+        .then(() => "SENT (unexpected!)")
+        .catch((e) => e.message);
+      log(`deviation demo: BUY @ ${bad} vs live≈${lastSeenPrice} -> ${r}`);
     }
   } catch (e) {
     log("TD flow FAILED:", e.message, "errorId=", e.errorId);
