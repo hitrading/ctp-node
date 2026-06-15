@@ -13,6 +13,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -76,11 +77,13 @@ private:
   Napi::Value DropCount(const Napi::CallbackInfo &info);
   Napi::Value ChannelInfo(const Napi::CallbackInfo &info);
   Napi::Value Close(const Napi::CallbackInfo &info);
+  Napi::Value AttachArm(const Napi::CallbackInfo &info);
   Napi::Value InjectTestTick(const Napi::CallbackInfo &info);
 
   CThostFtdcMdApi *api_ = nullptr;
   MdSpi *spi_ = nullptr;
   EventChannel *ch_ = nullptr;
+  std::shared_ptr<ArmRegistry> armReg_;
   bool started_ = false;
   bool closed_ = false;
 };
@@ -103,6 +106,7 @@ Napi::Function MarketData::Init(Napi::Env env) {
           InstanceMethod("_release", &MarketData::ReleaseBatch),
           InstanceMethod("_dropCount", &MarketData::DropCount),
           InstanceMethod("_info", &MarketData::ChannelInfo),
+          InstanceMethod("_attachArm", &MarketData::AttachArm),
           InstanceMethod("_injectTestTick", &MarketData::InjectTestTick),
           InstanceMethod("close", &MarketData::Close),
       });
@@ -148,9 +152,12 @@ void MarketData::doClose() {
     return;
   closed_ = true;
   if (api_) {
-    api_->Release(); // stops the CTP callback thread (no more push)
+    api_->Release(); // stops the CTP callback thread (no more push / onTick)
     api_ = nullptr;
   }
+  if (spi_)
+    spi_->setArmRegistry(nullptr);
+  armReg_.reset();
   if (ch_)
     ch_->stop(); // abort doorbell TSF
 }
@@ -277,8 +284,20 @@ Napi::Value MarketData::Close(const Napi::CallbackInfo &info) {
   return info.Env().Undefined();
 }
 
+Napi::Value MarketData::AttachArm(const Napi::CallbackInfo &info) {
+  auto ext = info[0].As<Napi::External<std::shared_ptr<ArmRegistry>>>();
+  std::shared_ptr<ArmRegistry> *sp = ext.Data();
+  if (sp && *sp) {
+    armReg_ = *sp; // share ownership so the registry can't dangle
+    if (spi_)
+      spi_->setArmRegistry(armReg_.get());
+  }
+  return info.Env().Undefined();
+}
+
 Napi::Value MarketData::InjectTestTick(const Napi::CallbackInfo &info) {
-  if (ch_) {
+  // Drive the real SPI path (so arm triggers are evaluated too).
+  if (spi_) {
     CThostFtdcDepthMarketDataField f;
     std::memset(&f, 0, sizeof(f));
     std::snprintf(f.InstrumentID, sizeof(f.InstrumentID), "%s", "rb2510");
@@ -288,8 +307,7 @@ Napi::Value MarketData::InjectTestTick(const Napi::CallbackInfo &info) {
     f.AskPrice1 = 3501.0;
     f.BidVolume1 = 10;
     f.Volume = 12345;
-    ch_->push(MD_RTN_DEPTH_MARKET_DATA, 0, -1, 0, "", SID_DepthMarketData, &f,
-              sizeof(f));
+    spi_->OnRtnDepthMarketData(&f);
   }
   return info.Env().Undefined();
 }

@@ -12,7 +12,7 @@ High-performance, type-safe [CTP](http://www.sfit.com.cn/) (上期技术综合�
 
 ## Requirements
 
-Node ≥ 18, and a C++ toolchain for building from source (Windows: VS Build Tools; Linux/macOS: clang/gcc). Prebuilt binaries are shipped for common platforms, so most users need no compiler.
+Node ≥ 18. Prebuilt binaries are shipped for Windows/Linux/macOS (x64), so most users need no compiler. Other platforms build from source on install and need a C++ toolchain (Windows: VS Build Tools; Linux/macOS: clang/gcc). The CTP shared libraries are bundled next to the loaded addon and resolved automatically.
 
 ## Install
 
@@ -68,6 +68,26 @@ td.on("rtn-trade", (trade) => console.log("filled", trade.price, trade.volume));
 
 // Emergency kill-switch (blocks all sends in C++ immediately):
 // td.halt();  /  td.resume();
+```
+
+### Armed orders (latency-critical)
+
+Fire an order from C++ the instant the market hits your trigger — evaluated on
+the market-data callback thread, through the risk gate, with **no JS in the
+loop** (no event-loop hop, no GC exposure):
+
+```ts
+const armed = trader.arm(md, {
+  instrumentId: "rb2510",
+  side: "buy",            // buy fires when ask ≤ trigger; sell when bid ≥ trigger
+  triggerPrice: 3500,
+  order: {
+    brokerId, investorId, instrumentId: "rb2510", direction: "0",
+    limitPrice: 3500, volumeTotalOriginal: 1, orderRef: "snipe-1",
+  },
+});
+// One-shot. The ack/fill arrives via the normal rtn-order events (match orderRef).
+// armed.disarm();
 ```
 
 Enums are exported and typed:

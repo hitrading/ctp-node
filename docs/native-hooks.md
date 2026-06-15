@@ -35,10 +35,15 @@ notified afterward.
    - Status: **real** (token bucket).
 
 3. **Arm (latency-critical trigger)** — `src/native/arm.h` `ArmRegistry`
-   A narrow rule ("fire the instant ask ≤ X") evaluated on the callback thread,
-   parameterized from JS. Only for genuinely latency-sensitive strategies.
-   - Status: registry + tick matching **real**; the actual order fire is
-     **reserved (TODO)** until the Trader send path exists.
+   A narrow rule ("fire the instant ask ≤ X") evaluated on the MD callback
+   thread, parameterized from JS. Only for genuinely latency-sensitive
+   strategies.
+   - Status: **wired**. `trader.arm(md, spec)` shares the registry (shared_ptr)
+     with the MarketData feeding ticks; on a hit the order is built from the
+     JS-encoded template, passed through the Trader's `RiskEngine`, and sent via
+     `ReqOrderInsert` on the MD callback thread (no JS). One-shot; ack via normal
+     trader events. Teardown-safe: the sink is cleared under the registry lock
+     before the API is released.
 
 ## Threading / safety model
 

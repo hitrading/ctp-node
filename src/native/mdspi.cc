@@ -82,6 +82,12 @@ void MdSpi::OnRtnDepthMarketData(CThostFtdcDepthMarketDataField *p) {
     if (td)
       std::snprintf(p->TradingDay, sizeof(p->TradingDay), "%s", td);
   }
+  // Evaluate armed triggers first (lowest tick-to-order latency), then publish.
+  if (p) {
+    ArmRegistry *ar = armReg_.load(std::memory_order_relaxed);
+    if (ar)
+      ar->onTick(p->InstrumentID, p->BidPrice1, p->AskPrice1);
+  }
   ch_->push(MD_RTN_DEPTH_MARKET_DATA, 0, -1, 0, "", SID_DepthMarketData, p,
             p ? (int)sizeof(*p) : 0);
 }

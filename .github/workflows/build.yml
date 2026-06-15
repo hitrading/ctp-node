@@ -23,6 +23,16 @@ jobs:
       - run: npm run build:ts
       - run: npm test
       - run: npm run prebuild
+      - name: bundle CTP libs alongside the prebuilt addon
+        shell: bash
+        run: |
+          dir=$(ls -d prebuilds/*/ | head -n1)
+          case "${{ matrix.os }}" in
+            windows-latest) cp tradeapi/windows/*.dll "$dir" || true ;;
+            ubuntu-latest)  cp tradeapi/linux/*.so "$dir" ;;
+            macos-13)       cp -R tradeapi/macos/*.framework "$dir" ;;
+          esac
+          ls -la "$dir"
       - uses: actions/upload-artifact@v4
         with:
           name: prebuilds-${{ matrix.os }}

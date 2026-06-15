@@ -95,8 +95,12 @@ Napi::Value RiskSelfTest(const Napi::CallbackInfo &info) {
   out.Set("rateLimiter", rlo);
 
   ctp::ArmRegistry reg;
-  uint64_t id = reg.arm({0, "rb2510", '0', 3500.0, 1, 0.0});
-  reg.onTick("rb2510", 3499.0, 3500.0);
+  ctp::ArmSpec spec;
+  spec.instrumentId = "rb2510";
+  spec.side = '0';
+  spec.triggerPrice = 3500.0;
+  uint64_t id = reg.arm(spec);
+  reg.onTick("rb2510", 3499.0, 3500.0); // no sink -> no fire, just registry
   Napi::Object armo = Napi::Object::New(env);
   armo.Set("armedCount", static_cast<double>(reg.size()));
   armo.Set("disarmed", reg.disarm(id));

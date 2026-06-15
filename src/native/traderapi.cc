@@ -12,7 +12,10 @@
 
 #include "traderapi.h"
 
+#include <algorithm>
+#include <atomic>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -20,6 +23,7 @@
 #include "../generated/traderreq.gen.h"
 #include "../generated/traderspi.gen.h"
 #include "ThostFtdcTraderApi.h"
+#include "arm.h"
 #include "channel.h"
 #include "risk.h"
 
@@ -58,11 +62,14 @@ double getDbl(const Napi::Object &o, const char *k, double d) {
 
 } // namespace
 
-class Trader : public Napi::ObjectWrap<Trader> {
+class Trader : public Napi::ObjectWrap<Trader>, public OrderSink {
 public:
   static Napi::Function Init(Napi::Env env);
   Trader(const Napi::CallbackInfo &info);
   ~Trader();
+
+  // OrderSink: called on the MD callback thread when an armed trigger hits.
+  int fireArmed(const ArmSpec &spec) override;
 
 private:
   void doClose();
@@ -80,11 +87,17 @@ private:
   Napi::Value DropCount(const Napi::CallbackInfo &info);
   Napi::Value ChannelInfo(const Napi::CallbackInfo &info);
   Napi::Value Close(const Napi::CallbackInfo &info);
+  Napi::Value ArmRegistryExternal(const Napi::CallbackInfo &info);
+  Napi::Value Arm(const Napi::CallbackInfo &info);
+  Napi::Value Disarm(const Napi::CallbackInfo &info);
+  Napi::Value ArmFireCount(const Napi::CallbackInfo &info);
 
   CThostFtdcTraderApi *api_ = nullptr;
   TraderSpi *spi_ = nullptr;
   EventChannel *ch_ = nullptr;
   RiskEngine risk_;
+  std::shared_ptr<ArmRegistry> arm_ = std::make_shared<ArmRegistry>();
+  std::atomic<int> armReqId_{1000000};
   bool started_ = false;
   bool closed_ = false;
 };
@@ -105,6 +118,10 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("_release", &Trader::ReleaseBatch),
           InstanceMethod("_dropCount", &Trader::DropCount),
           InstanceMethod("_info", &Trader::ChannelInfo),
+          InstanceMethod("_armRegistry", &Trader::ArmRegistryExternal),
+          InstanceMethod("arm", &Trader::Arm),
+          InstanceMethod("disarm", &Trader::Disarm),
+          InstanceMethod("_armFireCount", &Trader::ArmFireCount),
           InstanceMethod("close", &Trader::Close),
       });
 }
@@ -127,6 +144,7 @@ Trader::Trader(const Napi::CallbackInfo &info) : Napi::ObjectWrap<Trader>(info) 
   ch_ = new EventChannel(4096, static_cast<size_t>(ctpMaxStructSize()));
   spi_ = new TraderSpi(api_, ch_);
   api_->RegisterSpi(spi_);
+  arm_->setSink(this); // armed triggers fire orders through this Trader
   api_->SubscribePublicTopic(THOST_TERT_QUICK);
   api_->SubscribePrivateTopic(THOST_TERT_QUICK);
 
@@ -150,12 +168,59 @@ void Trader::doClose() {
   if (closed_)
     return;
   closed_ = true;
+  arm_->clearSink(); // taken under the arm lock: no fire can race the release
   if (api_) {
     api_->Release();
     api_ = nullptr;
   }
   if (ch_)
     ch_->stop();
+}
+
+int Trader::fireArmed(const ArmSpec &spec) {
+  CThostFtdcTraderApi *api = api_;
+  if (!api)
+    return -1;
+  CThostFtdcInputOrderField f;
+  std::memset(&f, 0, sizeof(f));
+  std::memcpy(&f, spec.orderTemplate.data(),
+              std::min(spec.orderTemplate.size(), sizeof(f)));
+  RiskVerdict v = risk_.check(f.LimitPrice, 0.0, f.VolumeTotalOriginal);
+  if (!v.ok)
+    return CTP_RISK_BLOCKED;
+  if (!risk_.allowRate())
+    return CTP_RATE_LIMITED;
+  return api->ReqOrderInsert(&f, armReqId_.fetch_add(1));
+}
+
+Napi::Value Trader::ArmRegistryExternal(const Napi::CallbackInfo &info) {
+  auto *sp = new std::shared_ptr<ArmRegistry>(arm_);
+  return Napi::External<std::shared_ptr<ArmRegistry>>::New(
+      info.Env(), sp,
+      [](Napi::Env, std::shared_ptr<ArmRegistry> *p) { delete p; });
+}
+
+Napi::Value Trader::Arm(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  ArmSpec spec;
+  spec.instrumentId = info[0].As<Napi::String>().Utf8Value();
+  std::string side = info[1].As<Napi::String>().Utf8Value();
+  spec.side = side.empty() ? '0' : side[0];
+  spec.triggerPrice = info[2].As<Napi::Number>().DoubleValue();
+  Napi::Uint8Array bytes = info[3].As<Napi::Uint8Array>();
+  spec.orderTemplate.assign(bytes.Data(), bytes.Data() + bytes.ByteLength());
+  uint64_t id = arm_->arm(std::move(spec));
+  return Napi::Number::New(env, static_cast<double>(id));
+}
+
+Napi::Value Trader::Disarm(const Napi::CallbackInfo &info) {
+  uint64_t id = static_cast<uint64_t>(info[0].As<Napi::Number>().DoubleValue());
+  return Napi::Boolean::New(info.Env(), arm_->disarm(id));
+}
+
+Napi::Value Trader::ArmFireCount(const Napi::CallbackInfo &info) {
+  return Napi::Number::New(info.Env(),
+                           static_cast<double>(arm_->fireCount()));
 }
 
 Napi::Value Trader::GetApiVersion(const Napi::CallbackInfo &info) {

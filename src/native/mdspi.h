@@ -9,7 +9,9 @@
 #define CTP_NATIVE_MDSPI_H
 
 #include "ThostFtdcMdApi.h"
+#include "arm.h"
 #include "channel.h"
+#include <atomic>
 
 namespace ctp {
 
@@ -34,6 +36,9 @@ class MdSpi : public CThostFtdcMdSpi {
 public:
   MdSpi(CThostFtdcMdApi *api, EventChannel *channel) : api_(api), ch_(channel) {}
   ~MdSpi() {}
+
+  // Feed depth ticks to a Trader's arm registry (or nullptr to detach).
+  void setArmRegistry(ArmRegistry *r) { armReg_.store(r, std::memory_order_relaxed); }
 
   void OnFrontConnected() override;
   void OnFrontDisconnected(int nReason) override;
@@ -63,6 +68,7 @@ public:
 private:
   CThostFtdcMdApi *api_;
   EventChannel *ch_;
+  std::atomic<ArmRegistry *> armReg_{nullptr};
 };
 
 } // namespace ctp

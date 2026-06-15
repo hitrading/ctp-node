@@ -98,6 +98,11 @@ export class MarketData extends CtpClient {
     );
   }
 
+  /** Route this market data's ticks to a Trader's armed triggers (see Trader.arm). */
+  attachArm(trader: { _armRegistry(): unknown }): void {
+    this.native._attachArm(trader._armRegistry());
+  }
+
   /** @internal test-only: inject a synthetic depth tick into the ring. */
   _injectTestTick(): void {
     (this.native as { _injectTestTick(): void })._injectTestTick();

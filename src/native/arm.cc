@@ -6,11 +6,22 @@
 
 namespace ctp {
 
-uint64_t ArmRegistry::arm(const ArmSpec &spec) {
+void ArmRegistry::setSink(OrderSink *sink) {
   std::lock_guard<std::mutex> lk(m_);
-  ArmSpec s = spec;
-  s.id = nextId_++;
-  armed_.push_back(std::move(s));
+  sink_ = sink;
+}
+
+void ArmRegistry::clearSink() {
+  std::lock_guard<std::mutex> lk(m_);
+  sink_ = nullptr;
+}
+
+uint64_t ArmRegistry::arm(ArmSpec spec) {
+  std::lock_guard<std::mutex> lk(m_);
+  spec.id = nextId_++;
+  spec.fired = false;
+  armed_.push_back(std::move(spec));
+  count_.store(armed_.size(), std::memory_order_relaxed);
   return armed_.back().id;
 }
 
@@ -19,6 +30,7 @@ bool ArmRegistry::disarm(uint64_t id) {
   for (auto it = armed_.begin(); it != armed_.end(); ++it) {
     if (it->id == id) {
       armed_.erase(it);
+      count_.store(armed_.size(), std::memory_order_relaxed);
       return true;
     }
   }
@@ -31,20 +43,23 @@ size_t ArmRegistry::size() const {
 }
 
 void ArmRegistry::onTick(const char *instrumentId, double bid, double ask) {
-  std::lock_guard<std::mutex> lk(m_);
-  for (const auto &a : armed_) {
-    if (a.instrumentId != instrumentId)
-      continue;
+  if (count_.load(std::memory_order_relaxed) == 0)
+    return; // no arms: zero overhead on the tick hot path
 
-    // Buy fires when the ask drops to/below the trigger; sell when the bid
-    // rises to/above it.
+  std::lock_guard<std::mutex> lk(m_);
+  if (!sink_)
+    return;
+
+  for (auto &a : armed_) {
+    if (a.fired || a.instrumentId != instrumentId)
+      continue;
     const bool hit = (a.side == '0') ? (ask > 0.0 && ask <= a.triggerPrice)
                                      : (bid > 0.0 && bid >= a.triggerPrice);
     if (!hit)
       continue;
-
-    // TODO(fire): run RiskEngine::check + allowRate, then send the order here,
-    //             entirely on this thread (no JS round trip). Reserved.
+    a.fired = true; // one-shot
+    fireCount_.fetch_add(1, std::memory_order_relaxed);
+    sink_->fireArmed(a); // build order + risk + ReqOrderInsert, on this thread
   }
 }
 

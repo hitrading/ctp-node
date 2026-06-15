@@ -8,8 +8,10 @@
 
 import { native } from "./native-binding.js";
 import { TraderBase, TRADER_EVENTS, TraderEvent } from "./generated/trader.gen.js";
+import { STRUCT_ID } from "./generated/structs.gen.js";
 import type { CallbackOptions } from "./client.js";
 import type { Order, Trade, InputOrder, TradingAccount } from "./generated/structs.gen.js";
+import type { MarketData } from "./market-data.js";
 
 /** Pre-trade risk limits, enforced in C++ before each order is sent. */
 export interface RiskConfig {
@@ -24,6 +26,24 @@ export interface RiskConfig {
   maxOrdersPerSec?: number;
   /** Token-bucket burst; defaults to maxOrdersPerSec. */
   orderBurst?: number;
+}
+
+/** A latency-critical armed order: evaluated and fired in C++ on the market-data
+ *  callback thread the instant its trigger hits — JS is never in the hot path. */
+export interface ArmSpec {
+  instrumentId: string;
+  /** Buy fires when ask ≤ triggerPrice; sell when bid ≥ triggerPrice. */
+  side: "buy" | "sell";
+  triggerPrice: number;
+  /** The order to send when triggered (a full InputOrder; set an OrderRef to
+   *  correlate the resulting rtn-order). */
+  order: Partial<InputOrder>;
+}
+
+export interface ArmHandle {
+  readonly id: number;
+  /** Remove the trigger. Returns false if it was already gone. */
+  disarm(): boolean;
 }
 
 export class Trader extends TraderBase {
@@ -53,6 +73,37 @@ export class Trader extends TraderBase {
   resume(): this {
     this.native.riskResume();
     return this;
+  }
+
+  /**
+   * Arm a latency-critical trigger: when `md` sees the condition, the order is
+   * sent from C++ on the callback thread (through this Trader's risk gate),
+   * with no JS round trip. One-shot. The acknowledgement arrives via the normal
+   * rtn-order / rsp-order-insert events (correlate by the order's orderRef).
+   */
+  arm(md: MarketData, spec: ArmSpec): ArmHandle {
+    md.attachArm(this);
+    const bytes = this.encode(
+      STRUCT_ID.InputOrder,
+      spec.order as Record<string, unknown>
+    );
+    const id: number = this.native.arm(
+      spec.instrumentId,
+      spec.side === "buy" ? "0" : "1",
+      spec.triggerPrice,
+      bytes
+    );
+    return { id, disarm: () => this.native.disarm(id) as boolean };
+  }
+
+  /** @internal used by MarketData.attachArm to share the arm registry. */
+  _armRegistry(): unknown {
+    return this.native._armRegistry();
+  }
+
+  /** @internal test-only: how many times armed triggers have fired. */
+  _armFireCount(): number {
+    return this.native._armFireCount();
   }
 
   // Typed streaming events (the common ones; any event name still works).

@@ -50,9 +50,19 @@
           "libraries": [
             "<(module_root_dir)/tradeapi/linux/thostmduserapi_se.so",
             "<(module_root_dir)/tradeapi/linux/thosttraderapi_se.so",
+            "-Wl,-rpath,'$$ORIGIN'",
             "-Wl,-rpath,<(module_root_dir)/tradeapi/linux"
           ],
-          "cflags_cc": [ "-std=c++17", "-fexceptions" ]
+          "cflags_cc": [ "-std=c++17", "-fexceptions" ],
+          "copies": [
+            {
+              "destination": "<(PRODUCT_DIR)",
+              "files": [
+                "<(module_root_dir)/tradeapi/linux/thostmduserapi_se.so",
+                "<(module_root_dir)/tradeapi/linux/thosttraderapi_se.so"
+              ]
+            }
+          ]
         }],
         ["OS=='mac'", {
           "include_dirs": [
@@ -63,6 +73,7 @@
             "-F<(module_root_dir)/tradeapi/macos",
             "-framework thostmduserapi_se",
             "-framework thosttraderapi_se",
+            "-Wl,-rpath,@loader_path",
             "-Wl,-rpath,<(module_root_dir)/tradeapi/macos"
           ],
           "xcode_settings": {
