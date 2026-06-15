@@ -94,7 +94,8 @@ void RiskEngine::seedPosition(const std::string &instrumentId, bool isLong,
 
 void RiskEngine::resetPositions() {
   std::lock_guard<std::mutex> lk(posMutex_);
-  positions_.clear();
+  positions_.clear(); // clears held AND in-flight pending (both live in Pos)
+  reservations_.clear();
 }
 
 void RiskEngine::onTrade(const std::string &instrumentId, bool isBuy,
@@ -137,48 +138,151 @@ void RiskEngine::setMaxInstrumentCost(const std::string &instrumentId,
   maxInstrumentCost_[instrumentId] = maxCost > 0.0 ? maxCost : 0.0; // 0 = off
 }
 
-bool RiskEngine::allowOpen(const std::string &instrumentId, double price,
-                           double volume) const {
-  const double globalCap = maxPositionCost_.load(std::memory_order_relaxed);
-  std::lock_guard<std::mutex> lk(posMutex_);
-  const double add = price * volume * multiplierLocked(instrumentId);
-
-  // Per-instrument cost cap (concentration): this contract's open cost only.
+bool RiskEngine::hasCapLocked(const std::string &instrumentId, bool isLong) const {
+  if (maxPositionCost_.load(std::memory_order_relaxed) > 0.0)
+    return true;
   auto cit = maxInstrumentCost_.find(instrumentId);
-  if (cit != maxInstrumentCost_.end() && cit->second > 0.0) {
-    double instrCost = 0.0;
-    auto pit = positions_.find(instrumentId);
-    if (pit != positions_.end())
-      instrCost = pit->second.longCost + pit->second.shortCost;
-    if (instrCost + add > cit->second)
-      return false;
-  }
-
-  // Global cost cap: total open cost across the whole book.
-  if (globalCap > 0.0) {
-    double total = 0.0;
-    for (const auto &kv : positions_)
-      total += kv.second.longCost + kv.second.shortCost;
-    if (total + add > globalCap)
-      return false;
-  }
-  return true;
+  if (cit != maxInstrumentCost_.end() && cit->second > 0.0)
+    return true;
+  auto vit = maxPositionVol_.find(instrumentId);
+  if (vit != maxPositionVol_.end() &&
+      (isLong ? vit->second.longMax : vit->second.shortMax) > 0.0)
+    return true;
+  return false;
 }
 
-bool RiskEngine::allowOpenVolume(const std::string &instrumentId, bool isLong,
-                                 double volume) const {
+OpenGate RiskEngine::tryReserveOpen(const std::string &orderRef,
+                                    const std::string &instrumentId, bool isLong,
+                                    double price, double volume) {
+  const double globalCap = maxPositionCost_.load(std::memory_order_relaxed);
   std::lock_guard<std::mutex> lk(posMutex_);
-  auto it = maxPositionVol_.find(instrumentId);
-  if (it == maxPositionVol_.end())
-    return true; // no cap for this instrument
-  const double cap = isLong ? it->second.longMax : it->second.shortMax;
-  if (cap <= 0.0)
-    return true; // this side uncapped
-  double held = 0.0;
+  const double addCost = price * volume * multiplierLocked(instrumentId);
+  const Pos *p = nullptr;
   auto pit = positions_.find(instrumentId);
   if (pit != positions_.end())
-    held = isLong ? pit->second.longVol : pit->second.shortVol;
-  return held + volume <= cap;
+    p = &pit->second;
+  bool capped = false;
+
+  // 1) per-side volume cap (committed = held + reserved on this side)
+  auto vit = maxPositionVol_.find(instrumentId);
+  if (vit != maxPositionVol_.end()) {
+    const double cap = isLong ? vit->second.longMax : vit->second.shortMax;
+    if (cap > 0.0) {
+      capped = true;
+      double committed = 0.0;
+      if (p)
+        committed = isLong ? p->longVol + p->longPendVol
+                           : p->shortVol + p->shortPendVol;
+      if (committed + volume > cap)
+        return OpenGate::VolumeLimit;
+    }
+  }
+
+  // 2) per-instrument cost cap (both sides, held + reserved)
+  auto cit = maxInstrumentCost_.find(instrumentId);
+  if (cit != maxInstrumentCost_.end() && cit->second > 0.0) {
+    capped = true;
+    double instrCost = 0.0;
+    if (p)
+      instrCost = p->longCost + p->longPendCost + p->shortCost + p->shortPendCost;
+    if (instrCost + addCost > cit->second)
+      return OpenGate::CostLimit;
+  }
+
+  // 3) global cost cap (whole book, held + reserved)
+  if (globalCap > 0.0) {
+    capped = true;
+    double total = 0.0;
+    for (const auto &kv : positions_)
+      total += kv.second.longCost + kv.second.longPendCost +
+               kv.second.shortCost + kv.second.shortPendCost;
+    if (total + addCost > globalCap)
+      return OpenGate::CostLimit;
+  }
+
+  // Passed every active cap -> reserve (only if a cap is in force; otherwise
+  // there is nothing to enforce and tracking would just be overhead).
+  if (capped) {
+    Pos &pp = positions_[instrumentId];
+    if (isLong) {
+      pp.longPendVol += volume;
+      pp.longPendCost += addCost;
+    } else {
+      pp.shortPendVol += volume;
+      pp.shortPendCost += addCost;
+    }
+    reservations_[orderRef] = Reservation{instrumentId, isLong, volume, addCost};
+  }
+  return OpenGate::Ok;
+}
+
+void RiskEngine::onOrderUpdate(const std::string &orderRef,
+                               const std::string &instrumentId, bool isOpen,
+                               bool isLong, char status, double limitPrice,
+                               double volTotal, double volTraded) {
+  if (!isOpen)
+    return; // only opening orders reserve
+  std::lock_guard<std::mutex> lk(posMutex_);
+  const bool working = (status == '1' || status == '3'); // queueing
+  double desiredVol = working ? volTotal - volTraded : 0.0;
+  if (desiredVol < 0.0)
+    desiredVol = 0.0;
+  const double mult = multiplierLocked(instrumentId);
+  const double desiredCost = desiredVol * limitPrice * mult;
+
+  auto rit = reservations_.find(orderRef);
+  if (rit == reservations_.end()) {
+    // Untracked order (e.g. sent before a cap existed, or replayed on login):
+    // start tracking only if a cap now applies and there is something working.
+    if (desiredVol <= 0.0 || !hasCapLocked(instrumentId, isLong))
+      return;
+    Pos &pp = positions_[instrumentId];
+    if (isLong) {
+      pp.longPendVol += desiredVol;
+      pp.longPendCost += desiredCost;
+    } else {
+      pp.shortPendVol += desiredVol;
+      pp.shortPendCost += desiredCost;
+    }
+    reservations_[orderRef] = Reservation{instrumentId, isLong, desiredVol, desiredCost};
+    return;
+  }
+
+  // Reconcile the existing reservation to the order's current working remainder.
+  Reservation &r = rit->second;
+  const double dVol = desiredVol - r.vol;
+  const double dCost = desiredCost - r.cost;
+  Pos &pp = positions_[r.instrumentId];
+  if (r.isLong) {
+    pp.longPendVol += dVol;
+    pp.longPendCost += dCost;
+  } else {
+    pp.shortPendVol += dVol;
+    pp.shortPendCost += dCost;
+  }
+  if (desiredVol <= 0.0)
+    reservations_.erase(rit); // terminal: fully released
+  else {
+    r.vol = desiredVol;
+    r.cost = desiredCost;
+  }
+}
+
+void RiskEngine::releaseReservation(const std::string &orderRef) {
+  std::lock_guard<std::mutex> lk(posMutex_);
+  auto rit = reservations_.find(orderRef);
+  if (rit == reservations_.end())
+    return;
+  Reservation &r = rit->second;
+  Pos &pp = positions_[r.instrumentId];
+  if (r.isLong) {
+    pp.longPendVol -= r.vol;
+    pp.longPendCost -= r.cost;
+  } else {
+    pp.shortPendVol -= r.vol;
+    pp.shortPendCost -= r.cost;
+  }
+  reservations_.erase(rit);
 }
 
 RiskVerdict RiskEngine::check(const std::string &instrumentId, double price,

@@ -319,6 +319,13 @@ export class Trader extends TraderBase {
     this.native._applyTestTrade(instrumentId, isBuy, isOpen, price, volume);
   }
 
+  /** @internal test-only: drive the in-flight reservation tracker (OnRtnOrder).
+   *  status: '1'/'3' = working (queueing), others (e.g. '0' filled, '5'
+   *  cancelled) = terminal. */
+  _applyTestOrder(orderRef: string, instrumentId: string, isOpen: boolean, isLong: boolean, status: string, limitPrice: number, volTotal: number, volTraded: number): void {
+    this.native._applyTestOrder(orderRef, instrumentId, isOpen, isLong, status, limitPrice, volTotal, volTraded);
+  }
+
   /**
    * Arm a latency-critical trigger: when `md` sees the condition, the order is
    * sent from C++ on the callback thread (through this Trader's risk gate),

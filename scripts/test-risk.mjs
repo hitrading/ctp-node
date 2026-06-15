@@ -103,6 +103,30 @@ td._applyTestTrade("au2608", true, true, 560, 1); // fill: hold 560k of au
 check(/position cost/i.test(String(await cOpen("au2608", 560, 1))), `au +1 lot with 560k held (1.12M) blocked`);
 check(!/position cost/i.test(String(await cOpen("ag2608", 7500, 1))), `ag 1 lot (112.5k) independent of au's holding passed`);
 
+// ----- in-flight reservation (burst protection) -----
+// committed = held + working(in-flight) open orders, so a burst of opens can't
+// slip past the cap before fills report. (_applyTestOrder simulates OnRtnOrder.)
+td.resetPositions();
+td.riskSet({});
+td.setMaxPosition("rb2610", 5); // 5 lots/side
+const vOpen2 = (vol) =>
+  td.reqOrderInsert({ instrumentId: "rb2610", direction: "0", combOffsetFlag: "0", limitPrice: 3000, volumeTotalOriginal: vol })
+    .then(() => "sent")
+    .catch((e) => e.message);
+td._applyTestOrder("w1", "rb2610", true, true, "3", 3000, 4, 0); // a working open of 4 -> reserves 4
+check(/volume/i.test(String(await vOpen2(2))), `in-flight 4 + open 2 (6>5) blocked by reservation`);
+check(!/volume/i.test(String(await vOpen2(1))), `in-flight 4 + open 1 (5<=5) passed`);
+td._applyTestOrder("w1", "rb2610", true, true, "0", 3000, 4, 4); // fully filled -> reservation released
+td._applyTestTrade("rb2610", true, true, 3000, 4); // the fill becomes held
+check(!/volume/i.test(String(await vOpen2(1))), `after fill: held 4 + open 1 (5<=5) passed`);
+check(/volume/i.test(String(await vOpen2(2))), `after fill: held 4 + open 2 (6>5) blocked`);
+td.resetPositions();
+td.setMaxPosition("rb2610", 5);
+td._applyTestOrder("w2", "rb2610", true, true, "3", 3000, 5, 0); // reserve 5 = the whole cap
+check(/volume/i.test(String(await vOpen2(1))), `in-flight 5 (=cap) -> open 1 blocked`);
+td._applyTestOrder("w2", "rb2610", true, true, "5", 3000, 5, 0); // cancelled -> released
+check(!/volume/i.test(String(await vOpen2(1))), `after cancel: open 1 passed (reservation freed)`);
+
 console.log(`RISK TEST: ${pass} pass, ${fail} fail`);
 td.close();
 process.exitCode = fail ? 1 : 0;

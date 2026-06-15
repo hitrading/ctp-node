@@ -88,6 +88,7 @@ private:
   Napi::Value PositionCost(const Napi::CallbackInfo &info);
   Napi::Value ResetPositions(const Napi::CallbackInfo &info);
   Napi::Value ApplyTestTrade(const Napi::CallbackInfo &info);
+  Napi::Value ApplyTestOrder(const Napi::CallbackInfo &info);
   Napi::Value Start(const Napi::CallbackInfo &info);
   Napi::Value Buffer(const Napi::CallbackInfo &info);
   Napi::Value ClaimBatch(const Napi::CallbackInfo &info);
@@ -128,6 +129,7 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("positionCost", &Trader::PositionCost),
           InstanceMethod("resetPositions", &Trader::ResetPositions),
           InstanceMethod("_applyTestTrade", &Trader::ApplyTestTrade),
+          InstanceMethod("_applyTestOrder", &Trader::ApplyTestOrder),
           InstanceMethod("_start", &Trader::Start),
           InstanceMethod("_buffer", &Trader::Buffer),
           InstanceMethod("_claim", &Trader::ClaimBatch),
@@ -210,17 +212,27 @@ int Trader::fireArmed(const ArmSpec &spec) {
                               f.VolumeTotalOriginal);
   if (!v.ok)
     return CTP_RISK_BLOCKED;
-  // Position caps apply to armed orders too (safety, not latency-sensitive).
-  if (f.CombOffsetFlag[0] == '0') { // open
-    if (!risk_.allowOpen(f.InstrumentID, f.LimitPrice, f.VolumeTotalOriginal))
-      return CTP_POSITION_LIMIT;
-    if (!risk_.allowOpenVolume(f.InstrumentID, f.Direction == '0', // buy -> long
-                               f.VolumeTotalOriginal))
+  // Position caps (incl. in-flight reservation) apply to armed orders too -
+  // safety, not latency-sensitive.
+  const bool isOpen = (f.CombOffsetFlag[0] == '0');
+  if (isOpen) {
+    OpenGate g = risk_.tryReserveOpen(f.OrderRef, f.InstrumentID,
+                                      f.Direction == '0', f.LimitPrice,
+                                      f.VolumeTotalOriginal);
+    if (g == OpenGate::VolumeLimit)
       return CTP_POSITION_VOLUME_LIMIT;
+    if (g == OpenGate::CostLimit)
+      return CTP_POSITION_LIMIT;
   }
-  if (!risk_.allowRate())
+  if (!risk_.allowRate()) {
+    if (isOpen)
+      risk_.releaseReservation(f.OrderRef);
     return CTP_RATE_LIMITED;
-  return api->ReqOrderInsert(&f, armReqId_.fetch_add(1));
+  }
+  int sendRc = api->ReqOrderInsert(&f, armReqId_.fetch_add(1));
+  if (sendRc != 0 && isOpen)
+    risk_.releaseReservation(f.OrderRef); // send failed -> release the reservation
+  return sendRc;
 }
 
 Napi::Value Trader::ArmRegistryExternal(const Napi::CallbackInfo &info) {
@@ -364,6 +376,22 @@ Napi::Value Trader::ApplyTestTrade(const Napi::CallbackInfo &info) {
                   info[1].ToBoolean().Value(), info[2].ToBoolean().Value(),
                   info[3].As<Napi::Number>().DoubleValue(),
                   info[4].As<Napi::Number>().DoubleValue());
+  }
+  return info.Env().Undefined();
+}
+
+// (orderRef, instrumentId, isOpen, isLong, status, limitPrice, volTotal,
+// volTraded) - drive the in-flight reservation tracker (simulates OnRtnOrder).
+Napi::Value Trader::ApplyTestOrder(const Napi::CallbackInfo &info) {
+  if (info.Length() >= 8) {
+    std::string status = info[4].As<Napi::String>().Utf8Value();
+    risk_.onOrderUpdate(info[0].As<Napi::String>().Utf8Value(),
+                        info[1].As<Napi::String>().Utf8Value(),
+                        info[2].ToBoolean().Value(), info[3].ToBoolean().Value(),
+                        status.empty() ? ' ' : status[0],
+                        info[5].As<Napi::Number>().DoubleValue(),
+                        info[6].As<Napi::Number>().DoubleValue(),
+                        info[7].As<Napi::Number>().DoubleValue());
   }
   return info.Env().Undefined();
 }

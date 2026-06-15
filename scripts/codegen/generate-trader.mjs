@@ -107,6 +107,12 @@ for (const s of spi) {
   c += `void TraderSpi::${s.name}(${rawDecl(s)}) {\n`;
   if (s.name === "OnRtnTrade") {
     c += `  if (p && risk_)\n    risk_->onTrade(p->InstrumentID, p->Direction == '0', p->OffsetFlag == '0', p->Price, p->Volume);\n`;
+  } else if (s.name === "OnRtnOrder") {
+    // reconcile the order's in-flight reservation to its working remainder
+    c += `  if (p && risk_)\n    risk_->onOrderUpdate(p->OrderRef, p->InstrumentID, p->CombOffsetFlag[0] == '0', p->Direction == '0', p->OrderStatus, p->LimitPrice, p->VolumeTotalOriginal, p->VolumeTraded);\n`;
+  } else if (s.name === "OnRspOrderInsert" || s.name === "OnErrRtnOrderInsert") {
+    // insertion rejected (no OnRtnOrder will follow) -> drop the reservation
+    c += `  if (p && risk_)\n    risk_->releaseReservation(p->OrderRef);\n`;
   }
   c += `  ch_->push(ET_${member(s.name)}, ${reqId}, ${isLast}, ${errId}, ${errMsg}, ${sid}, ${ptr}, ${len});\n`;
   c += `}\n\n`;
@@ -157,11 +163,19 @@ for (const r of req) {
     rc += `    if (risk) {\n`;
     rc += `      RiskVerdict v = risk->check(f.InstrumentID, f.LimitPrice, risk->refPrice(f.InstrumentID), f.VolumeTotalOriginal);\n`;
     rc += `      if (!v.ok) return CTP_RISK_BLOCKED;\n`;
-    rc += `      if (f.CombOffsetFlag[0] == '0') { // open\n`;
-    rc += `        if (!risk->allowOpen(f.InstrumentID, f.LimitPrice, f.VolumeTotalOriginal))\n          return CTP_POSITION_LIMIT;\n`;
-    rc += `        if (!risk->allowOpenVolume(f.InstrumentID, f.Direction == '0', f.VolumeTotalOriginal))\n          return CTP_POSITION_VOLUME_LIMIT;\n`;
+    rc += `      bool isOpen = (f.CombOffsetFlag[0] == '0');\n`;
+    rc += `      if (isOpen) {\n`;
+    rc += `        OpenGate g = risk->tryReserveOpen(f.OrderRef, f.InstrumentID, f.Direction == '0', f.LimitPrice, f.VolumeTotalOriginal);\n`;
+    rc += `        if (g == OpenGate::VolumeLimit) return CTP_POSITION_VOLUME_LIMIT;\n`;
+    rc += `        if (g == OpenGate::CostLimit) return CTP_POSITION_LIMIT;\n`;
     rc += `      }\n`;
-    rc += `      if (!risk->allowRate()) return CTP_RATE_LIMITED;\n`;
+    rc += `      if (!risk->allowRate()) {\n`;
+    rc += `        if (isOpen) risk->releaseReservation(f.OrderRef);\n`;
+    rc += `        return CTP_RATE_LIMITED;\n`;
+    rc += `      }\n`;
+    rc += `      int sendRc = api->ReqOrderInsert(&f, requestId);\n`;
+    rc += `      if (sendRc != 0 && isOpen) risk->releaseReservation(f.OrderRef); // send failed -> no lifecycle event will release it\n`;
+    rc += `      return sendRc;\n`;
     rc += `    }\n`;
   }
   rc += `    return api->${r.name}(&f, requestId);\n  }\n`;

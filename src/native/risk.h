@@ -33,6 +33,9 @@ struct RiskVerdict {
   const char *reason = nullptr;    // static string; null when ok
 };
 
+// Result of the position gate for an opening order.
+enum class OpenGate { Ok, CostLimit, VolumeLimit };
+
 // Token-bucket rate limiter. Thread-safe via a tiny mutex; rate<=0 disables.
 class RateLimiter {
 public:
@@ -80,16 +83,26 @@ public:
   // sides summed - a gross capital/concentration limit). 0/unset = no cap.
   // Complements the global maxPositionCost.
   void setMaxInstrumentCost(const std::string &instrumentId, double maxCost);
-  // True if opening this order keeps BOTH the per-instrument open cost and the
-  // global total open cost within their respective caps.
-  bool allowOpen(const std::string &instrumentId, double price, double volume) const;
-
-  // Per-instrument, per-side cap on open position volume (lots), enforced on
-  // open orders. Long and short are capped independently; 0/unset = that side
-  // is unlimited.
+  // Per-instrument, per-side cap on open position volume (lots). Long and short
+  // capped independently; 0/unset = that side unlimited.
   void setMaxPositionVolume(const std::string &instrumentId, bool isLong, double maxVolume);
-  // True if opening `volume` more lots on this side stays within the cap.
-  bool allowOpenVolume(const std::string &instrumentId, bool isLong, double volume) const;
+
+  // Atomically check ALL position caps (per-side volume, per-instrument cost,
+  // global cost) against committed = held + in-flight reserved, and, if the
+  // order passes and any cap applies, reserve it (keyed by orderRef) so a burst
+  // of opens can't slip past before fills arrive. Returns the cap that blocked,
+  // or Ok (reserved). Pair every Ok with an eventual release: a fill/cancel/
+  // reject reconciles via onOrderUpdate / releaseReservation, and a failed send
+  // (api rc != 0) must call releaseReservation since no lifecycle event will.
+  OpenGate tryReserveOpen(const std::string &orderRef, const std::string &instrumentId,
+                          bool isLong, double price, double volume);
+  // Reconcile an open order's reservation to its current working remainder
+  // (volTotal - volTraded while queueing; 0 once terminal). Fed from OnRtnOrder.
+  void onOrderUpdate(const std::string &orderRef, const std::string &instrumentId,
+                     bool isOpen, bool isLong, char status, double limitPrice,
+                     double volTotal, double volTraded);
+  // Drop an order's reservation outright (front/insert rejection, or failed send).
+  void releaseReservation(const std::string &orderRef);
 
 private:
   std::atomic<bool> halted_{false};
@@ -102,10 +115,19 @@ private:
   std::unordered_map<std::string, double> refPrices_;
 
   struct Pos {
-    double longVol = 0, longCost = 0, shortVol = 0, shortCost = 0;
+    double longVol = 0, longCost = 0, shortVol = 0, shortCost = 0;       // filled
+    double longPendVol = 0, longPendCost = 0, shortPendVol = 0, shortPendCost = 0; // in-flight reserved
   };
   mutable std::mutex posMutex_;
   std::unordered_map<std::string, Pos> positions_;
+  // In-flight open-order reservations, keyed by orderRef, so a fill/cancel/
+  // reject can release exactly what each order reserved (its working remainder).
+  struct Reservation {
+    std::string instrumentId;
+    bool isLong = true;
+    double vol = 0.0, cost = 0.0;
+  };
+  std::unordered_map<std::string, Reservation> reservations_;
   // Contract multipliers are static metadata kept separate from position state
   // so resetPositions() (which syncPositions calls) does not wipe them.
   std::unordered_map<std::string, double> multipliers_;
@@ -119,6 +141,8 @@ private:
   std::unordered_map<std::string, double> maxInstrumentCost_;
   // Look up an instrument's multiplier (1.0 if unset). Caller holds posMutex_.
   double multiplierLocked(const std::string &instrumentId) const;
+  // Whether any position cap applies to this instrument/side. Holds posMutex_.
+  bool hasCapLocked(const std::string &instrumentId, bool isLong) const;
 };
 
 } // namespace ctp

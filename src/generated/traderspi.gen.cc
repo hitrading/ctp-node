@@ -52,6 +52,8 @@ void TraderSpi::OnRspGenUserText(CThostFtdcRspGenUserTextField *p, CThostFtdcRsp
 }
 
 void TraderSpi::OnRspOrderInsert(CThostFtdcInputOrderField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  if (p && risk_)
+    risk_->releaseReservation(p->OrderRef);
   ch_->push(ET_RspOrderInsert, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_InputOrder : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -304,6 +306,8 @@ void TraderSpi::OnRspError(CThostFtdcRspInfoField *e, int id, bool last) {
 }
 
 void TraderSpi::OnRtnOrder(CThostFtdcOrderField *p) {
+  if (p && risk_)
+    risk_->onOrderUpdate(p->OrderRef, p->InstrumentID, p->CombOffsetFlag[0] == '0', p->Direction == '0', p->OrderStatus, p->LimitPrice, p->VolumeTotalOriginal, p->VolumeTraded);
   ch_->push(ET_RtnOrder, 0, -1, 0, "", p ? SID_Order : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -314,6 +318,8 @@ void TraderSpi::OnRtnTrade(CThostFtdcTradeField *p) {
 }
 
 void TraderSpi::OnErrRtnOrderInsert(CThostFtdcInputOrderField *p, CThostFtdcRspInfoField *e) {
+  if (p && risk_)
+    risk_->releaseReservation(p->OrderRef);
   ch_->push(ET_ErrRtnOrderInsert, 0, -1, eid(e), emsg(e), p ? SID_InputOrder : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
