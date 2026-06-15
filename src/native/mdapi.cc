@@ -75,6 +75,8 @@ private:
   Napi::Value Start(const Napi::CallbackInfo &info);
   Napi::Value Buffer(const Napi::CallbackInfo &info);
   Napi::Value ClaimBatch(const Napi::CallbackInfo &info);
+  Napi::Value ValidateBatch(const Napi::CallbackInfo &info);
+  Napi::Value ReadIndex(const Napi::CallbackInfo &info);
   Napi::Value ReleaseBatch(const Napi::CallbackInfo &info);
   Napi::Value DropCount(const Napi::CallbackInfo &info);
   Napi::Value ChannelInfo(const Napi::CallbackInfo &info);
@@ -108,6 +110,8 @@ Napi::Function MarketData::Init(Napi::Env env) {
           InstanceMethod("_start", &MarketData::Start),
           InstanceMethod("_buffer", &MarketData::Buffer),
           InstanceMethod("_claim", &MarketData::ClaimBatch),
+          InstanceMethod("_validate", &MarketData::ValidateBatch),
+          InstanceMethod("_readIndex", &MarketData::ReadIndex),
           InstanceMethod("_release", &MarketData::ReleaseBatch),
           InstanceMethod("_dropCount", &MarketData::DropCount),
           InstanceMethod("_info", &MarketData::ChannelInfo),
@@ -147,7 +151,10 @@ MarketData::MarketData(const Napi::CallbackInfo &info)
     Napi::Error::New(env, "CreateFtdcMdApi failed").ThrowAsJavaScriptException();
     return;
   }
-  ch_ = new EventChannel(8192, static_cast<size_t>(ctpMaxStructSize()));
+  // Market data drops the OLDEST record under backpressure: a full-market feed
+  // wants the freshest quote, not a stale one, when the JS loop falls behind.
+  ch_ = new EventChannel(8192, static_cast<size_t>(ctpMaxStructSize()),
+                         DropPolicy::Oldest);
   spi_ = new MdSpi(api_, ch_);
   api_->RegisterSpi(spi_);
 
@@ -294,6 +301,16 @@ Napi::Value MarketData::ClaimBatch(const Napi::CallbackInfo &info) {
   return Napi::Number::New(info.Env(), ch_ ? ch_->claim() : 0);
 }
 
+Napi::Value MarketData::ValidateBatch(const Napi::CallbackInfo &info) {
+  uint32_t claimed = info[0].As<Napi::Number>().Uint32Value();
+  return Napi::Number::New(info.Env(), ch_ ? ch_->validate(claimed) : 0);
+}
+
+Napi::Value MarketData::ReadIndex(const Napi::CallbackInfo &info) {
+  return Napi::Number::New(
+      info.Env(), static_cast<double>(ch_ ? ch_->readIndex() : 0));
+}
+
 Napi::Value MarketData::ReleaseBatch(const Napi::CallbackInfo &info) {
   if (ch_)
     ch_->release(info[0].As<Napi::Number>().Uint32Value());
@@ -312,6 +329,7 @@ Napi::Value MarketData::ChannelInfo(const Napi::CallbackInfo &info) {
   o.Set("slotSize", static_cast<double>(live ? ch_->slotSize() : 0));
   o.Set("numSlots", static_cast<double>(live ? ch_->numSlots() : 0));
   o.Set("headerSize", static_cast<double>(live ? ch_->headerSize() : 0));
+  o.Set("dropOldest", live ? ch_->dropOldest() : false);
   return o;
 }
 

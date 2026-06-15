@@ -80,7 +80,9 @@ formatting on the CTP callback thread would add exactly the latency/jitter this
 design avoids. The hot path stays memcpy + atomics. Observability is layered the
 way low-latency systems do it:
 
-- **Counters / events, not logs, in C++.** `droppedRecords` (backpressure),
+- **Counters / events, not logs, in C++.** `droppedRecords` (backpressure —
+  market data drops the oldest record to keep the freshest quote, the trader
+  drops the newest so a queued order/trade return is never lost),
   arm fire count, and the streaming events (`front-connected`,
   `front-disconnected` with reason, `rsp-*` with `errorId`/`errorMsg`) are
   surfaced to JS.
@@ -126,3 +128,60 @@ notional / position-cost / kill-switch) and rate limiter on the order send
 path, `ArmRegistry::onTick` fed from the MD callback firing `ReqOrderInsert`
 through the risk gate with no JS hop, per-instrument position state, and
 multiplier-accurate notional + position cost.
+
+## Process lifecycle: create once, reuse
+
+`MarketData` and `Trader` are **create-once, reuse-for-the-life-of-the-process**
+objects. The wrapper constructor calls the native `_start()`, which calls the
+vendor `Init()`; `close()` calls the vendor `Release()`
+(`CThostFtdcMdApi::Release()` / `CThostFtdcTraderApi::Release()` — see
+`doClose()` in `src/native/mdapi.cc` and `src/native/traderapi.cc`).
+
+**The hazard.** The CTP vendor DLLs (`thostmduserapi_se.dll` /
+`thosttraderapi_se.dll`) **deadlock inside `Release()` after a handful of
+`Init()`→`Release()` cycles in a single process** — empirically 4–11 cycles,
+varying with timing and CTP's internal reconnect-thread state. This is a
+well-known limitation of the CTP SDK itself: its API objects are *not* safe to
+create / `Init` / `Release` repeatedly within one process. It is **not** a bug
+in this binding's C++/TS, and it **cannot be fixed here** — the hang is inside
+the closed-source vendor DLL. (For confirmation: the raw native object *without*
+`_start()` survives 80+ create/close cycles; the trigger is specifically the
+`Init()`+`Release()` pairing. A front like `tcp://127.0.0.1:1` that never
+connects makes it worse, because CTP's reconnect machinery is what wedges.)
+
+**The rule: never reconnect by destroying and recreating the client.** CTP
+reconnects on its own. Handle a dropped link **in place**: when `front-connected`
+fires again (it fires on the first connect *and* on every auto-reconnect),
+re-run your handshake on the same instance.
+
+```ts
+const md = new MarketData("./flow/md/", front);   // construct ONCE
+md.on("front-connected", async () => {            // first connect AND every reconnect
+  await md.login({ brokerId, userId, password }); // re-login in place
+  md.subscribe(["rb2510"]);                        // re-subscribe in place
+});
+
+// Trader is the same shape — re-run the one-call handshake on reconnect:
+td.on("front-connected", () => td.session({ brokerId, userId, password, appId, authCode }));
+```
+
+Call `close()` **once**, at process shutdown (or not at all — process exit tears
+everything down cleanly). A reconnect-by-recreate loop will instead wedge the
+whole process in the vendor DLL.
+
+**Windows fallout when it does wedge.** A wedged process ignores `SIGTERM` (the
+stuck CTP threads never observe the signal), so a timed-out / killed Node
+process **lingers** and must be force-killed: `taskkill /F /PID <pid>`. Until it
+dies it keeps `build\Release\ctp.node` open, so the next native build can't
+overwrite the addon and fails with `LNK1104: cannot open file ... ctp.node`. If
+a build suddenly can't write the addon, look for a stray `node` zombie and
+`taskkill /F` it first.
+
+**Dev tripwire.** As a backstop against a reconnect-by-recreate bug slipping
+into production, `CtpClient` keeps a process-wide count of clients that were
+started (`Init`) and then closed (`Release`) and emits a one-time
+`console.warn` once that count crosses a threshold (default 8). It runs only on
+`close()` — never on the hot data path — so it costs nothing where latency
+matters, and a normal app (a few long-lived clients) never trips it. Tune or
+disable it with the `CTP_RECREATE_WARN` env var: `CTP_RECREATE_WARN=0` disables
+it; any positive integer sets the threshold.

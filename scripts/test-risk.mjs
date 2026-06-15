@@ -161,6 +161,25 @@ check(/volume/i.test(String(await vOpen2(1))), `two sessions' ref "1" both count
 td._applyTestOrder(1, 100, "1", "rb2610", true, true, "5", 3000, 2, 0); // their order cancelled -> release only theirs
 check(!/volume/i.test(String(await vOpen2(1))), `after one session's cancel: 2 left, +1<=3 passed`);
 
+// ----- DBL_MAX (CTP unset-price sentinel) must not poison the reference price -----
+// CTP fills unset price fields with DBL_MAX before the first trade prints; a user
+// wiring tick.lastPrice -> setRefPrice would otherwise set ref=DBL_MAX, making
+// |p-ref|/ref == 1.0 and blocking EVERY deviation-checked order. setRefPrice must
+// ignore the sentinel so the reference simply stays unset.
+td.resetPositions();
+td.riskSet({ maxPriceDeviation: 0.05 });
+td.setRefPrice("au2608", Number.MAX_VALUE); // DBL_MAX sentinel -> must be ignored
+const dblmax = await td
+  .reqOrderInsert({ instrumentId: "au2608", direction: "0", combOffsetFlag: "0", limitPrice: 560, volumeTotalOriginal: 1 })
+  .then(() => "sent").catch((e) => e.message);
+check(!/deviat/i.test(String(dblmax)), `DBL_MAX ref ignored -> normal order not falsely blocked -> ${dblmax}`);
+td.setRefPrice("au2608", Infinity); // non-finite -> ignored too
+td.setRefPrice("au2608", 560); // a real print activates the check
+const farOff = await td
+  .reqOrderInsert({ instrumentId: "au2608", direction: "0", combOffsetFlag: "0", limitPrice: 9999, volumeTotalOriginal: 1 })
+  .then(() => "sent").catch((e) => e.message);
+check(/deviat/i.test(String(farOff)), `after a real ref (560), a far price (9999) is blocked -> ${farOff}`);
+
 // ----- transient OrderStatus holds the reservation (only terminal states release) -----
 // A conditional order can report Unknown 'a' / NotTouched 'b' / Touched 'c'
 // before it reaches NoTradeQueueing '3'; releasing the reservation on those

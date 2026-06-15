@@ -52,6 +52,17 @@ void RiskEngine::halt() { halted_.store(true, std::memory_order_relaxed); }
 void RiskEngine::resume() { halted_.store(false, std::memory_order_relaxed); }
 
 void RiskEngine::setRefPrice(const std::string &instrumentId, double price) {
+  // Ignore non-finite, non-positive, and the CTP "unset" sentinel: price fields
+  // come back as DBL_MAX (~1.8e308) before the first trade prints - common at
+  // session start and for illiquid contracts. DBL_MAX is finite, so it slips
+  // past the isfinite guards used elsewhere; as a reference it makes
+  // |price - ref| / ref == 1.0 for ANY real limit price, which would falsely
+  // block every deviation-checked order on that instrument. Drop such updates
+  // (1e300 is far above any real price, far below DBL_MAX); the reference simply
+  // stays unset until a real price arrives, and the deviation check skips
+  // (refPrice > 0 guard) meanwhile.
+  if (!std::isfinite(price) || price <= 0.0 || price >= 1e300)
+    return;
   std::lock_guard<std::mutex> lk(refMutex_);
   refPrices_[instrumentId] = price;
 }

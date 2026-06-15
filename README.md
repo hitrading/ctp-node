@@ -117,8 +117,40 @@ Direction.Sell;  // "1"
 - Requests are camelCase methods taking a `Partial<...>` of the CTP field object and returning a `Promise`. `reqQry*` resolve with an array of rows; most requests resolve with the single response row.
 - Exchange-bound inserts/actions (`reqOrderInsert`, `reqOrderAction`, …) resolve on **submission** — CTP returns no success response for an accepted order, only `rtn-order` / `rtn-trade` (correlate by `orderRef`). They reject only if the send is refused (risk gate, rate limit, or a CTP API error code).
 - Streaming events use kebab-case names (`rtn-depth-market-data`, `rtn-order`, …); handlers get `(data, options)` where `options` carries `{ requestId?, isLast?, rspInfo? }`.
-- `client.droppedRecords` reports records dropped under backpressure.
-- `client.close()` releases the underlying CTP API.
+- `client.droppedRecords` reports records dropped under backpressure. Market
+  data drops the **oldest** unread record (so you always see the freshest quote);
+  the trader drops the **newest** instead, so a queued order/trade return is never
+  silently discarded. Monitor it either way.
+- `client.close()` releases the underlying CTP API. Call it **once**, at shutdown — a CTP client is create-once / reuse; reconnecting by recreating it deadlocks in the vendor DLL (see [Lifecycle](#lifecycle-create-once-reuse)).
+
+## Lifecycle: create once, reuse
+
+Create a `MarketData` / `Trader` **once** and keep it for the life of the
+process. CTP reconnects on its own; handle a dropped link **in place** by
+re-running your handshake when `front-connected` fires again (it fires on the
+first connect *and* on every auto-reconnect) — never by destroying and
+recreating the client.
+
+```ts
+const md = new MarketData("./flow/md/", front);
+md.on("front-connected", async () => {     // first connect AND every reconnect
+  await md.login({ brokerId, userId, password });
+  md.subscribe(["rb2510"]);
+});
+// Trader: re-run the one-call handshake the same way
+td.on("front-connected", () => td.session({ brokerId, userId, password, appId, authCode }));
+```
+
+> **Why.** `close()` calls the vendor `CThostFtdc*Api::Release()`, and the CTP
+> DLLs **deadlock inside `Release()` after a few `Init()`/`Release()` cycles in
+> one process** — a limitation of the CTP SDK itself, not of this binding. A
+> "reconnect by recreate" loop will hang the whole process (and on Windows the
+> wedged process ignores `SIGTERM`, so it must be force-killed with `taskkill /F`
+> — until then it locks `build\Release\ctp.node` and breaks the next native
+> build). Construct each client once and call `close()` only at shutdown. A
+> one-time `console.warn` fires if an unusual number of clients are
+> created/closed in a process (tune/disable with `CTP_RECREATE_WARN`). Details:
+> [docs/native-hooks.md](docs/native-hooks.md#process-lifecycle-create-once-reuse).
 
 ## Architecture
 
@@ -127,7 +159,8 @@ CTP callback thread (C++)                 Node event loop (JS)
   OnRtn.../OnRsp... → memcpy bytes  ──►   coalesced doorbell → drain whole batch
   into lock-free SPSC ring,                → decode each record from the ring
   bump atomic index, ring doorbell           (monomorphic generated decoder)
-  (drop-newest if full)                      → plain object → emit / resolve
+  (on overflow: MD drops oldest,             → plain object → emit / resolve
+   trader drops newest/reliable)
 ```
 
 Everything below the public API is generated from the CTP headers

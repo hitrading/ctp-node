@@ -60,8 +60,16 @@ export interface NativeClient {
   _buffer(): ArrayBuffer;
   _claim(): number;
   _release(n: number): void;
-  _info(): { slotSize: number; numSlots: number; headerSize: number };
+  _info(): {
+    slotSize: number;
+    numSlots: number;
+    headerSize: number;
+    dropOldest: boolean;
+  };
   _dropCount(): number;
+  // Present only on drop-oldest channels (market data); used by drainOldest().
+  _readIndex?(): number;
+  _validate?(claimed: number): number;
   close(): void;
 }
 
@@ -71,6 +79,56 @@ interface Pending {
   reject: (e: unknown) => void;
   single: boolean;
   timer?: ReturnType<typeof setTimeout>;
+}
+
+/** One record decoded out of the ring, split from delivery so the drop-oldest
+ *  path can decode a whole batch, then discard any torn (overwritten) records,
+ *  before any handler runs. */
+interface DecodedRecord {
+  evt: number;
+  value: unknown;
+  options: CallbackOptions;
+}
+
+// --- Lifecycle tripwire (dev aid) --------------------------------------------
+// The CTP vendor DLLs deadlock inside Release() after a handful of
+// Init()->Release() cycles in one process - a long-standing limitation of the
+// vendor SDK (its api objects are not safe to create/Init/Release repeatedly),
+// NOT a bug in this binding. Correct usage is to create each MarketData/Trader
+// ONCE and reuse it, handling reconnects in place; a "reconnect by destroy-and-
+// recreate" bug instead churns through clients and will eventually wedge the
+// whole process. We count clients that were started (Init) and then closed
+// (Release) process-wide and warn ONCE past a threshold, so that bug surfaces in
+// dev / logs before it hangs in production. This lives only on close()
+// (teardown) - never the hot data path - so it costs nothing where latency
+// matters. Tune with CTP_RECREATE_WARN (0 disables); the default stays silent
+// for any sane app (a few long-lived clients) and for the test suite. See
+// docs/native-hooks.md ("Process lifecycle").
+function recreateWarnThreshold(raw: string | undefined): number {
+  if (raw === undefined) return 8;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 8;
+}
+const RECREATE_WARN_THRESHOLD = recreateWarnThreshold(process.env.CTP_RECREATE_WARN);
+let startedThenClosed = 0;
+let recreateWarned = false;
+function noteClientReleased(): void {
+  startedThenClosed += 1;
+  if (
+    RECREATE_WARN_THRESHOLD > 0 &&
+    !recreateWarned &&
+    startedThenClosed > RECREATE_WARN_THRESHOLD
+  ) {
+    recreateWarned = true;
+    console.warn(
+      `[ctp-node] ${startedThenClosed} CTP clients have been created and closed ` +
+        `in this process. The CTP vendor DLLs deadlock inside Release() after a few ` +
+        `Init()/Release() cycles, so a MarketData/Trader must be created ONCE and ` +
+        `reused: handle reconnects in place (re-run your front-connected handshake), ` +
+        `never destroy and recreate the client. Set CTP_RECREATE_WARN=0 to silence, ` +
+        `or to another number to retune. See docs/native-hooks.md (Process lifecycle).`
+    );
+  }
 }
 
 export abstract class CtpClient extends EventEmitter {
@@ -87,11 +145,23 @@ export abstract class CtpClient extends EventEmitter {
   private numSlots = 0;
   private headerSize = 0;
   private readPos = 0;
+  // Overflow policy of the underlying channel (from _info()). Drop-oldest (market
+  // data) takes the buffered drainOldest() path; drop-newest (trader) the inline
+  // drain(). See src/native/channel.h.
+  private dropOldest = false;
+  // Reused scratch holding a whole decoded batch for the drop-oldest path, so we
+  // can validate against producer overruns *after* decoding and before delivering
+  // (a torn record never reaches a handler). Indices 0..count-1 are live per drain.
+  private batch: (DecodedRecord | undefined)[] = [];
   // Set the instant close() begins. close() frees the native ring synchronously,
   // so if an event handler invoked from drain() calls close() mid-batch, the
   // rest of that batch must NOT keep reading the (now freed) ring view. Every
   // drain loop checks this and bails the moment it flips.
   private closing = false;
+  // True once start() has run the native Init(). Gates the lifecycle tripwire
+  // above: only a started-then-closed client is an Init()/Release() pair (the
+  // cycle the vendor DLL deadlocks on); a never-started object closes harmlessly.
+  private started = false;
   private readonly pending = new Map<number, Pending>();
   private reqSeq = 0;
   /** Event ids whose requestId-0 response should resolve the oldest pending
@@ -138,10 +208,14 @@ export abstract class CtpClient extends EventEmitter {
     this.slotSize = info.slotSize;
     this.numSlots = info.numSlots;
     this.headerSize = info.headerSize;
+    this.dropOldest = !!info.dropOldest;
     const ab = this.native._buffer();
     this.view = new DataView(ab);
     this.u8 = new Uint8Array(ab);
-    this.native._start(() => this.drain());
+    this.native._start(
+      this.dropOldest ? () => this.drainOldest() : () => this.drain()
+    );
+    this.started = true;
   }
 
   /** Records dropped under backpressure (ring full). Monitor this. */
@@ -153,6 +227,7 @@ export abstract class CtpClient extends EventEmitter {
     if (this.closing) return; // idempotent; also stops any in-progress drain
     this.closing = true;
     this.rejectAllPending("client closed");
+    if (this.started) noteClientReleased(); // dev tripwire (see top of file)
     this.native.close();
   }
 
@@ -205,7 +280,64 @@ export abstract class CtpClient extends EventEmitter {
     }
   }
 
+  /**
+   * Drop-oldest drain (market data). The producer overwrites the oldest unread
+   * record when full and never blocks, so the consumer can be lapped mid-read.
+   * We therefore decode the whole claimed batch first, then ask the channel how
+   * many of the oldest records it overwrote *during* that decode (validate()),
+   * discard those (they hold torn bytes), and only then deliver the rest — so a
+   * torn record never reaches a handler. The records we do deliver are always the
+   * freshest available, and conservation holds (received + dropped == produced).
+   */
+  private drainOldest(): void {
+    let count = this.native._claim();
+    while (count > 0) {
+      if (this.closing) return;
+      // claim() may have advanced readIdx_ past lapped records; resync our slot
+      // cursor to the channel's authoritative read index before decoding.
+      this.readPos = (this.native._readIndex as () => number)();
+      const numSlots = this.numSlots;
+      const slotSize = this.slotSize;
+      const batch = this.batch;
+      for (let i = 0; i < count; i++) {
+        const slot = ((this.readPos + i) % numSlots) * slotSize;
+        batch[i] = this.decodeSlot(slot);
+      }
+      // How many leading (oldest) records did the producer overwrite while we
+      // were decoding? Those are torn — discard them (validate() counts them as
+      // drops). The remainder were provably untouched during decode.
+      const torn = (this.native._validate as (n: number) => number)(count);
+      for (let i = 0; i < torn; i++) batch[i] = undefined; // release torn refs
+      if (this.closing) {
+        for (let i = torn; i < count; i++) batch[i] = undefined;
+        return;
+      }
+      for (let i = torn; i < count; i++) {
+        const rec = batch[i]!;
+        batch[i] = undefined;
+        // A handler from an earlier record this batch may have called close(),
+        // which frees the ring. The decoded objects are safe (already copied out
+        // of the ring), but stop delivering so app semantics match drain().
+        if (this.closing) continue;
+        try {
+          this.deliver(rec);
+        } catch (err) {
+          this.surfaceHandlerError(err);
+        }
+      }
+      if (this.closing) return;
+      this.native._release(count);
+      this.readPos += count;
+      count = this.native._claim();
+    }
+  }
+
   private dispatch(slot: number): void {
+    this.deliver(this.decodeSlot(slot));
+  }
+
+  /** Decode one slot into a record (pure read of the ring; no side effects). */
+  private decodeSlot(slot: number): DecodedRecord {
     const v = this.view;
     const u8 = this.u8;
     const evt = v.getInt32(slot + S_EVENT, true);
@@ -217,7 +349,16 @@ export abstract class CtpClient extends EventEmitter {
     const base = slot + this.headerSize;
 
     let value: unknown;
-    if (plen > 0 && sid >= 0) value = this.decoderFor(sid)(v, u8, base);
+    // sid bounds check (sid < layouts.length): under the drop-oldest path a slot
+    // may be overwritten while we decode it (a torn read). The header int32s are
+    // normally read old-or-new intact, but DataView.getInt32 atomicity isn't
+    // guaranteed, so a torn sid could land out of range; decoderFor() would then
+    // build over an undefined layout and throw. The torn record is discarded by
+    // validate() afterward, but the throw would escape the decode loop (which is
+    // not wrapped) and crash the doorbell callback. Bounding sid keeps decodeSlot
+    // total: an out-of-range sid yields an undefined value, harmlessly dropped.
+    if (plen > 0 && sid >= 0 && sid < this.layouts.length)
+      value = this.decoderFor(sid)(v, u8, base);
     else if (sid === -2 && plen >= 4) value = v.getInt32(base, true);
     else value = undefined;
 
@@ -231,14 +372,24 @@ export abstract class CtpClient extends EventEmitter {
       isLast: isLastRaw === -1 ? undefined : isLastRaw === 1,
       rspInfo,
     };
+    return { evt, value, options };
+  }
 
-    // Responses (Rsp*) carry isLast (0/1); streaming pushes (Rtn*, front, …)
-    // use -1. Correlate a response to its pending request by requestId; only for
-    // the configured zeroIdFallbackEvent (MarketData's login) do we resolve a
-    // server requestId of 0 against the oldest pending request — SimNow's MD
-    // login doesn't echo the id. Scoping to that one event keeps an unrelated
-    // id-0 response from hijacking a pending request.
-    if (isLastRaw !== -1 && this.pending.size > 0) {
+  /** Settle any matching in-flight request, then emit the named event. Side
+   *  effects only — reads no ring memory, so it is safe to call after the
+   *  producer may have advanced (drainOldest decodes before this runs). */
+  private deliver(rec: DecodedRecord): void {
+    const { evt, value, options } = rec;
+    const reqId = options.requestId ?? 0;
+    const rspInfo = options.rspInfo;
+
+    // Responses (Rsp*) carry isLast (0/1 -> boolean); streaming pushes (Rtn*,
+    // front, …) use -1 (-> undefined). Correlate a response to its pending
+    // request by requestId; only for the configured zeroIdFallbackEvent
+    // (MarketData's login) do we resolve a server requestId of 0 against the
+    // oldest pending request — SimNow's MD login doesn't echo the id. Scoping to
+    // that one event keeps an unrelated id-0 response from hijacking a request.
+    if (options.isLast !== undefined && this.pending.size > 0) {
       let key: number | undefined =
         reqId !== 0 && this.pending.has(reqId) ? reqId : undefined;
       if (key === undefined && reqId === 0 && this.zeroIdFallbackEvents.has(evt)) {
@@ -257,7 +408,7 @@ export abstract class CtpClient extends EventEmitter {
           );
         } else {
           if (value !== undefined) p.rows.push(value);
-          if (isLastRaw === 1) {
+          if (options.isLast === true) {
             if (p.timer) clearTimeout(p.timer);
             this.pending.delete(key);
             p.resolve(p.single ? p.rows[0] : p.rows);

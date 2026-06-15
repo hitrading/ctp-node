@@ -181,7 +181,10 @@ Trader::Trader(const Napi::CallbackInfo &info) : Napi::ObjectWrap<Trader>(info) 
         .ThrowAsJavaScriptException();
     return;
   }
-  ch_ = new EventChannel(4096, static_cast<size_t>(ctpMaxStructSize()));
+  // Trader uses DropPolicy::Newest (reliable): order/trade returns must never be
+  // silently discarded under backpressure.
+  ch_ = new EventChannel(4096, static_cast<size_t>(ctpMaxStructSize()),
+                         DropPolicy::Newest);
   spi_ = new TraderSpi(api_, ch_);
   spi_->setRisk(&risk_); // fills update the position-cost tracker
   api_->RegisterSpi(spi_);
@@ -514,6 +517,9 @@ Napi::Value Trader::ChannelInfo(const Napi::CallbackInfo &info) {
   o.Set("slotSize", static_cast<double>(live ? ch_->slotSize() : 0));
   o.Set("numSlots", static_cast<double>(live ? ch_->numSlots() : 0));
   o.Set("headerSize", static_cast<double>(live ? ch_->headerSize() : 0));
+  // Trader keeps DropPolicy::Newest: an order/trade return must never be silently
+  // dropped in favour of a newer record.
+  o.Set("dropOldest", false);
   return o;
 }
 
