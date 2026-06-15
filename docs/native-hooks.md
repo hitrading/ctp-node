@@ -38,6 +38,16 @@ notified afterward.
      needed (those remain for tests / offline use). Multipliers are stored
      separately from position state, so `syncPositions()` (which resets and
      re-seeds positions) never wipes them.
+   - In-flight reservation: the position caps count `held + working` (orders
+     sent but not yet filled), so a burst of opens can't slip past before fills
+     report. Reservations are tracked per `(FrontID, SessionID, OrderRef)` and
+     reconciled from `OnRtnOrder` (self-correcting; released on fill/cancel/
+     reject and on a failed send). Because CTP delivers an investor's order/
+     trade returns to *all* their sessions, this also accounts for orders placed
+     from **another terminal on the same account** (their fills update the
+     position by instrument; their working orders consume the cap). `syncOrders()`
+     (via `reqQryOrder`) rebuilds the reservation from the broker's working
+     orders — call it after login and after any reconnect.
 
 2. **Rate limit** — `src/native/risk.h` `RateLimiter`
    Token bucket guaranteeing the seat never exceeds the exchange/CTP order rate,

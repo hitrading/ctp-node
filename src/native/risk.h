@@ -16,8 +16,20 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace ctp {
+
+// One working open order, for rebuilding reservations from reqQryOrder.
+struct OpenOrderInfo {
+  int frontId = 0;
+  int sessionId = 0;
+  std::string orderRef;
+  std::string instrumentId;
+  bool isLong = true;
+  double vol = 0.0;   // working remainder (VolumeTotalOriginal - VolumeTraded)
+  double price = 0.0; // LimitPrice
+};
 
 struct RiskConfig {
   int maxOrderVolume = 0;          // per single order; 0 = disabled
@@ -87,22 +99,34 @@ public:
   // capped independently; 0/unset = that side unlimited.
   void setMaxPositionVolume(const std::string &instrumentId, bool isLong, double maxVolume);
 
+  // Our login session (FrontID, SessionID), set on rsp-user-login. Reservations
+  // are keyed by (front, session, orderRef) so orders from THIS session never
+  // collide with another terminal's orders on the same account (which CTP also
+  // delivers to us, and which auto-seed the same orderRef numbers).
+  void setSession(int frontId, int sessionId);
+
   // Atomically check ALL position caps (per-side volume, per-instrument cost,
   // global cost) against committed = held + in-flight reserved, and, if the
-  // order passes and any cap applies, reserve it (keyed by orderRef) so a burst
-  // of opens can't slip past before fills arrive. Returns the cap that blocked,
-  // or Ok (reserved). Pair every Ok with an eventual release: a fill/cancel/
-  // reject reconciles via onOrderUpdate / releaseReservation, and a failed send
-  // (api rc != 0) must call releaseReservation since no lifecycle event will.
+  // order passes and any cap applies, reserve it (under our own session key) so
+  // a burst of opens can't slip past before fills arrive. Returns the cap that
+  // blocked, or Ok (reserved). Pair every Ok with an eventual release: a fill/
+  // cancel/reject reconciles via onOrderUpdate / releaseReservation, and a
+  // failed send (api rc != 0) must call releaseReservation - no lifecycle event.
   OpenGate tryReserveOpen(const std::string &orderRef, const std::string &instrumentId,
                           bool isLong, double price, double volume);
   // Reconcile an open order's reservation to its current working remainder
-  // (volTotal - volTraded while queueing; 0 once terminal). Fed from OnRtnOrder.
-  void onOrderUpdate(const std::string &orderRef, const std::string &instrumentId,
-                     bool isOpen, bool isLong, char status, double limitPrice,
-                     double volTotal, double volTraded);
-  // Drop an order's reservation outright (front/insert rejection, or failed send).
+  // (volTotal - volTraded while queueing; 0 once terminal). Fed from OnRtnOrder,
+  // which carries the originating session - so this also tracks (and releases)
+  // orders placed by another terminal on the same account.
+  void onOrderUpdate(int frontId, int sessionId, const std::string &orderRef,
+                     const std::string &instrumentId, bool isOpen, bool isLong,
+                     char status, double limitPrice, double volTotal, double volTraded);
+  // Drop one of OUR orders' reservations outright (front/insert rejection, or
+  // failed send - neither yields an OnRtnOrder).
   void releaseReservation(const std::string &orderRef);
+  // Rebuild all in-flight reservations from CTP's working orders (reqQryOrder).
+  // Authoritative resync for (re)connect; clears prior reservations first.
+  void rebuildOpenReservations(const std::vector<OpenOrderInfo> &orders);
 
 private:
   std::atomic<bool> halted_{false};
@@ -120,14 +144,17 @@ private:
   };
   mutable std::mutex posMutex_;
   std::unordered_map<std::string, Pos> positions_;
-  // In-flight open-order reservations, keyed by orderRef, so a fill/cancel/
-  // reject can release exactly what each order reserved (its working remainder).
+  int myFrontId_ = 0, mySessionId_ = 0; // our session, for reservation keys
+  // In-flight open-order reservations, keyed by (front:session:orderRef) so a
+  // fill/cancel/reject releases exactly what each order reserved (its working
+  // remainder), and our orders never collide with another terminal's.
   struct Reservation {
     std::string instrumentId;
     bool isLong = true;
     double vol = 0.0, cost = 0.0;
   };
   std::unordered_map<std::string, Reservation> reservations_;
+  static std::string resvKey(int frontId, int sessionId, const std::string &orderRef);
   // Contract multipliers are static metadata kept separate from position state
   // so resetPositions() (which syncPositions calls) does not wipe them.
   std::unordered_map<std::string, double> multipliers_;

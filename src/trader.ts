@@ -68,12 +68,19 @@ export class Trader extends TraderBase {
     // seed the order-ref counter past the broker's max so auto-assigned refs
     // never collide with a prior session's (CTP rejects duplicate refs).
     this.on("rsp-user-login", (d: unknown) => {
-      const r = d as { brokerId?: string; userId?: string; maxOrderRef?: string } | undefined;
+      const r = d as
+        | { brokerId?: string; userId?: string; maxOrderRef?: string; frontId?: number; sessionId?: number }
+        | undefined;
       if (r) {
         this.broker = r.brokerId;
         this.investor = r.userId;
         const mx = r.maxOrderRef ? parseInt(r.maxOrderRef, 10) : NaN;
         if (Number.isFinite(mx) && mx > this.orderRefSeq) this.orderRefSeq = mx;
+        // Publish our session so reservations key by (front, session, ref) and
+        // never collide with another terminal's orders on the same account.
+        if (typeof r.frontId === "number" && typeof r.sessionId === "number") {
+          this.native.setSession(r.frontId, r.sessionId);
+        }
       }
     });
     this.start();
@@ -314,6 +321,49 @@ export class Trader extends TraderBase {
     return rows.filter((r) => r.position > 0).length;
   }
 
+  /**
+   * Rebuild the in-flight reservation from CTP's currently-working orders
+   * (reqQryOrder) - an authoritative resync. Call it after login and after any
+   * reconnect so the position caps account for orders already working at the
+   * broker: ones placed before a reconnect, or - since CTP delivers them too -
+   * orders placed from another terminal on the same account. Returns the number
+   * of working open orders re-reserved. Run syncMultipliers() first so the
+   * reserved cost uses the right contract multiplier.
+   */
+  async syncOrders(opts?: { brokerId?: string; investorId?: string }): Promise<number> {
+    const brokerId = opts?.brokerId ?? this.broker;
+    const investorId = opts?.investorId ?? this.investor;
+    const rows = (await this.queryWithRetry(
+      () => this.reqQryOrder({ brokerId, investorId }),
+      false
+    )) as Array<{
+      frontId: number;
+      sessionId: number;
+      orderRef: string;
+      instrumentId: string;
+      combOffsetFlag: string;
+      direction: string;
+      orderStatus: string;
+      limitPrice: number;
+      volumeTotalOriginal: number;
+      volumeTraded: number;
+    }>;
+    // working = queueing (PartTradedQueueing '1' / NoTradeQueueing '3'); open only
+    const working = rows
+      .filter((o) => (o.orderStatus === "1" || o.orderStatus === "3") && o.combOffsetFlag?.[0] === "0")
+      .map((o) => ({
+        frontId: o.frontId,
+        sessionId: o.sessionId,
+        orderRef: o.orderRef,
+        instrumentId: o.instrumentId,
+        isLong: o.direction === "0",
+        vol: o.volumeTotalOriginal - o.volumeTraded,
+        price: o.limitPrice,
+      }));
+    this.native.rebuildReservations(working);
+    return working.length;
+  }
+
   /** @internal test-only: feed a synthetic fill into the position-cost tracker. */
   _applyTestTrade(instrumentId: string, isBuy: boolean, isOpen: boolean, price: number, volume: number): void {
     this.native._applyTestTrade(instrumentId, isBuy, isOpen, price, volume);
@@ -322,8 +372,8 @@ export class Trader extends TraderBase {
   /** @internal test-only: drive the in-flight reservation tracker (OnRtnOrder).
    *  status: '1'/'3' = working (queueing), others (e.g. '0' filled, '5'
    *  cancelled) = terminal. */
-  _applyTestOrder(orderRef: string, instrumentId: string, isOpen: boolean, isLong: boolean, status: string, limitPrice: number, volTotal: number, volTraded: number): void {
-    this.native._applyTestOrder(orderRef, instrumentId, isOpen, isLong, status, limitPrice, volTotal, volTraded);
+  _applyTestOrder(frontId: number, sessionId: number, orderRef: string, instrumentId: string, isOpen: boolean, isLong: boolean, status: string, limitPrice: number, volTotal: number, volTraded: number): void {
+    this.native._applyTestOrder(frontId, sessionId, orderRef, instrumentId, isOpen, isLong, status, limitPrice, volTotal, volTraded);
   }
 
   /**

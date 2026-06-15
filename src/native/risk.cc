@@ -151,6 +151,17 @@ bool RiskEngine::hasCapLocked(const std::string &instrumentId, bool isLong) cons
   return false;
 }
 
+void RiskEngine::setSession(int frontId, int sessionId) {
+  std::lock_guard<std::mutex> lk(posMutex_);
+  myFrontId_ = frontId;
+  mySessionId_ = sessionId;
+}
+
+std::string RiskEngine::resvKey(int frontId, int sessionId,
+                                const std::string &orderRef) {
+  return std::to_string(frontId) + ":" + std::to_string(sessionId) + ":" + orderRef;
+}
+
 OpenGate RiskEngine::tryReserveOpen(const std::string &orderRef,
                                     const std::string &instrumentId, bool isLong,
                                     double price, double volume) {
@@ -211,18 +222,21 @@ OpenGate RiskEngine::tryReserveOpen(const std::string &orderRef,
       pp.shortPendVol += volume;
       pp.shortPendCost += addCost;
     }
-    reservations_[orderRef] = Reservation{instrumentId, isLong, volume, addCost};
+    reservations_[resvKey(myFrontId_, mySessionId_, orderRef)] =
+        Reservation{instrumentId, isLong, volume, addCost};
   }
   return OpenGate::Ok;
 }
 
-void RiskEngine::onOrderUpdate(const std::string &orderRef,
+void RiskEngine::onOrderUpdate(int frontId, int sessionId,
+                               const std::string &orderRef,
                                const std::string &instrumentId, bool isOpen,
                                bool isLong, char status, double limitPrice,
                                double volTotal, double volTraded) {
   if (!isOpen)
     return; // only opening orders reserve
   std::lock_guard<std::mutex> lk(posMutex_);
+  const std::string key = resvKey(frontId, sessionId, orderRef);
   const bool working = (status == '1' || status == '3'); // queueing
   double desiredVol = working ? volTotal - volTraded : 0.0;
   if (desiredVol < 0.0)
@@ -230,10 +244,10 @@ void RiskEngine::onOrderUpdate(const std::string &orderRef,
   const double mult = multiplierLocked(instrumentId);
   const double desiredCost = desiredVol * limitPrice * mult;
 
-  auto rit = reservations_.find(orderRef);
+  auto rit = reservations_.find(key);
   if (rit == reservations_.end()) {
-    // Untracked order (e.g. sent before a cap existed, or replayed on login):
-    // start tracking only if a cap now applies and there is something working.
+    // Untracked order (sent before a cap existed, or placed by another terminal
+    // on this account): start tracking only if a cap applies and it's working.
     if (desiredVol <= 0.0 || !hasCapLocked(instrumentId, isLong))
       return;
     Pos &pp = positions_[instrumentId];
@@ -244,7 +258,7 @@ void RiskEngine::onOrderUpdate(const std::string &orderRef,
       pp.shortPendVol += desiredVol;
       pp.shortPendCost += desiredCost;
     }
-    reservations_[orderRef] = Reservation{instrumentId, isLong, desiredVol, desiredCost};
+    reservations_[key] = Reservation{instrumentId, isLong, desiredVol, desiredCost};
     return;
   }
 
@@ -270,7 +284,8 @@ void RiskEngine::onOrderUpdate(const std::string &orderRef,
 
 void RiskEngine::releaseReservation(const std::string &orderRef) {
   std::lock_guard<std::mutex> lk(posMutex_);
-  auto rit = reservations_.find(orderRef);
+  // Only ever called for OUR own orders (failed send / front rejection).
+  auto rit = reservations_.find(resvKey(myFrontId_, mySessionId_, orderRef));
   if (rit == reservations_.end())
     return;
   Reservation &r = rit->second;
@@ -283,6 +298,33 @@ void RiskEngine::releaseReservation(const std::string &orderRef) {
     pp.shortPendCost -= r.cost;
   }
   reservations_.erase(rit);
+}
+
+void RiskEngine::rebuildOpenReservations(const std::vector<OpenOrderInfo> &orders) {
+  std::lock_guard<std::mutex> lk(posMutex_);
+  // Authoritative resync: drop all reservations and the in-flight portion of
+  // every position, then re-reserve from the live working orders. Held (filled)
+  // position is untouched - that's reconciled by syncPositions.
+  for (auto &kv : positions_) {
+    kv.second.longPendVol = kv.second.longPendCost = 0.0;
+    kv.second.shortPendVol = kv.second.shortPendCost = 0.0;
+  }
+  reservations_.clear();
+  for (const auto &o : orders) {
+    if (o.vol <= 0.0)
+      continue;
+    const double cost = o.vol * o.price * multiplierLocked(o.instrumentId);
+    Pos &pp = positions_[o.instrumentId];
+    if (o.isLong) {
+      pp.longPendVol += o.vol;
+      pp.longPendCost += cost;
+    } else {
+      pp.shortPendVol += o.vol;
+      pp.shortPendCost += cost;
+    }
+    reservations_[resvKey(o.frontId, o.sessionId, o.orderRef)] =
+        Reservation{o.instrumentId, o.isLong, o.vol, cost};
+  }
 }
 
 RiskVerdict RiskEngine::check(const std::string &instrumentId, double price,

@@ -84,6 +84,8 @@ private:
   Napi::Value SetMultiplier(const Napi::CallbackInfo &info);
   Napi::Value SetMaxPositionVolume(const Napi::CallbackInfo &info);
   Napi::Value SetMaxInstrumentCost(const Napi::CallbackInfo &info);
+  Napi::Value SetSession(const Napi::CallbackInfo &info);
+  Napi::Value RebuildReservations(const Napi::CallbackInfo &info);
   Napi::Value SeedPosition(const Napi::CallbackInfo &info);
   Napi::Value PositionCost(const Napi::CallbackInfo &info);
   Napi::Value ResetPositions(const Napi::CallbackInfo &info);
@@ -125,6 +127,8 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("setMultiplier", &Trader::SetMultiplier),
           InstanceMethod("setMaxPositionVolume", &Trader::SetMaxPositionVolume),
           InstanceMethod("setMaxInstrumentCost", &Trader::SetMaxInstrumentCost),
+          InstanceMethod("setSession", &Trader::SetSession),
+          InstanceMethod("rebuildReservations", &Trader::RebuildReservations),
           InstanceMethod("seedPosition", &Trader::SeedPosition),
           InstanceMethod("positionCost", &Trader::PositionCost),
           InstanceMethod("resetPositions", &Trader::ResetPositions),
@@ -349,6 +353,41 @@ Napi::Value Trader::SetMaxInstrumentCost(const Napi::CallbackInfo &info) {
   return info.Env().Undefined();
 }
 
+// (frontId, sessionId) - our login session, for reservation keys.
+Napi::Value Trader::SetSession(const Napi::CallbackInfo &info) {
+  if (info.Length() >= 2 && info[0].IsNumber() && info[1].IsNumber()) {
+    risk_.setSession(info[0].As<Napi::Number>().Int32Value(),
+                     info[1].As<Napi::Number>().Int32Value());
+  }
+  return info.Env().Undefined();
+}
+
+// (Array<{frontId, sessionId, orderRef, instrumentId, isLong, vol, price}>) -
+// rebuild in-flight reservations from CTP's working orders (reqQryOrder).
+Napi::Value Trader::RebuildReservations(const Napi::CallbackInfo &info) {
+  std::vector<OpenOrderInfo> orders;
+  if (info.Length() >= 1 && info[0].IsArray()) {
+    Napi::Array arr = info[0].As<Napi::Array>();
+    for (uint32_t i = 0; i < arr.Length(); ++i) {
+      Napi::Value v = arr.Get(i);
+      if (!v.IsObject())
+        continue;
+      Napi::Object o = v.As<Napi::Object>();
+      OpenOrderInfo r;
+      r.frontId = o.Get("frontId").ToNumber().Int32Value();
+      r.sessionId = o.Get("sessionId").ToNumber().Int32Value();
+      r.orderRef = o.Get("orderRef").ToString().Utf8Value();
+      r.instrumentId = o.Get("instrumentId").ToString().Utf8Value();
+      r.isLong = o.Get("isLong").ToBoolean().Value();
+      r.vol = o.Get("vol").ToNumber().DoubleValue();
+      r.price = o.Get("price").ToNumber().DoubleValue();
+      orders.push_back(std::move(r));
+    }
+  }
+  risk_.rebuildOpenReservations(orders);
+  return info.Env().Undefined();
+}
+
 // (instrumentId, isLong, volume, openCost) - seed a pre-existing position.
 Napi::Value Trader::SeedPosition(const Napi::CallbackInfo &info) {
   if (info.Length() >= 4) {
@@ -380,18 +419,20 @@ Napi::Value Trader::ApplyTestTrade(const Napi::CallbackInfo &info) {
   return info.Env().Undefined();
 }
 
-// (orderRef, instrumentId, isOpen, isLong, status, limitPrice, volTotal,
-// volTraded) - drive the in-flight reservation tracker (simulates OnRtnOrder).
+// (frontId, sessionId, orderRef, instrumentId, isOpen, isLong, status,
+// limitPrice, volTotal, volTraded) - drive the reservation tracker (OnRtnOrder).
 Napi::Value Trader::ApplyTestOrder(const Napi::CallbackInfo &info) {
-  if (info.Length() >= 8) {
-    std::string status = info[4].As<Napi::String>().Utf8Value();
-    risk_.onOrderUpdate(info[0].As<Napi::String>().Utf8Value(),
-                        info[1].As<Napi::String>().Utf8Value(),
-                        info[2].ToBoolean().Value(), info[3].ToBoolean().Value(),
+  if (info.Length() >= 10) {
+    std::string status = info[6].As<Napi::String>().Utf8Value();
+    risk_.onOrderUpdate(info[0].As<Napi::Number>().Int32Value(),
+                        info[1].As<Napi::Number>().Int32Value(),
+                        info[2].As<Napi::String>().Utf8Value(),
+                        info[3].As<Napi::String>().Utf8Value(),
+                        info[4].ToBoolean().Value(), info[5].ToBoolean().Value(),
                         status.empty() ? ' ' : status[0],
-                        info[5].As<Napi::Number>().DoubleValue(),
-                        info[6].As<Napi::Number>().DoubleValue(),
-                        info[7].As<Napi::Number>().DoubleValue());
+                        info[7].As<Napi::Number>().DoubleValue(),
+                        info[8].As<Napi::Number>().DoubleValue(),
+                        info[9].As<Napi::Number>().DoubleValue());
   }
   return info.Env().Undefined();
 }

@@ -113,19 +113,29 @@ const vOpen2 = (vol) =>
   td.reqOrderInsert({ instrumentId: "rb2610", direction: "0", combOffsetFlag: "0", limitPrice: 3000, volumeTotalOriginal: vol })
     .then(() => "sent")
     .catch((e) => e.message);
-td._applyTestOrder("w1", "rb2610", true, true, "3", 3000, 4, 0); // a working open of 4 -> reserves 4
+td._applyTestOrder(1, 100, "w1", "rb2610", true, true, "3", 3000, 4, 0); // a working open of 4 -> reserves 4
 check(/volume/i.test(String(await vOpen2(2))), `in-flight 4 + open 2 (6>5) blocked by reservation`);
 check(!/volume/i.test(String(await vOpen2(1))), `in-flight 4 + open 1 (5<=5) passed`);
-td._applyTestOrder("w1", "rb2610", true, true, "0", 3000, 4, 4); // fully filled -> reservation released
+td._applyTestOrder(1, 100, "w1", "rb2610", true, true, "0", 3000, 4, 4); // fully filled -> reservation released
 td._applyTestTrade("rb2610", true, true, 3000, 4); // the fill becomes held
 check(!/volume/i.test(String(await vOpen2(1))), `after fill: held 4 + open 1 (5<=5) passed`);
 check(/volume/i.test(String(await vOpen2(2))), `after fill: held 4 + open 2 (6>5) blocked`);
 td.resetPositions();
 td.setMaxPosition("rb2610", 5);
-td._applyTestOrder("w2", "rb2610", true, true, "3", 3000, 5, 0); // reserve 5 = the whole cap
+td._applyTestOrder(1, 100, "w2", "rb2610", true, true, "3", 3000, 5, 0); // reserve 5 = the whole cap
 check(/volume/i.test(String(await vOpen2(1))), `in-flight 5 (=cap) -> open 1 blocked`);
-td._applyTestOrder("w2", "rb2610", true, true, "5", 3000, 5, 0); // cancelled -> released
+td._applyTestOrder(1, 100, "w2", "rb2610", true, true, "5", 3000, 5, 0); // cancelled -> released
 check(!/volume/i.test(String(await vOpen2(1))), `after cancel: open 1 passed (reservation freed)`);
+
+// another-terminal simulation: a working order from a DIFFERENT session is
+// tracked independently (keyed by front:session:ref, no collision with ours)
+td.resetPositions();
+td.setMaxPosition("rb2610", 3);
+td._applyTestOrder(1, 100, "1", "rb2610", true, true, "3", 3000, 2, 0); // "their" ref 1 (sess 100)
+td._applyTestOrder(9, 999, "1", "rb2610", true, true, "3", 3000, 2, 0); // "our-ish" ref 1 (sess 999) - same ref number!
+check(/volume/i.test(String(await vOpen2(1))), `two sessions' ref "1" both counted (2+2+1>3) -> blocked (no key collision)`);
+td._applyTestOrder(1, 100, "1", "rb2610", true, true, "5", 3000, 2, 0); // their order cancelled -> release only theirs
+check(!/volume/i.test(String(await vOpen2(1))), `after one session's cancel: 2 left, +1<=3 passed`);
 
 console.log(`RISK TEST: ${pass} pass, ${fail} fail`);
 td.close();

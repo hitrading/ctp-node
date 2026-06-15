@@ -108,8 +108,9 @@ for (const s of spi) {
   if (s.name === "OnRtnTrade") {
     c += `  if (p && risk_)\n    risk_->onTrade(p->InstrumentID, p->Direction == '0', p->OffsetFlag == '0', p->Price, p->Volume);\n`;
   } else if (s.name === "OnRtnOrder") {
-    // reconcile the order's in-flight reservation to its working remainder
-    c += `  if (p && risk_)\n    risk_->onOrderUpdate(p->OrderRef, p->InstrumentID, p->CombOffsetFlag[0] == '0', p->Direction == '0', p->OrderStatus, p->LimitPrice, p->VolumeTotalOriginal, p->VolumeTraded);\n`;
+    // reconcile the order's in-flight reservation to its working remainder;
+    // keyed by the originating (FrontID, SessionID, OrderRef)
+    c += `  if (p && risk_)\n    risk_->onOrderUpdate(p->FrontID, p->SessionID, p->OrderRef, p->InstrumentID, p->CombOffsetFlag[0] == '0', p->Direction == '0', p->OrderStatus, p->LimitPrice, p->VolumeTotalOriginal, p->VolumeTraded);\n`;
   } else if (s.name === "OnRspOrderInsert" || s.name === "OnErrRtnOrderInsert") {
     // insertion rejected (no OnRtnOrder will follow) -> drop the reservation
     c += `  if (p && risk_)\n    risk_->releaseReservation(p->OrderRef);\n`;

@@ -307,7 +307,7 @@ void TraderSpi::OnRspError(CThostFtdcRspInfoField *e, int id, bool last) {
 
 void TraderSpi::OnRtnOrder(CThostFtdcOrderField *p) {
   if (p && risk_)
-    risk_->onOrderUpdate(p->OrderRef, p->InstrumentID, p->CombOffsetFlag[0] == '0', p->Direction == '0', p->OrderStatus, p->LimitPrice, p->VolumeTotalOriginal, p->VolumeTraded);
+    risk_->onOrderUpdate(p->FrontID, p->SessionID, p->OrderRef, p->InstrumentID, p->CombOffsetFlag[0] == '0', p->Direction == '0', p->OrderStatus, p->LimitPrice, p->VolumeTotalOriginal, p->VolumeTraded);
   ch_->push(ET_RtnOrder, 0, -1, 0, "", p ? SID_Order : -1, p, p ? (int)sizeof(*p) : 0);
 }
 

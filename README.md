@@ -55,9 +55,11 @@ td.on("front-connected", async () => {
   await td.reqAuthenticate({ brokerId, userId, appId, authCode });
   await td.reqUserLogin({ brokerId, userId, password });
 
-  // Risk inputs are fetched from CTP automatically — no manual multipliers/seeding:
+  // Risk inputs are fetched from CTP automatically — no manual multipliers/seeding.
+  // Call these after login (and after any reconnect) to (re)build risk state:
   await td.syncMultipliers(); // contract multipliers (reqQryInstrument)
   await td.syncPositions();   // existing open-position cost (reqQryInvestorPosition)
+  await td.syncOrders();      // in-flight reservation from working orders (reqQryOrder)
 
   // Promise-based queries return all rows:
   const positions = await td.reqQryInvestorPosition({ brokerId, investorId });
