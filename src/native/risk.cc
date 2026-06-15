@@ -327,23 +327,28 @@ void RiskEngine::rebuildOpenReservations(const std::vector<OpenOrderInfo> &order
   }
 }
 
+RiskVerdict RiskEngine::block(const char *reason) const {
+  lastReason_.store(reason, std::memory_order_relaxed);
+  return {false, reason};
+}
+
 RiskVerdict RiskEngine::check(const std::string &instrumentId, double price,
                               double refPrice, int volume) const {
   if (halted_.load(std::memory_order_relaxed))
-    return {false, "trading halted (kill-switch)"};
+    return block("trading halted (kill-switch)");
 
   if (volume <= 0)
-    return {false, "order volume must be positive"};
+    return block("order volume must be positive");
 
   const int maxVol = maxOrderVolume_.load(std::memory_order_relaxed);
   if (maxVol > 0 && volume > maxVol)
-    return {false, "order volume exceeds maxOrderVolume"};
+    return block("order volume exceeds maxOrderVolume");
 
   const double dev = maxPriceDeviation_.load(std::memory_order_relaxed);
   if (dev > 0.0 && refPrice > 0.0) {
     const double diff = std::fabs(price - refPrice) / refPrice;
     if (diff > dev)
-      return {false, "order price deviates too far from reference"};
+      return block("order price deviates too far from reference");
   }
 
   const double maxNotional = maxNotional_.load(std::memory_order_relaxed);
@@ -355,7 +360,7 @@ RiskVerdict RiskEngine::check(const std::string &instrumentId, double price,
     }
     const double notional = price * static_cast<double>(volume) * mult;
     if (notional > maxNotional)
-      return {false, "order notional exceeds maxNotional"};
+      return block("order notional exceeds maxNotional");
   }
 
   return {true, nullptr};

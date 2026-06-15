@@ -80,6 +80,7 @@ private:
   Napi::Value RiskSet(const Napi::CallbackInfo &info);
   Napi::Value RiskHalt(const Napi::CallbackInfo &info);
   Napi::Value RiskResume(const Napi::CallbackInfo &info);
+  Napi::Value LastRiskReason(const Napi::CallbackInfo &info);
   Napi::Value SetRefPrice(const Napi::CallbackInfo &info);
   Napi::Value SetMultiplier(const Napi::CallbackInfo &info);
   Napi::Value SetMaxPositionVolume(const Napi::CallbackInfo &info);
@@ -123,6 +124,7 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("riskSet", &Trader::RiskSet),
           InstanceMethod("riskHalt", &Trader::RiskHalt),
           InstanceMethod("riskResume", &Trader::RiskResume),
+          InstanceMethod("lastRiskReason", &Trader::LastRiskReason),
           InstanceMethod("setRefPrice", &Trader::SetRefPrice),
           InstanceMethod("setMultiplier", &Trader::SetMultiplier),
           InstanceMethod("setMaxPositionVolume", &Trader::SetMaxPositionVolume),
@@ -316,6 +318,12 @@ Napi::Value Trader::RiskHalt(const Napi::CallbackInfo &info) {
 Napi::Value Trader::RiskResume(const Napi::CallbackInfo &info) {
   risk_.resume();
   return info.Env().Undefined();
+}
+
+// Reason string of the most recent pre-trade-risk (check) rejection, "" if none.
+Napi::Value Trader::LastRiskReason(const Napi::CallbackInfo &info) {
+  const char *r = risk_.lastBlockReason();
+  return Napi::String::New(info.Env(), r ? r : "");
 }
 
 Napi::Value Trader::SetRefPrice(const Napi::CallbackInfo &info) {

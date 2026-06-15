@@ -223,6 +223,28 @@ export abstract class CtpClient extends EventEmitter {
     return ++this.reqSeq;
   }
 
+  /** Message for a non-zero send code. Risk sentinels get a specific message;
+   *  the generic pre-trade-risk block also appends the C++ reason (e.g. which
+   *  limit) so logs say *why*. Returns undefined for non-risk codes. */
+  private riskRejectMessage(rc: number): string | undefined {
+    switch (rc) {
+      case -10001: {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        const reason =
+          typeof this.native.lastRiskReason === "function" ? this.native.lastRiskReason() : "";
+        return reason ? `blocked by pre-trade risk: ${reason}` : "blocked by pre-trade risk";
+      }
+      case -10002:
+        return "rate limited (order rate exceeded)";
+      case -10003:
+        return "blocked by max position cost";
+      case -10004:
+        return "blocked by max position volume (lots)";
+      default:
+        return undefined;
+    }
+  }
+
   /**
    * Send a request and resolve when its response arrives (matched by id).
    * `single` resolves with the one row; otherwise with the accumulated rows.
@@ -246,16 +268,7 @@ export abstract class CtpClient extends EventEmitter {
       }
       if (rc !== 0) {
         this.pending.delete(id);
-        const msg =
-          rc === -10001
-            ? "blocked by pre-trade risk"
-            : rc === -10002
-              ? "rate limited (order rate exceeded)"
-              : rc === -10003
-                ? "blocked by max position cost"
-                : rc === -10004
-                  ? "blocked by max position volume (lots)"
-                  : `request rejected by CTP API (code ${rc})`;
+        const msg = this.riskRejectMessage(rc) ?? `request rejected by CTP API (code ${rc})`;
         reject(new Error(msg));
       }
     });
@@ -277,16 +290,7 @@ export abstract class CtpClient extends EventEmitter {
       return Promise.reject(e);
     }
     if (rc === 0) return Promise.resolve();
-    const msg =
-      rc === -10001
-        ? "blocked by pre-trade risk"
-        : rc === -10002
-          ? "rate limited (order rate exceeded)"
-          : rc === -10003
-            ? "blocked by max position cost"
-            : rc === -10004
-              ? "blocked by max position volume (lots)"
-              : `order rejected by CTP API (code ${rc})`;
+    const msg = this.riskRejectMessage(rc) ?? `order rejected by CTP API (code ${rc})`;
     return Promise.reject(new Error(msg));
   }
 }

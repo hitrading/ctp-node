@@ -70,10 +70,13 @@ public:
   void resume();                          // kill-switch off
   bool isHalted() const { return halted_.load(std::memory_order_relaxed); }
 
-  // Validation only, no side effects. refPrice<=0 skips deviation; the
-  // instrument's multiplier (if set) is applied to the notional check.
+  // Validation only (no position side effects). refPrice<=0 skips deviation;
+  // the instrument's multiplier (if set) is applied to the notional check.
   RiskVerdict check(const std::string &instrumentId, double price,
                     double refPrice, int volume) const;
+  // Static reason string of the most recent check() rejection (for diagnostics
+  // / JS-side logging); null if none. Cheap, set only on the reject path.
+  const char *lastBlockReason() const { return lastReason_.load(std::memory_order_relaxed); }
 
   // Rate gate (consumes a token). Call right before sending.
   bool allowRate() { return limiter_.tryAcquire(); }
@@ -170,6 +173,9 @@ private:
   double multiplierLocked(const std::string &instrumentId) const;
   // Whether any position cap applies to this instrument/side. Holds posMutex_.
   bool hasCapLocked(const std::string &instrumentId, bool isLong) const;
+  // Record + return a check() rejection (stores the reason for lastBlockReason).
+  RiskVerdict block(const char *reason) const;
+  mutable std::atomic<const char *> lastReason_{nullptr};
 };
 
 } // namespace ctp

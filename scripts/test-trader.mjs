@@ -25,20 +25,21 @@ const check = (cond, msg) => {
 td.riskSet({ maxOrderVolume: 5 });
 
 // 1) Oversized order -> risk reads VolumeTotalOriginal (100 > 5) and blocks.
+//    The rejection message must carry the specific reason (observability).
 try {
   await td.reqOrderInsert({ instrumentId: "rb2510", direction: "0", limitPrice: 3500, volumeTotalOriginal: 100 });
   check(false, "oversized order should have been rejected");
 } catch (e) {
-  check(/risk/i.test(e.message), `oversized order blocked by risk ("${e.message}")`);
+  check(/risk/i.test(e.message) && /maxOrderVolume/i.test(e.message), `oversized order blocked, reason surfaced ("${e.message}")`);
 }
 
-// 2) Kill-switch -> any order blocked.
+// 2) Kill-switch -> any order blocked, with the kill-switch reason surfaced.
 td.halt();
 try {
   await td.reqOrderInsert({ instrumentId: "rb2510", direction: "0", limitPrice: 3500, volumeTotalOriginal: 1 });
   check(false, "halted order should have been rejected");
 } catch (e) {
-  check(/risk/i.test(e.message), `kill-switch blocked order ("${e.message}")`);
+  check(/risk/i.test(e.message) && /halt|kill-switch/i.test(e.message), `kill-switch blocked order, reason surfaced ("${e.message}")`);
 }
 td.resume();
 

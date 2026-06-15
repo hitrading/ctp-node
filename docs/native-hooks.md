@@ -73,6 +73,27 @@ notified afterward.
 - `ArmRegistry` currently guards its list with a mutex; TODO is a read-mostly
   lock-free snapshot so `onTick` never blocks on rare arm/disarm writes.
 
+## Logging / observability
+
+Deliberately, the C++ does **no synchronous logging** — blocking I/O or string
+formatting on the CTP callback thread would add exactly the latency/jitter this
+design avoids. The hot path stays memcpy + atomics. Observability is layered the
+way low-latency systems do it:
+
+- **Counters / events, not logs, in C++.** `droppedRecords` (backpressure),
+  arm fire count, and the streaming events (`front-connected`,
+  `front-disconnected` with reason, `rsp-*` with `errorId`/`errorMsg`) are
+  surfaced to JS.
+- **Reasons surfaced, not swallowed.** A pre-trade-risk rejection carries the
+  specific cause back to JS (e.g. `blocked by pre-trade risk: order volume
+  exceeds maxOrderVolume`; position caps and rate limit have their own
+  messages), so logs say *why*. Costs nothing on the hot path — it's set only
+  on the (rare) reject.
+- **Do the actual logging in JS**, off the callback thread, from those events —
+  any async logger (pino/winston) is fine there. If C++-side audit logging is
+  ever needed, add an opt-in async/deferred logger (lock-free queue + background
+  thread, à la NanoLog/Quill) — never a synchronous one.
+
 ## Public TS surface (the shell)
 
 All of this is exposed on `Trader` (`src/trader.ts`):
