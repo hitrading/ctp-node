@@ -50,6 +50,17 @@ void RiskEngine::configure(const RiskConfig &cfg) {
 void RiskEngine::halt() { halted_.store(true, std::memory_order_relaxed); }
 void RiskEngine::resume() { halted_.store(false, std::memory_order_relaxed); }
 
+void RiskEngine::setRefPrice(const std::string &instrumentId, double price) {
+  std::lock_guard<std::mutex> lk(refMutex_);
+  refPrices_[instrumentId] = price;
+}
+
+double RiskEngine::refPrice(const std::string &instrumentId) const {
+  std::lock_guard<std::mutex> lk(refMutex_);
+  auto it = refPrices_.find(instrumentId);
+  return it != refPrices_.end() ? it->second : 0.0;
+}
+
 RiskVerdict RiskEngine::check(double price, double refPrice, int volume) const {
   if (halted_.load(std::memory_order_relaxed))
     return {false, "trading halted (kill-switch)"};

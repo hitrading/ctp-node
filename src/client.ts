@@ -20,6 +20,18 @@ import {
   type StructLayout,
 } from "./codec.js";
 import { STRUCTS } from "./generated/structs.gen.js";
+import { native as addon } from "./native-binding.js";
+
+/** Encode a request string field: ASCII fast path; GB18030 (CTP's wire charset,
+ *  via native) for the rare non-ASCII field. */
+function encodeReqString(s: string): Uint8Array {
+  for (let i = 0; i < s.length; i++) {
+    if (s.charCodeAt(i) > 0x7f) return new Uint8Array(addon.__gbkEncode(s));
+  }
+  const a = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i);
+  return a;
+}
 
 const S_EVENT = 0;
 const S_REQID = 4;
@@ -199,7 +211,12 @@ export abstract class CtpClient extends EventEmitter {
 
   /** Encode a plain object into a struct's raw bytes (for req* encoders). */
   protected encode(structId: number, obj: Record<string, unknown>): Uint8Array {
-    return encodeStruct(this.layouts[structId], STRUCTS[structId].fields, obj);
+    return encodeStruct(
+      this.layouts[structId],
+      STRUCTS[structId].fields,
+      obj,
+      encodeReqString
+    );
   }
 
   protected nextRequestId(): number {

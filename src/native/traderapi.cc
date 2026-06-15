@@ -80,6 +80,7 @@ private:
   Napi::Value RiskSet(const Napi::CallbackInfo &info);
   Napi::Value RiskHalt(const Napi::CallbackInfo &info);
   Napi::Value RiskResume(const Napi::CallbackInfo &info);
+  Napi::Value SetRefPrice(const Napi::CallbackInfo &info);
   Napi::Value Start(const Napi::CallbackInfo &info);
   Napi::Value Buffer(const Napi::CallbackInfo &info);
   Napi::Value ClaimBatch(const Napi::CallbackInfo &info);
@@ -112,6 +113,7 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("riskSet", &Trader::RiskSet),
           InstanceMethod("riskHalt", &Trader::RiskHalt),
           InstanceMethod("riskResume", &Trader::RiskResume),
+          InstanceMethod("setRefPrice", &Trader::SetRefPrice),
           InstanceMethod("_start", &Trader::Start),
           InstanceMethod("_buffer", &Trader::Buffer),
           InstanceMethod("_claim", &Trader::ClaimBatch),
@@ -268,6 +270,14 @@ Napi::Value Trader::RiskHalt(const Napi::CallbackInfo &info) {
 
 Napi::Value Trader::RiskResume(const Napi::CallbackInfo &info) {
   risk_.resume();
+  return info.Env().Undefined();
+}
+
+Napi::Value Trader::SetRefPrice(const Napi::CallbackInfo &info) {
+  if (info.Length() >= 2 && info[0].IsString() && info[1].IsNumber()) {
+    risk_.setRefPrice(info[0].As<Napi::String>().Utf8Value(),
+                      info[1].As<Napi::Number>().DoubleValue());
+  }
   return info.Env().Undefined();
 }
 

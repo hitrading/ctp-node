@@ -75,6 +75,21 @@ export class Trader extends TraderBase {
     return this;
   }
 
+  /** Set the reference price for an instrument (used by maxPriceDeviation). */
+  setRefPrice(instrumentId: string, price: number): this {
+    this.native.setRefPrice(instrumentId, price);
+    return this;
+  }
+
+  /** Auto-feed last prices from a MarketData feed so the maxPriceDeviation
+   *  check has a live reference. */
+  trackMarketData(md: MarketData): this {
+    md.on("rtn-depth-market-data", (t) =>
+      this.native.setRefPrice(t.instrumentId, t.lastPrice)
+    );
+    return this;
+  }
+
   /**
    * Arm a latency-critical trigger: when `md` sees the condition, the order is
    * sent from C++ on the callback thread (through this Trader's risk gate),

@@ -18,6 +18,7 @@
 #include "generated/layout.gen.h"
 #include "native/arm.h"
 #include "native/channel.h"
+#include "native/gbk.h"
 #include "native/mdapi.h"
 #include "native/risk.h"
 #include "native/traderapi.h"
@@ -143,6 +144,14 @@ Napi::Value RingSelfTest(const Napi::CallbackInfo &info) {
   return out;
 }
 
+// Encode a UTF-8 string to GB18030 bytes (for outbound non-ASCII req fields).
+Napi::Value GbkEncode(const Napi::CallbackInfo &info) {
+  std::string s = info[0].As<Napi::String>().Utf8Value();
+  std::string gbk = ctp::gbkEncode(s.data(), s.size());
+  return Napi::Buffer<uint8_t>::Copy(
+      info.Env(), reinterpret_cast<const uint8_t *>(gbk.data()), gbk.size());
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("mdApiVersion", Napi::Function::New(env, MdApiVersion));
   exports.Set("traderApiVersion", Napi::Function::New(env, TraderApiVersion));
@@ -151,6 +160,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
               Napi::Function::New(env, SampleDepthMarketData));
   exports.Set("__riskSelfTest", Napi::Function::New(env, RiskSelfTest));
   exports.Set("__ringSelfTest", Napi::Function::New(env, RingSelfTest));
+  exports.Set("__gbkEncode", Napi::Function::New(env, GbkEncode));
   exports.Set("MarketData", ctp::InitMarketData(env));
   exports.Set("Trader", ctp::InitTrader(env));
   return exports;

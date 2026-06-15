@@ -124,7 +124,8 @@ const utf8Encoder = new TextEncoder();
 export function encodeStruct(
   layout: StructLayout,
   fields: { js: string; kind: number }[],
-  obj: Record<string, unknown>
+  obj: Record<string, unknown>,
+  encodeStr: (s: string) => Uint8Array = (s) => utf8Encoder.encode(s)
 ): Uint8Array {
   const out = new Uint8Array(layout.size);
   const view = new DataView(out.buffer);
@@ -134,7 +135,7 @@ export function encodeStruct(
     if (v === undefined || v === null) continue;
     switch (f.kind) {
       case 0: {
-        const bytes = utf8Encoder.encode(String(v));
+        const bytes = encodeStr(String(v));
         const cap = f.size === 1 ? 1 : f.size - 1;
         out.set(bytes.subarray(0, Math.min(bytes.length, cap)), f.offset);
         break;

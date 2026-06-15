@@ -7,6 +7,7 @@
         "src/native/risk.cc",
         "src/native/arm.cc",
         "src/native/channel.cc",
+        "src/native/gbk.cc",
         "src/native/mdspi.cc",
         "src/native/mdapi.cc",
         "src/native/traderapi.cc",
@@ -73,6 +74,7 @@
             "-F<(module_root_dir)/tradeapi/macos",
             "-framework thostmduserapi_se",
             "-framework thosttraderapi_se",
+            "-liconv",
             "-Wl,-rpath,@loader_path",
             "-Wl,-rpath,<(module_root_dir)/tradeapi/macos"
           ],

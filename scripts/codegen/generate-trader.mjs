@@ -146,7 +146,7 @@ for (const r of req) {
   rc += `    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));\n`;
   if (r.name === "ReqOrderInsert") {
     rc += `    if (risk) {\n`;
-    rc += `      RiskVerdict v = risk->check(f.LimitPrice, 0.0, f.VolumeTotalOriginal);\n`;
+    rc += `      RiskVerdict v = risk->check(f.LimitPrice, risk->refPrice(f.InstrumentID), f.VolumeTotalOriginal);\n`;
     rc += `      if (!v.ok) return CTP_RISK_BLOCKED;\n`;
     rc += `      if (!risk->allowRate()) return CTP_RATE_LIMITED;\n`;
     rc += `    }\n`;

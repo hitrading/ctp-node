@@ -14,6 +14,8 @@
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <string>
+#include <unordered_map>
 
 namespace ctp {
 
@@ -58,6 +60,11 @@ public:
   // Rate gate (consumes a token). Call right before sending.
   bool allowRate() { return limiter_.tryAcquire(); }
 
+  // Per-instrument reference price for the maxPriceDeviation check. Fed from
+  // market data (cold-ish path); 0 = unknown -> deviation check skipped.
+  void setRefPrice(const std::string &instrumentId, double price);
+  double refPrice(const std::string &instrumentId) const;
+
   // TODO(position): per-instrument net-position limits need live position
   //   state from the trade-return path (not built yet). Reserved hook.
 
@@ -67,6 +74,8 @@ private:
   std::atomic<double> maxPriceDeviation_{0.0};
   std::atomic<double> maxNotional_{0.0};
   RateLimiter limiter_;
+  mutable std::mutex refMutex_;
+  std::unordered_map<std::string, double> refPrices_;
 };
 
 } // namespace ctp
