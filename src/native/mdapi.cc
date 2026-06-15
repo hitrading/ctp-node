@@ -11,10 +11,12 @@
 
 #include "mdapi.h"
 
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "../generated/layout.gen.h"
@@ -79,6 +81,7 @@ private:
   Napi::Value Close(const Napi::CallbackInfo &info);
   Napi::Value AttachArm(const Napi::CallbackInfo &info);
   Napi::Value InjectTestTick(const Napi::CallbackInfo &info);
+  Napi::Value BurstTicks(const Napi::CallbackInfo &info);
 
   CThostFtdcMdApi *api_ = nullptr;
   MdSpi *spi_ = nullptr;
@@ -86,6 +89,8 @@ private:
   std::shared_ptr<ArmRegistry> armReg_;
   bool started_ = false;
   bool closed_ = false;
+  // test-only background producer thread (doorbell cross-thread stress).
+  std::thread burst_;
 };
 
 Napi::Function MarketData::Init(Napi::Env env) {
@@ -108,6 +113,7 @@ Napi::Function MarketData::Init(Napi::Env env) {
           InstanceMethod("_info", &MarketData::ChannelInfo),
           InstanceMethod("_attachArm", &MarketData::AttachArm),
           InstanceMethod("_injectTestTick", &MarketData::InjectTestTick),
+          InstanceMethod("_burstTicks", &MarketData::BurstTicks),
           InstanceMethod("close", &MarketData::Close),
       });
 }
@@ -135,22 +141,16 @@ MarketData::MarketData(const Napi::CallbackInfo &info)
     api_->RegisterFront(const_cast<char *>(addr.c_str()));
 }
 
-MarketData::~MarketData() {
-  doClose();
-  if (spi_) {
-    delete spi_;
-    spi_ = nullptr;
-  }
-  if (ch_) {
-    delete ch_;
-    ch_ = nullptr;
-  }
-}
+MarketData::~MarketData() { doClose(); }
 
 void MarketData::doClose() {
   if (closed_)
     return;
   closed_ = true;
+  // Join any test-only burst producer before tearing the channel down, so it
+  // can never push into a freed ring.
+  if (burst_.joinable())
+    burst_.join();
   // Detach the SPI's api pointer BEFORE releasing the api, so a late callback
   // (or the test tick hook) can never dereference the freed api.
   if (spi_) {
@@ -162,8 +162,22 @@ void MarketData::doClose() {
     api_ = nullptr;
   }
   armReg_.reset();
-  if (ch_)
-    ch_->stop(); // abort doorbell TSF
+  // Free the SPI and the ring here, on close(), rather than waiting for the JS
+  // object's GC finalizer: the ring is large (~21 MB - maxStructSize * 8192
+  // slots) but invisible to V8, so the GC feels no pressure and a create/close
+  // loop balloons RSS (measured ~32 MB/cycle for MD+Trader, unreclaimed even by
+  // a forced GC) before finalizers ever run. The CTP producer thread is stopped
+  // (Release above) and the burst thread is joined, so nothing can push anymore;
+  // the doorbell is aborted in ~EventChannel via stop(). Accessors null-check.
+  if (spi_) {
+    delete spi_;
+    spi_ = nullptr;
+  }
+  if (ch_) {
+    ch_->stop(); // abort doorbell TSF (idempotent)
+    delete ch_;
+    ch_ = nullptr;
+  }
 }
 
 Napi::Value MarketData::GetApiVersion(const Napi::CallbackInfo &info) {
@@ -257,29 +271,33 @@ Napi::Value MarketData::Start(const Napi::CallbackInfo &info) {
 }
 
 Napi::Value MarketData::Buffer(const Napi::CallbackInfo &info) {
+  if (!ch_)
+    return info.Env().Undefined();
   return Napi::ArrayBuffer::New(info.Env(), ch_->data(), ch_->byteLength());
 }
 
 Napi::Value MarketData::ClaimBatch(const Napi::CallbackInfo &info) {
-  return Napi::Number::New(info.Env(), ch_->claim());
+  return Napi::Number::New(info.Env(), ch_ ? ch_->claim() : 0);
 }
 
 Napi::Value MarketData::ReleaseBatch(const Napi::CallbackInfo &info) {
-  ch_->release(info[0].As<Napi::Number>().Uint32Value());
+  if (ch_)
+    ch_->release(info[0].As<Napi::Number>().Uint32Value());
   return info.Env().Undefined();
 }
 
 Napi::Value MarketData::DropCount(const Napi::CallbackInfo &info) {
-  return Napi::Number::New(info.Env(),
-                           static_cast<double>(ch_->dropCount()));
+  return Napi::Number::New(
+      info.Env(), static_cast<double>(ch_ ? ch_->dropCount() : 0));
 }
 
 Napi::Value MarketData::ChannelInfo(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
   Napi::Object o = Napi::Object::New(env);
-  o.Set("slotSize", static_cast<double>(ch_->slotSize()));
-  o.Set("numSlots", static_cast<double>(ch_->numSlots()));
-  o.Set("headerSize", static_cast<double>(ch_->headerSize()));
+  const bool live = ch_ != nullptr;
+  o.Set("slotSize", static_cast<double>(live ? ch_->slotSize() : 0));
+  o.Set("numSlots", static_cast<double>(live ? ch_->numSlots() : 0));
+  o.Set("headerSize", static_cast<double>(live ? ch_->headerSize() : 0));
   return o;
 }
 
@@ -314,6 +332,40 @@ Napi::Value MarketData::InjectTestTick(const Napi::CallbackInfo &info) {
     spi_->OnRtnDepthMarketData(&f);
   }
   return info.Env().Undefined();
+}
+
+// test-only: spawn a background producer thread that pushes `n` synthetic depth
+// ticks straight into the real channel (the exact cross-thread SPSC + coalesced
+// doorbell path), each tagged with its sequence number in the requestId slot so
+// JS can verify conservation (received-unique + dropped == n) and detect any
+// lost wakeup (a stranded tail that never wakes the JS drain). This is the
+// doorbell race the claim() seq_cst fence guards.
+Napi::Value MarketData::BurstTicks(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  if (closed_ || !ch_)
+    return env.Undefined();
+  if (burst_.joinable())
+    burst_.join(); // only one burst at a time
+  int n = info.Length() >= 1 ? info[0].As<Napi::Number>().Int32Value() : 0;
+  // optional inter-push jitter in microseconds (0 = none) to widen the window.
+  int jitterUs = info.Length() >= 2 ? info[1].As<Napi::Number>().Int32Value() : 0;
+  EventChannel *ch = ch_;
+  burst_ = std::thread([ch, n, jitterUs]() {
+    CThostFtdcDepthMarketDataField f;
+    std::memset(&f, 0, sizeof(f));
+    std::snprintf(f.InstrumentID, sizeof(f.InstrumentID), "%s", "rb2510");
+    std::snprintf(f.ExchangeID, sizeof(f.ExchangeID), "%s", "SHFE");
+    f.LastPrice = 3500.5;
+    for (int i = 0; i < n; ++i) {
+      f.Volume = i; // sequence echo in the payload too
+      // requestId field carries the sequence number (JS reads it per record).
+      ch->push(MD_RTN_DEPTH_MARKET_DATA, i, -1, 0, "", SID_DepthMarketData, &f,
+               (int)sizeof(f));
+      if (jitterUs > 0 && (i & 0x3F) == 0)
+        std::this_thread::sleep_for(std::chrono::microseconds(jitterUs));
+    }
+  });
+  return env.Undefined();
 }
 
 Napi::Function InitMarketData(Napi::Env env) { return MarketData::Init(env); }

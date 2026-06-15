@@ -51,6 +51,30 @@ check(!/position/i.test(String(closing)), `closing order not capped -> ${closing
 td._applyTestTrade("rb2610", false, false, 3100, 1); // close 1 of the long 2 -> release half
 check(Math.abs(td.positionCost() - 30000) < 1, `position cost after partial close = ${td.positionCost()} (expect 30000)`);
 
+// ----- regression: NaN/Inf must never poison position cost -----
+// onTrade/seedPosition reject non-finite/negative; setMultiplier must reject
+// +Inf too (it passes the ">0" test, and an Inf multiplier makes cost Inf and a
+// proportional close-release NaN, which silently voids the cap since NaN>cap is
+// false). All three must leave positionCost finite.
+td.resetPositions();
+td.setMultiplier("rb2610", 10);
+td._applyTestTrade("rb2610", true, true, NaN, 1);
+td._applyTestTrade("rb2610", true, true, Infinity, 1);
+td._applyTestTrade("rb2610", true, true, 3000, NaN);
+td._applyTestTrade("rb2610", true, true, -3000, 1);
+check(td.positionCost() === 0, `onTrade NaN/Inf/neg ignored -> cost 0 (got ${td.positionCost()})`);
+td.seedPosition("rb2610", "long", Infinity, 1000);
+td.seedPosition("rb2610", "long", 5, NaN);
+check(td.positionCost() === 0, `seedPosition NaN/Inf ignored -> cost 0 (got ${td.positionCost()})`);
+td.resetPositions();
+td.setMultiplier("inf2610", Infinity); // must fall back to 1.0, not store Inf
+td._applyTestTrade("inf2610", true, true, 100, 2);
+check(Number.isFinite(td.positionCost()), `setMultiplier(Inf) -> finite cost (got ${td.positionCost()})`);
+td._applyTestTrade("inf2610", false, false, 100, 1); // proportional release must not be NaN
+check(Number.isFinite(td.positionCost()), `partial close after Inf-mult guard -> finite cost (got ${td.positionCost()})`);
+td.resetPositions();
+td.setMultiplier("rb2610", 10); // restore for downstream checks
+
 // ----- regression: resetPositions() must NOT wipe multipliers -----
 // syncPositions() calls resetPositions() before re-seeding; if the multiplier
 // lived in the same map it would be lost, and the next fill would be costed at

@@ -28,7 +28,7 @@
     "build": "npm run gen && npm run build:native && npm run build:ts",
     "prebuild": "prebuildify --napi --strip",
     "install": "node-gyp-build",
-    "test": "node scripts/test-codec.mjs && node scripts/test-md.mjs && node scripts/test-trader.mjs && node scripts/test-arm.mjs && node scripts/test-risk.mjs && node scripts/test-gbk.mjs",
+    "test": "node scripts/test-codec.mjs && node scripts/test-md.mjs && node scripts/test-trader.mjs && node scripts/test-arm.mjs && node scripts/test-risk.mjs && node scripts/test-gbk.mjs && node scripts/test-lifecycle.mjs",
     "bench": "node scripts/bench-decode.mjs",
     "smoke": "node scripts/smoke.mjs"
   },

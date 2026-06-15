@@ -179,17 +179,7 @@ Trader::Trader(const Napi::CallbackInfo &info) : Napi::ObjectWrap<Trader>(info) 
     api_->RegisterFront(const_cast<char *>(addr.c_str()));
 }
 
-Trader::~Trader() {
-  doClose();
-  if (spi_) {
-    delete spi_;
-    spi_ = nullptr;
-  }
-  if (ch_) {
-    delete ch_;
-    ch_ = nullptr;
-  }
-}
+Trader::~Trader() { doClose(); }
 
 void Trader::doClose() {
   if (closed_)
@@ -203,8 +193,20 @@ void Trader::doClose() {
     api_->Release();
     api_ = nullptr;
   }
-  if (ch_)
+  // Free the SPI and the ring here, on close(), not in the GC finalizer: the
+  // ring (~maxStructSize * 4096 slots, ~10 MB) is off-heap so V8 feels no GC
+  // pressure from it, and a create/close loop leaks it (measured unreclaimed
+  // even by a forced GC) until finalizers eventually run. Release() above
+  // stopped the CTP callback thread, so no more pushes; accessors null-check.
+  if (spi_) {
+    delete spi_;
+    spi_ = nullptr;
+  }
+  if (ch_) {
     ch_->stop();
+    delete ch_;
+    ch_ = nullptr;
+  }
 }
 
 int Trader::fireArmed(const ArmSpec &spec) {
@@ -471,28 +473,33 @@ Napi::Value Trader::Start(const Napi::CallbackInfo &info) {
 }
 
 Napi::Value Trader::Buffer(const Napi::CallbackInfo &info) {
+  if (!ch_)
+    return info.Env().Undefined();
   return Napi::ArrayBuffer::New(info.Env(), ch_->data(), ch_->byteLength());
 }
 
 Napi::Value Trader::ClaimBatch(const Napi::CallbackInfo &info) {
-  return Napi::Number::New(info.Env(), ch_->claim());
+  return Napi::Number::New(info.Env(), ch_ ? ch_->claim() : 0);
 }
 
 Napi::Value Trader::ReleaseBatch(const Napi::CallbackInfo &info) {
-  ch_->release(info[0].As<Napi::Number>().Uint32Value());
+  if (ch_)
+    ch_->release(info[0].As<Napi::Number>().Uint32Value());
   return info.Env().Undefined();
 }
 
 Napi::Value Trader::DropCount(const Napi::CallbackInfo &info) {
-  return Napi::Number::New(info.Env(), static_cast<double>(ch_->dropCount()));
+  return Napi::Number::New(info.Env(),
+                          static_cast<double>(ch_ ? ch_->dropCount() : 0));
 }
 
 Napi::Value Trader::ChannelInfo(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
   Napi::Object o = Napi::Object::New(env);
-  o.Set("slotSize", static_cast<double>(ch_->slotSize()));
-  o.Set("numSlots", static_cast<double>(ch_->numSlots()));
-  o.Set("headerSize", static_cast<double>(ch_->headerSize()));
+  const bool live = ch_ != nullptr;
+  o.Set("slotSize", static_cast<double>(live ? ch_->slotSize() : 0));
+  o.Set("numSlots", static_cast<double>(live ? ch_->numSlots() : 0));
+  o.Set("headerSize", static_cast<double>(live ? ch_->headerSize() : 0));
   return o;
 }
 

@@ -64,7 +64,12 @@ double RiskEngine::refPrice(const std::string &instrumentId) const {
 
 void RiskEngine::setMultiplier(const std::string &instrumentId, double mult) {
   std::lock_guard<std::mutex> lk(posMutex_);
-  multipliers_[instrumentId] = mult > 0.0 ? mult : 1.0;
+  // A finite positive multiplier is used as-is; anything else (<=0, NaN, or
+  // +Inf) falls back to 1.0. The isfinite guard is essential: +Inf passes the
+  // ">0" test, and an Inf multiplier turns every fill's cost into Inf and the
+  // proportional close-release into NaN - which silently voids the cost cap
+  // (NaN > cap is false), exactly the poison the onTrade/seed guards prevent.
+  multipliers_[instrumentId] = (std::isfinite(mult) && mult > 0.0) ? mult : 1.0;
 }
 
 void RiskEngine::setMaxPositionVolume(const std::string &instrumentId,

@@ -120,6 +120,13 @@ export class MarketData extends CtpClient {
     (this.native as { _injectTestTick(): void })._injectTestTick();
   }
 
+  /** @internal test-only: spawn a background producer thread that pushes `n`
+   *  synthetic ticks into the ring (cross-thread doorbell stress). Each tick's
+   *  requestId carries its sequence number. */
+  _burstTicks(n: number, jitterUs = 0): void {
+    (this.native as { _burstTicks(n: number, j: number): void })._burstTicks(n, jitterUs);
+  }
+
   // Typed event signatures.
   on(event: "rtn-depth-market-data", cb: (data: DepthMarketData, opts: CallbackOptions) => void): this;
   on(event: "rtn-for-quote", cb: (data: ForQuoteRsp, opts: CallbackOptions) => void): this;
