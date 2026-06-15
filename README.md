@@ -52,14 +52,16 @@ td.setMaxPositions({ rb2610: 100, au2610: 10, ru2610: { long: 100, short: 20 } }
 td.setMaxPositionCosts({ ag2608: 2_000_000, au2608: 5_000_000 });                   // per-instrument cost caps
 
 td.on("front-connected", async () => {
-  await td.reqAuthenticate({ brokerId, userId, appId, authCode });
-  await td.reqUserLogin({ brokerId, userId, password });
+  // One-call handshake (call again after a reconnect): authenticate → login →
+  // confirm settlement → sync multipliers / positions / orders. Risk inputs are
+  // fetched from CTP automatically — no manual multipliers/seeding.
+  await td.session({ brokerId, userId, password, appId, authCode });
 
-  // Risk inputs are fetched from CTP automatically — no manual multipliers/seeding.
-  // Call these after login (and after any reconnect) to (re)build risk state:
-  await td.syncMultipliers(); // contract multipliers (reqQryInstrument)
-  await td.syncPositions();   // existing open-position cost (reqQryInvestorPosition)
-  await td.syncOrders();      // in-flight reservation from working orders (reqQryOrder)
+  // ...or hand-roll it if you need finer control:
+  //   await td.reqAuthenticate({ brokerId, userId, appId, authCode });
+  //   await td.reqUserLogin({ brokerId, userId, password });
+  //   await td.reqSettlementInfoConfirm({ brokerId, investorId }); // real accounts
+  //   await td.syncMultipliers(); await td.syncPositions(); await td.syncOrders();
 
   // Promise-based queries return all rows:
   const positions = await td.reqQryInvestorPosition({ brokerId, investorId });

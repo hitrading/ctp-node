@@ -39,6 +39,24 @@ export interface RiskConfig {
  *  `{ long, short }` caps each side separately (omit a side to leave it open). */
 export type LotCap = number | { long?: number; short?: number };
 
+/** Options for the one-call post-connect handshake, {@link Trader.session}. */
+export interface SessionOptions {
+  brokerId: string;
+  userId: string;
+  password: string;
+  /** Terminal authentication (real accounts require it; SimNow uses
+   *  appId "simnow_client_test" / authCode of 16 zeros). Omit both to skip. */
+  appId?: string;
+  authCode?: string;
+  /** Confirm the settlement statement after login — real accounts must do this
+   *  before trading (brokers reject orders otherwise). Default true; set false
+   *  for environments that don't need it. */
+  confirmSettlement?: boolean;
+  /** Which risk inputs to fetch after login (default: all). `multipliers` may
+   *  be `true` (all instruments) or a list of symbols. */
+  sync?: { multipliers?: boolean | string[]; positions?: boolean; orders?: boolean };
+}
+
 /** A latency-critical armed order: evaluated and fired in C++ on the market-data
  *  callback thread the instant its trigger hits — JS is never in the hot path. */
 export interface ArmSpec {
@@ -91,6 +109,33 @@ export class Trader extends TraderBase {
   }
   getTradingDay(): string {
     return this.native.getTradingDay();
+  }
+
+  /**
+   * One-call post-connect handshake. Call it from the `front-connected` handler
+   * (and again after a reconnect): authenticate (if appId/authCode given) →
+   * login → confirm settlement → sync multipliers / positions / orders. Each
+   * step just wraps the matching req / sync method, so you can hand-roll your
+   * own flow instead when you need finer control. Returns the row counts from
+   * the sync steps. Must run on a connected front (queries need the session up).
+   */
+  async session(opts: SessionOptions): Promise<{ multipliers: number; positions: number; orders: number }> {
+    const { brokerId, userId, password, appId, authCode } = opts;
+    if (appId !== undefined && authCode !== undefined) {
+      await this.reqAuthenticate({ brokerId, userId, appId, authCode });
+    }
+    await this.reqUserLogin({ brokerId, userId, password });
+    if (opts.confirmSettlement ?? true) {
+      // idempotent: confirming an already-confirmed statement is fine
+      await this.reqSettlementInfoConfirm({ brokerId, investorId: userId });
+    }
+    const sync = opts.sync ?? {};
+    const mul = sync.multipliers ?? true;
+    const result = { multipliers: 0, positions: 0, orders: 0 };
+    if (mul) result.multipliers = await this.syncMultipliers(Array.isArray(mul) ? mul : undefined);
+    if (sync.positions ?? true) result.positions = await this.syncPositions();
+    if (sync.orders ?? true) result.orders = await this.syncOrders();
+    return result;
   }
 
   /** Assign a unique numeric OrderRef when the caller left it blank. CTP treats
