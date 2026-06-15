@@ -87,6 +87,11 @@ export abstract class CtpClient extends EventEmitter {
   private numSlots = 0;
   private headerSize = 0;
   private readPos = 0;
+  // Set the instant close() begins. close() frees the native ring synchronously,
+  // so if an event handler invoked from drain() calls close() mid-batch, the
+  // rest of that batch must NOT keep reading the (now freed) ring view. Every
+  // drain loop checks this and bails the moment it flips.
+  private closing = false;
   private readonly pending = new Map<number, Pending>();
   private reqSeq = 0;
   /** Event ids whose requestId-0 response should resolve the oldest pending
@@ -145,6 +150,8 @@ export abstract class CtpClient extends EventEmitter {
   }
 
   close(): void {
+    if (this.closing) return; // idempotent; also stops any in-progress drain
+    this.closing = true;
     this.rejectAllPending("client closed");
     this.native.close();
   }
@@ -164,9 +171,13 @@ export abstract class CtpClient extends EventEmitter {
       const numSlots = this.numSlots;
       const slotSize = this.slotSize;
       for (let i = 0; i < count; i++) {
+        // A handler in the previous dispatch() may have called close(), which
+        // frees the ring; stop before reading freed memory for the next record.
+        if (this.closing) return;
         const slot = ((this.readPos + i) % numSlots) * slotSize;
         this.dispatch(slot);
       }
+      if (this.closing) return;
       this.native._release(count);
       this.readPos += count;
       count = this.native._claim();

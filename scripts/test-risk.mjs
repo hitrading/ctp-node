@@ -161,6 +161,24 @@ check(/volume/i.test(String(await vOpen2(1))), `two sessions' ref "1" both count
 td._applyTestOrder(1, 100, "1", "rb2610", true, true, "5", 3000, 2, 0); // their order cancelled -> release only theirs
 check(!/volume/i.test(String(await vOpen2(1))), `after one session's cancel: 2 left, +1<=3 passed`);
 
+// ----- kill-switch (halt) covers ALL position-opening inserts, not just orders -----
+// halt() must block regular/exec/quote/forquote/option-self-close/comb inserts;
+// cancels & other actions stay open so you can pull working orders while halted.
+td.resetPositions();
+td.riskSet({});
+const callRaw = (fn, arg) => td[fn](arg).then(() => "sent").catch((e) => e.message);
+td.halt();
+check(/risk/i.test(String(await callRaw("reqOrderInsert", { instrumentId: "au2608", direction: "0", limitPrice: 560, volumeTotalOriginal: 1 }))), `halt blocks reqOrderInsert`);
+check(/risk/i.test(String(await callRaw("reqExecOrderInsert", { instrumentId: "au2608", volume: 1 }))), `halt blocks reqExecOrderInsert`);
+check(/risk/i.test(String(await callRaw("reqQuoteInsert", { instrumentId: "au2608" }))), `halt blocks reqQuoteInsert`);
+check(/risk/i.test(String(await callRaw("reqForQuoteInsert", { instrumentId: "au2608" }))), `halt blocks reqForQuoteInsert`);
+check(/risk/i.test(String(await callRaw("reqOptionSelfCloseInsert", { instrumentId: "au2608", volume: 1 }))), `halt blocks reqOptionSelfCloseInsert`);
+check(/risk/i.test(String(await callRaw("reqCombActionInsert", { instrumentId: "au2608" }))), `halt blocks reqCombActionInsert`);
+check(!/risk/i.test(String(await callRaw("reqOrderAction", { instrumentId: "au2608" }))), `halt does NOT block reqOrderAction (cancels stay open)`);
+check(!/risk/i.test(String(await callRaw("reqExecOrderAction", { instrumentId: "au2608" }))), `halt does NOT block reqExecOrderAction`);
+td.resume();
+check(!/risk/i.test(String(await callRaw("reqExecOrderInsert", { instrumentId: "au2608", volume: 1 }))), `after resume reqExecOrderInsert no longer blocked`);
+
 console.log(`RISK TEST: ${pass} pass, ${fail} fail`);
 td.close();
 process.exitCode = fail ? 1 : 0;

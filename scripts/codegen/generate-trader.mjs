@@ -159,6 +159,14 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
               int requestId, RiskEngine *risk) {
   switch (methodId) {
 `;
+// Order-creating inserts other than ReqOrderInsert (which gets the full risk
+// gate via check()) must still honor the kill-switch: halt() blocks ALL new
+// position-opening sends. Cancels/actions are intentionally NOT halt-gated, so
+// you can always pull working orders while halted.
+const HALT_INSERTS = new Set([
+  "ReqExecOrderInsert", "ReqForQuoteInsert", "ReqQuoteInsert",
+  "ReqOptionSelfCloseInsert", "ReqCombActionInsert",
+]);
 for (const r of req) {
   const T = `CThostFtdc${r.struct}Field`;
   rc += `  case M_${r.name}: {\n`;
@@ -182,6 +190,8 @@ for (const r of req) {
     rc += `      if (sendRc != 0 && isOpen) risk->releaseReservation(f.OrderRef); // send failed -> no lifecycle event will release it\n`;
     rc += `      return sendRc;\n`;
     rc += `    }\n`;
+  } else if (HALT_INSERTS.has(r.name)) {
+    rc += `    if (risk && risk->isHalted()) return CTP_RISK_BLOCKED;\n`;
   }
   rc += `    return api->${r.name}(&f, requestId);\n  }\n`;
 }

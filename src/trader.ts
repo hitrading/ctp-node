@@ -165,12 +165,15 @@ export class Trader extends TraderBase {
     this.native.riskSet(config);
     return this;
   }
-  /** Kill-switch: C++ blocks all order sends immediately. */
+  /** Kill-switch: C++ immediately blocks every position-opening send — regular,
+   *  exec, quote, for-quote, option-self-close and comb-action inserts. Cancels
+   *  and other *actions* are deliberately left open so you can still pull working
+   *  orders while halted. Takes effect at once; reverse with {@link resume}. */
   halt(): this {
     this.native.riskHalt();
     return this;
   }
-  /** Release the kill-switch. */
+  /** Release the kill-switch (see {@link halt}). */
   resume(): this {
     this.native.riskResume();
     return this;

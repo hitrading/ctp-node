@@ -80,5 +80,23 @@ check(after - before < 120, `no ring leak on close (RSS ${before} -> ${after} MB
   md.close();
 }
 
+// ----- reentrant close() inside a drain handler must not UAF the freed ring -----
+// close() frees the native ring synchronously. If a handler invoked from drain()
+// calls close() mid-batch (e.g. a kill-switch on a tick), the loop must stop
+// reading the now-freed view for the rest of the batch. Before the guard this
+// segfaulted (exit 139) whenever records followed the closing one; reaching the
+// summary below at all proves the process survived.
+{
+  const md = new MarketData("./flow-md/", "tcp://127.0.0.1:1");
+  let got = 0;
+  md.on("rtn-depth-market-data", () => {
+    got++;
+    if (got === 1) md.close(); // free the ring on record 1; thousands follow in-batch
+  });
+  md._burstTicks(5000, 0);
+  await sleep(300);
+  check(got >= 1, `reentrant close() in handler: survived a mid-batch close (delivered ${got}, no UAF)`);
+}
+
 console.log(`LIFECYCLE TEST: ${pass} pass, ${fail} fail`);
 process.exitCode = fail ? 1 : 0;

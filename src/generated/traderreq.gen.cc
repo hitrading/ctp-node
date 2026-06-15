@@ -145,6 +145,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcInputExecOrderField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk && risk->isHalted()) return CTP_RISK_BLOCKED;
     return api->ReqExecOrderInsert(&f, requestId);
   }
   case M_ReqExecOrderAction: {
@@ -157,12 +158,14 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcInputForQuoteField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk && risk->isHalted()) return CTP_RISK_BLOCKED;
     return api->ReqForQuoteInsert(&f, requestId);
   }
   case M_ReqQuoteInsert: {
     CThostFtdcInputQuoteField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk && risk->isHalted()) return CTP_RISK_BLOCKED;
     return api->ReqQuoteInsert(&f, requestId);
   }
   case M_ReqQuoteAction: {
@@ -181,6 +184,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcInputOptionSelfCloseField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk && risk->isHalted()) return CTP_RISK_BLOCKED;
     return api->ReqOptionSelfCloseInsert(&f, requestId);
   }
   case M_ReqOptionSelfCloseAction: {
@@ -193,6 +197,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcInputCombActionField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk && risk->isHalted()) return CTP_RISK_BLOCKED;
     return api->ReqCombActionInsert(&f, requestId);
   }
   case M_ReqQryOrder: {
