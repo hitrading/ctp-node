@@ -76,7 +76,12 @@ public:
   void onTrade(const std::string &instrumentId, bool isBuy, bool isOpen, double price, double volume);
   void resetPositions();
   double currentPositionCost() const;
-  // True if opening this order keeps the total open cost within maxPositionCost.
+  // Per-instrument cap on open-position cost (Σ price*volume*multiplier, both
+  // sides summed - a gross capital/concentration limit). 0/unset = no cap.
+  // Complements the global maxPositionCost.
+  void setMaxInstrumentCost(const std::string &instrumentId, double maxCost);
+  // True if opening this order keeps BOTH the per-instrument open cost and the
+  // global total open cost within their respective caps.
   bool allowOpen(const std::string &instrumentId, double price, double volume) const;
 
   // Per-instrument, per-side cap on open position volume (lots), enforced on
@@ -110,6 +115,8 @@ private:
     double longMax = 0.0, shortMax = 0.0;
   };
   std::unordered_map<std::string, VolCap> maxPositionVol_;
+  // Per-instrument open-cost caps (config metadata; survives resets). 0 = off.
+  std::unordered_map<std::string, double> maxInstrumentCost_;
   // Look up an instrument's multiplier (1.0 if unset). Caller holds posMutex_.
   double multiplierLocked(const std::string &instrumentId) const;
 };

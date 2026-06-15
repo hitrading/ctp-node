@@ -176,6 +176,27 @@ export class Trader extends TraderBase {
     return this;
   }
 
+  /**
+   * Cap one instrument's open-position cost (Σ open price × volume × multiplier,
+   * long and short summed - a gross capital/concentration limit), enforced in
+   * C++ on every opening order. This is per-instrument and independent of the
+   * account-wide cap set via riskSet({ maxPositionCost }); both apply. Pass
+   * `maxCost <= 0` to remove it. Fill-based, same caveat as maxPositionCost.
+   */
+  setMaxPositionCost(instrumentId: string, maxCost: number): this {
+    this.native.setMaxInstrumentCost(instrumentId, maxCost);
+    return this;
+  }
+
+  /** Cap several instruments' open-position cost at once, e.g.
+   *  `{ ag2608: 2_000_000, au2608: 5_000_000 }`. */
+  setMaxPositionCosts(limits: Record<string, number>): this {
+    for (const id of Object.keys(limits)) {
+      this.native.setMaxInstrumentCost(id, limits[id]);
+    }
+    return this;
+  }
+
   /** Seed a pre-existing position's open cost (for the maxPositionCost cap). */
   seedPosition(
     instrumentId: string,

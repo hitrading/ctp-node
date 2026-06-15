@@ -86,6 +86,23 @@ check(/volume/i.test(String(await ruOpen("0", 6))), `asym long 6 over long-cap(5
 check(/volume/i.test(String(await ruOpen("1", 3))), `asym short 3 over short-cap(2) blocked`);
 check(!/volume/i.test(String(await ruOpen("1", 2))), `asym short 2 within short-cap(2) passed`);
 
+// ----- per-instrument max position COST (gross capital per contract) -----
+td.resetPositions();
+td.riskSet({}); // clear the global cost cap; only the per-instrument caps active
+td.setMultiplier("au2608", 1000);
+td.setMultiplier("ag2608", 15);
+td.setMaxPositionCost("au2608", 1_000_000); // 1M per contract
+td.setMaxPositionCost("ag2608", 1_000_000); // same numeric cap, cheaper per lot
+const cOpen = (id, px, vol) =>
+  td.reqOrderInsert({ instrumentId: id, direction: "0", combOffsetFlag: "0", limitPrice: px, volumeTotalOriginal: vol })
+    .then(() => "sent")
+    .catch((e) => e.message);
+check(!/position cost/i.test(String(await cOpen("au2608", 560, 1))), `au 1 lot (560k) within 1M passed`);
+check(/position cost/i.test(String(await cOpen("au2608", 560, 2))), `au 2 lots (1.12M) over 1M blocked`);
+td._applyTestTrade("au2608", true, true, 560, 1); // fill: hold 560k of au
+check(/position cost/i.test(String(await cOpen("au2608", 560, 1))), `au +1 lot with 560k held (1.12M) blocked`);
+check(!/position cost/i.test(String(await cOpen("ag2608", 7500, 1))), `ag 1 lot (112.5k) independent of au's holding passed`);
+
 console.log(`RISK TEST: ${pass} pass, ${fail} fail`);
 td.close();
 process.exitCode = fail ? 1 : 0;

@@ -83,6 +83,7 @@ private:
   Napi::Value SetRefPrice(const Napi::CallbackInfo &info);
   Napi::Value SetMultiplier(const Napi::CallbackInfo &info);
   Napi::Value SetMaxPositionVolume(const Napi::CallbackInfo &info);
+  Napi::Value SetMaxInstrumentCost(const Napi::CallbackInfo &info);
   Napi::Value SeedPosition(const Napi::CallbackInfo &info);
   Napi::Value PositionCost(const Napi::CallbackInfo &info);
   Napi::Value ResetPositions(const Napi::CallbackInfo &info);
@@ -122,6 +123,7 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("setRefPrice", &Trader::SetRefPrice),
           InstanceMethod("setMultiplier", &Trader::SetMultiplier),
           InstanceMethod("setMaxPositionVolume", &Trader::SetMaxPositionVolume),
+          InstanceMethod("setMaxInstrumentCost", &Trader::SetMaxInstrumentCost),
           InstanceMethod("seedPosition", &Trader::SeedPosition),
           InstanceMethod("positionCost", &Trader::PositionCost),
           InstanceMethod("resetPositions", &Trader::ResetPositions),
@@ -322,6 +324,15 @@ Napi::Value Trader::SetMaxPositionVolume(const Napi::CallbackInfo &info) {
     risk_.setMaxPositionVolume(info[0].As<Napi::String>().Utf8Value(),
                                info[1].ToBoolean().Value(),
                                info[2].As<Napi::Number>().DoubleValue());
+  }
+  return info.Env().Undefined();
+}
+
+// (instrumentId, maxCost) - per-instrument open-position cost cap; 0 = off.
+Napi::Value Trader::SetMaxInstrumentCost(const Napi::CallbackInfo &info) {
+  if (info.Length() >= 2 && info[0].IsString() && info[1].IsNumber()) {
+    risk_.setMaxInstrumentCost(info[0].As<Napi::String>().Utf8Value(),
+                               info[1].As<Napi::Number>().DoubleValue());
   }
   return info.Env().Undefined();
 }

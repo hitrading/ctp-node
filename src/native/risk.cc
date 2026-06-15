@@ -131,16 +131,38 @@ double RiskEngine::currentPositionCost() const {
   return total;
 }
 
+void RiskEngine::setMaxInstrumentCost(const std::string &instrumentId,
+                                     double maxCost) {
+  std::lock_guard<std::mutex> lk(posMutex_);
+  maxInstrumentCost_[instrumentId] = maxCost > 0.0 ? maxCost : 0.0; // 0 = off
+}
+
 bool RiskEngine::allowOpen(const std::string &instrumentId, double price,
                            double volume) const {
-  const double maxCost = maxPositionCost_.load(std::memory_order_relaxed);
-  if (maxCost <= 0.0)
-    return true;
+  const double globalCap = maxPositionCost_.load(std::memory_order_relaxed);
   std::lock_guard<std::mutex> lk(posMutex_);
-  double total = 0.0;
-  for (const auto &kv : positions_)
-    total += kv.second.longCost + kv.second.shortCost;
-  return total + price * volume * multiplierLocked(instrumentId) <= maxCost;
+  const double add = price * volume * multiplierLocked(instrumentId);
+
+  // Per-instrument cost cap (concentration): this contract's open cost only.
+  auto cit = maxInstrumentCost_.find(instrumentId);
+  if (cit != maxInstrumentCost_.end() && cit->second > 0.0) {
+    double instrCost = 0.0;
+    auto pit = positions_.find(instrumentId);
+    if (pit != positions_.end())
+      instrCost = pit->second.longCost + pit->second.shortCost;
+    if (instrCost + add > cit->second)
+      return false;
+  }
+
+  // Global cost cap: total open cost across the whole book.
+  if (globalCap > 0.0) {
+    double total = 0.0;
+    for (const auto &kv : positions_)
+      total += kv.second.longCost + kv.second.shortCost;
+    if (total + add > globalCap)
+      return false;
+  }
+  return true;
 }
 
 bool RiskEngine::allowOpenVolume(const std::string &instrumentId, bool isLong,

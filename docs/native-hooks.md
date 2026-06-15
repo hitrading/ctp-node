@@ -22,10 +22,10 @@ notified afterward.
 
 1. **Risk (pre-trade)** — `src/native/risk.h` `RiskEngine`
    Hard checks run before every send: kill-switch, max order volume, price
-   deviation (fat-finger), max notional, max total open-position cost, and a
-   per-instrument max position (lots, capped per side). Enforced in C++ so they
-   hold even if the JS process is mid-GC, blocked, or buggy. *Safety win —
-   worth it even for slow strategies.*
+   deviation (fat-finger), max notional, open-position cost caps (account-wide
+   and per-instrument), and a per-instrument max position (lots, capped per
+   side). Enforced in C++ so they hold even if the JS process is mid-GC,
+   blocked, or buggy. *Safety win - worth it even for slow strategies.*
    - Status: **all real**. Price deviation uses a per-instrument reference fed
      from market data (`setRefPrice` / `trackMarketData`). Notional and
      position-cost both apply the contract multiplier (price × volume ×
@@ -72,6 +72,7 @@ All of this is exposed on `Trader` (`src/trader.ts`):
 td.riskSet({ maxOrderVolume: 5, maxPriceDeviation: 0.02, maxOrdersPerSec: 20, maxPositionCost: 5_000_000 });
 td.trackMarketData(md);                   // feed the deviation/notional reference
 td.setMaxPositions({ rb2610: 100, ru2610: { long: 100, short: 20 } }); // per-instrument lot caps
+td.setMaxPositionCosts({ ag2608: 2_000_000, au2608: 5_000_000 });      // per-instrument cost caps
 td.halt(); td.resume();                   // kill-switch (C++ blocks all sends instantly)
 
 // Risk inputs auto-fetched from CTP after login:
