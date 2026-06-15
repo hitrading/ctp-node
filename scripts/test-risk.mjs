@@ -60,6 +60,21 @@ check(Math.abs(td.positionCost()) < 1, `positionCost cleared by reset -> ${td.po
 td._applyTestTrade("rb2610", true, true, 3000, 1); // open BUY 1 @ 3000 after a reset
 check(Math.abs(td.positionCost() - 30000) < 1, `multiplier survived resetPositions: cost = ${td.positionCost()} (expect 30000 = 3000*1*10, NOT 3000)`);
 
+// ----- per-instrument max position volume (lots) -----
+td.resetPositions();
+td.riskSet({}); // clear scalar caps so only the per-instrument lot cap is active
+td.setMaxPosition("rb2610", 3); // max 3 lots per side
+const vOpen = (dir, vol) =>
+  td.reqOrderInsert({ instrumentId: "rb2610", direction: dir, combOffsetFlag: "0", limitPrice: 3000, volumeTotalOriginal: vol })
+    .then(() => "sent")
+    .catch((e) => e.message);
+
+check(!/volume/i.test(String(await vOpen("0", 3))), `open 3 within max-position (0+3<=3) passed`);
+td._applyTestTrade("rb2610", true, true, 3000, 2); // fill: now hold 2 long
+check(/volume/i.test(String(await vOpen("0", 2))), `open 2 over max-position (2+2>3) blocked`);
+check(!/volume/i.test(String(await vOpen("0", 1))), `open 1 within max-position (2+1<=3) passed`);
+check(!/volume/i.test(String(await vOpen("1", 3))), `short-open 3 independent of long side passed`);
+
 console.log(`RISK TEST: ${pass} pass, ${fail} fail`);
 td.close();
 process.exitCode = fail ? 1 : 0;

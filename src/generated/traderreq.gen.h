@@ -5,6 +5,7 @@
 #define CTP_RISK_BLOCKED -10001
 #define CTP_RATE_LIMITED -10002
 #define CTP_POSITION_LIMIT -10003
+#define CTP_POSITION_VOLUME_LIMIT -10004
 namespace ctp {
 class RiskEngine;
 enum {

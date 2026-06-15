@@ -140,6 +140,26 @@ export class Trader extends TraderBase {
     return this;
   }
 
+  /**
+   * Cap the open position (in lots) for one instrument, enforced in C++ on
+   * every opening order. The long and short sides are capped independently;
+   * `maxLots <= 0` removes the cap. The check is fill-based (counts confirmed
+   * position, like maxPositionCost), so rapid bursts of opens can momentarily
+   * overshoot before fills land — size the cap with that in mind.
+   */
+  setMaxPosition(instrumentId: string, maxLots: number): this {
+    this.native.setMaxPositionVolume(instrumentId, maxLots);
+    return this;
+  }
+
+  /** Cap several instruments at once, e.g. `{ rb2610: 100, ru2610: 20 }`. */
+  setMaxPositions(limits: Record<string, number>): this {
+    for (const id of Object.keys(limits)) {
+      this.native.setMaxPositionVolume(id, limits[id]);
+    }
+    return this;
+  }
+
   /** Seed a pre-existing position's open cost (for the maxPositionCost cap). */
   seedPosition(
     instrumentId: string,

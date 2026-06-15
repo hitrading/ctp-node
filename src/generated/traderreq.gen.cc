@@ -83,9 +83,12 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     if (risk) {
       RiskVerdict v = risk->check(f.InstrumentID, f.LimitPrice, risk->refPrice(f.InstrumentID), f.VolumeTotalOriginal);
       if (!v.ok) return CTP_RISK_BLOCKED;
-      if (f.CombOffsetFlag[0] == '0' &&
-          !risk->allowOpen(f.InstrumentID, f.LimitPrice, f.VolumeTotalOriginal))
-        return CTP_POSITION_LIMIT;
+      if (f.CombOffsetFlag[0] == '0') { // open
+        if (!risk->allowOpen(f.InstrumentID, f.LimitPrice, f.VolumeTotalOriginal))
+          return CTP_POSITION_LIMIT;
+        if (!risk->allowOpenVolume(f.InstrumentID, f.Direction == '0', f.VolumeTotalOriginal))
+          return CTP_POSITION_VOLUME_LIMIT;
+      }
       if (!risk->allowRate()) return CTP_RATE_LIMITED;
     }
     return api->ReqOrderInsert(&f, requestId);

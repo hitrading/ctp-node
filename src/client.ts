@@ -253,7 +253,9 @@ export abstract class CtpClient extends EventEmitter {
               ? "rate limited (order rate exceeded)"
               : rc === -10003
                 ? "blocked by max position cost"
-                : `request rejected by CTP API (code ${rc})`;
+                : rc === -10004
+                  ? "blocked by max position volume (lots)"
+                  : `request rejected by CTP API (code ${rc})`;
         reject(new Error(msg));
       }
     });
@@ -282,7 +284,9 @@ export abstract class CtpClient extends EventEmitter {
           ? "rate limited (order rate exceeded)"
           : rc === -10003
             ? "blocked by max position cost"
-            : `order rejected by CTP API (code ${rc})`;
+            : rc === -10004
+              ? "blocked by max position volume (lots)"
+              : `order rejected by CTP API (code ${rc})`;
     return Promise.reject(new Error(msg));
   }
 }

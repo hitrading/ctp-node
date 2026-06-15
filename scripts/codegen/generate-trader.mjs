@@ -121,6 +121,7 @@ let rh = `/* AUTO-GENERATED. Do not edit. */
 #define CTP_RISK_BLOCKED -10001
 #define CTP_RATE_LIMITED -10002
 #define CTP_POSITION_LIMIT -10003
+#define CTP_POSITION_VOLUME_LIMIT -10004
 namespace ctp {
 class RiskEngine;
 enum {
@@ -156,7 +157,10 @@ for (const r of req) {
     rc += `    if (risk) {\n`;
     rc += `      RiskVerdict v = risk->check(f.InstrumentID, f.LimitPrice, risk->refPrice(f.InstrumentID), f.VolumeTotalOriginal);\n`;
     rc += `      if (!v.ok) return CTP_RISK_BLOCKED;\n`;
-    rc += `      if (f.CombOffsetFlag[0] == '0' &&\n          !risk->allowOpen(f.InstrumentID, f.LimitPrice, f.VolumeTotalOriginal))\n        return CTP_POSITION_LIMIT;\n`;
+    rc += `      if (f.CombOffsetFlag[0] == '0') { // open\n`;
+    rc += `        if (!risk->allowOpen(f.InstrumentID, f.LimitPrice, f.VolumeTotalOriginal))\n          return CTP_POSITION_LIMIT;\n`;
+    rc += `        if (!risk->allowOpenVolume(f.InstrumentID, f.Direction == '0', f.VolumeTotalOriginal))\n          return CTP_POSITION_VOLUME_LIMIT;\n`;
+    rc += `      }\n`;
     rc += `      if (!risk->allowRate()) return CTP_RATE_LIMITED;\n`;
     rc += `    }\n`;
   }

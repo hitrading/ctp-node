@@ -82,6 +82,7 @@ private:
   Napi::Value RiskResume(const Napi::CallbackInfo &info);
   Napi::Value SetRefPrice(const Napi::CallbackInfo &info);
   Napi::Value SetMultiplier(const Napi::CallbackInfo &info);
+  Napi::Value SetMaxPositionVolume(const Napi::CallbackInfo &info);
   Napi::Value SeedPosition(const Napi::CallbackInfo &info);
   Napi::Value PositionCost(const Napi::CallbackInfo &info);
   Napi::Value ResetPositions(const Napi::CallbackInfo &info);
@@ -120,6 +121,7 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("riskResume", &Trader::RiskResume),
           InstanceMethod("setRefPrice", &Trader::SetRefPrice),
           InstanceMethod("setMultiplier", &Trader::SetMultiplier),
+          InstanceMethod("setMaxPositionVolume", &Trader::SetMaxPositionVolume),
           InstanceMethod("seedPosition", &Trader::SeedPosition),
           InstanceMethod("positionCost", &Trader::PositionCost),
           InstanceMethod("resetPositions", &Trader::ResetPositions),
@@ -206,6 +208,14 @@ int Trader::fireArmed(const ArmSpec &spec) {
                               f.VolumeTotalOriginal);
   if (!v.ok)
     return CTP_RISK_BLOCKED;
+  // Position caps apply to armed orders too (safety, not latency-sensitive).
+  if (f.CombOffsetFlag[0] == '0') { // open
+    if (!risk_.allowOpen(f.InstrumentID, f.LimitPrice, f.VolumeTotalOriginal))
+      return CTP_POSITION_LIMIT;
+    if (!risk_.allowOpenVolume(f.InstrumentID, f.Direction == '0', // buy -> long
+                               f.VolumeTotalOriginal))
+      return CTP_POSITION_VOLUME_LIMIT;
+  }
   if (!risk_.allowRate())
     return CTP_RATE_LIMITED;
   return api->ReqOrderInsert(&f, armReqId_.fetch_add(1));
@@ -302,6 +312,15 @@ Napi::Value Trader::SetMultiplier(const Napi::CallbackInfo &info) {
   if (info.Length() >= 2 && info[0].IsString() && info[1].IsNumber()) {
     risk_.setMultiplier(info[0].As<Napi::String>().Utf8Value(),
                         info[1].As<Napi::Number>().DoubleValue());
+  }
+  return info.Env().Undefined();
+}
+
+// (instrumentId, maxVolume) - per-instrument open-position lot cap; 0 = off.
+Napi::Value Trader::SetMaxPositionVolume(const Napi::CallbackInfo &info) {
+  if (info.Length() >= 2 && info[0].IsString() && info[1].IsNumber()) {
+    risk_.setMaxPositionVolume(info[0].As<Napi::String>().Utf8Value(),
+                               info[1].As<Napi::Number>().DoubleValue());
   }
   return info.Env().Undefined();
 }

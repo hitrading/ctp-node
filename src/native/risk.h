@@ -79,6 +79,12 @@ public:
   // True if opening this order keeps the total open cost within maxPositionCost.
   bool allowOpen(const std::string &instrumentId, double price, double volume) const;
 
+  // Per-instrument cap on open position volume (lots), enforced per side on
+  // open orders (long and short tracked independently). 0/unset = unlimited.
+  void setMaxPositionVolume(const std::string &instrumentId, double maxVolume);
+  // True if opening `volume` more lots on this side stays within the cap.
+  bool allowOpenVolume(const std::string &instrumentId, bool isLong, double volume) const;
+
 private:
   std::atomic<bool> halted_{false};
   std::atomic<int> maxOrderVolume_{0};
@@ -97,6 +103,8 @@ private:
   // Contract multipliers are static metadata kept separate from position state
   // so resetPositions() (which syncPositions calls) does not wipe them.
   std::unordered_map<std::string, double> multipliers_;
+  // Per-instrument lot caps (config metadata; like multipliers, survives resets).
+  std::unordered_map<std::string, double> maxPositionVol_;
   // Look up an instrument's multiplier (1.0 if unset). Caller holds posMutex_.
   double multiplierLocked(const std::string &instrumentId) const;
 };
