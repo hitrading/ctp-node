@@ -68,9 +68,10 @@ void RiskEngine::setMultiplier(const std::string &instrumentId, double mult) {
 }
 
 void RiskEngine::setMaxPositionVolume(const std::string &instrumentId,
-                                      double maxVolume) {
+                                      bool isLong, double maxVolume) {
   std::lock_guard<std::mutex> lk(posMutex_);
-  maxPositionVol_[instrumentId] = maxVolume > 0.0 ? maxVolume : 0.0; // 0 = off
+  VolCap &c = maxPositionVol_[instrumentId];
+  (isLong ? c.longMax : c.shortMax) = maxVolume > 0.0 ? maxVolume : 0.0; // 0=off
 }
 
 double RiskEngine::multiplierLocked(const std::string &instrumentId) const {
@@ -146,13 +147,16 @@ bool RiskEngine::allowOpenVolume(const std::string &instrumentId, bool isLong,
                                  double volume) const {
   std::lock_guard<std::mutex> lk(posMutex_);
   auto it = maxPositionVol_.find(instrumentId);
-  if (it == maxPositionVol_.end() || it->second <= 0.0)
+  if (it == maxPositionVol_.end())
     return true; // no cap for this instrument
+  const double cap = isLong ? it->second.longMax : it->second.shortMax;
+  if (cap <= 0.0)
+    return true; // this side uncapped
   double held = 0.0;
   auto pit = positions_.find(instrumentId);
   if (pit != positions_.end())
     held = isLong ? pit->second.longVol : pit->second.shortVol;
-  return held + volume <= it->second;
+  return held + volume <= cap;
 }
 
 RiskVerdict RiskEngine::check(const std::string &instrumentId, double price,

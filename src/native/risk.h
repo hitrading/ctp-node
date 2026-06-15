@@ -79,9 +79,10 @@ public:
   // True if opening this order keeps the total open cost within maxPositionCost.
   bool allowOpen(const std::string &instrumentId, double price, double volume) const;
 
-  // Per-instrument cap on open position volume (lots), enforced per side on
-  // open orders (long and short tracked independently). 0/unset = unlimited.
-  void setMaxPositionVolume(const std::string &instrumentId, double maxVolume);
+  // Per-instrument, per-side cap on open position volume (lots), enforced on
+  // open orders. Long and short are capped independently; 0/unset = that side
+  // is unlimited.
+  void setMaxPositionVolume(const std::string &instrumentId, bool isLong, double maxVolume);
   // True if opening `volume` more lots on this side stays within the cap.
   bool allowOpenVolume(const std::string &instrumentId, bool isLong, double volume) const;
 
@@ -103,8 +104,12 @@ private:
   // Contract multipliers are static metadata kept separate from position state
   // so resetPositions() (which syncPositions calls) does not wipe them.
   std::unordered_map<std::string, double> multipliers_;
-  // Per-instrument lot caps (config metadata; like multipliers, survives resets).
-  std::unordered_map<std::string, double> maxPositionVol_;
+  // Per-instrument, per-side lot caps (config metadata; like multipliers,
+  // survives resets). 0 on a side = that side is uncapped.
+  struct VolCap {
+    double longMax = 0.0, shortMax = 0.0;
+  };
+  std::unordered_map<std::string, VolCap> maxPositionVol_;
   // Look up an instrument's multiplier (1.0 if unset). Caller holds posMutex_.
   double multiplierLocked(const std::string &instrumentId) const;
 };

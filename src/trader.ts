@@ -19,8 +19,9 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 export interface RiskConfig {
   /** Max volume per single order. Omit/0 = disabled. */
   maxOrderVolume?: number;
-  /** Reject if order price deviates from reference by > this ratio (needs a
-   *  reference price; not yet fed from MD, so currently advisory). */
+  /** Reject if order price deviates from the reference by > this ratio (e.g.
+   *  0.02 = 2%). Feed the reference via trackMarketData() or setRefPrice();
+   *  with no reference the check is skipped. */
   maxPriceDeviation?: number;
   /** Max notional (price × volume) per order. Omit/0 = disabled. */
   maxNotional?: number;
@@ -29,10 +30,14 @@ export interface RiskConfig {
   /** Token-bucket burst; defaults to maxOrdersPerSec. */
   orderBurst?: number;
   /** Cap on total open-position cost (Σ open price × volume × multiplier).
-   *  0/undefined = disabled. Set contract multipliers via setMultiplier and
-   *  seed any pre-existing positions (seedPosition / seedFromPositions). */
+   *  0/undefined = disabled. Multipliers and existing positions are picked up
+   *  automatically via syncMultipliers() / syncPositions(). */
   maxPositionCost?: number;
 }
+
+/** A per-instrument lot cap: a single number caps both sides at that value;
+ *  `{ long, short }` caps each side separately (omit a side to leave it open). */
+export type LotCap = number | { long?: number; short?: number };
 
 /** A latency-critical armed order: evaluated and fired in C++ on the market-data
  *  callback thread the instant its trigger hits — JS is never in the hot path. */
@@ -142,21 +147,32 @@ export class Trader extends TraderBase {
 
   /**
    * Cap the open position (in lots) for one instrument, enforced in C++ on
-   * every opening order. The long and short sides are capped independently;
-   * `maxLots <= 0` removes the cap. The check is fill-based (counts confirmed
-   * position, like maxPositionCost), so rapid bursts of opens can momentarily
-   * overshoot before fills land — size the cap with that in mind.
+   * every opening order. Pass a number to cap both sides at once, or
+   * `{ long, short }` to cap each side separately (omit a side or pass <= 0 to
+   * leave it uncapped). Long and short are always tracked independently.
+   *
+   * The check is fill-based (counts confirmed position, like maxPositionCost),
+   * so rapid bursts of opens can momentarily overshoot before the fills land —
+   * size the cap with that in mind.
+   *
+   *   td.setMaxPosition("rb2610", 100);                 // long<=100 and short<=100
+   *   td.setMaxPosition("ru2610", { long: 100, short: 20 });
    */
-  setMaxPosition(instrumentId: string, maxLots: number): this {
-    this.native.setMaxPositionVolume(instrumentId, maxLots);
+  setMaxPosition(instrumentId: string, max: LotCap): this {
+    if (typeof max === "number") {
+      this.native.setMaxPositionVolume(instrumentId, true, max);
+      this.native.setMaxPositionVolume(instrumentId, false, max);
+    } else {
+      if (max.long !== undefined) this.native.setMaxPositionVolume(instrumentId, true, max.long);
+      if (max.short !== undefined) this.native.setMaxPositionVolume(instrumentId, false, max.short);
+    }
     return this;
   }
 
-  /** Cap several instruments at once, e.g. `{ rb2610: 100, ru2610: 20 }`. */
-  setMaxPositions(limits: Record<string, number>): this {
-    for (const id of Object.keys(limits)) {
-      this.native.setMaxPositionVolume(id, limits[id]);
-    }
+  /** Cap several instruments at once, e.g.
+   *  `{ rb2610: 100, ru2610: { long: 100, short: 20 } }`. */
+  setMaxPositions(limits: Record<string, LotCap>): this {
+    for (const id of Object.keys(limits)) this.setMaxPosition(id, limits[id]);
     return this;
   }
 

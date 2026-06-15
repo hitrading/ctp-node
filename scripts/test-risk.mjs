@@ -75,6 +75,17 @@ check(/volume/i.test(String(await vOpen("0", 2))), `open 2 over max-position (2+
 check(!/volume/i.test(String(await vOpen("0", 1))), `open 1 within max-position (2+1<=3) passed`);
 check(!/volume/i.test(String(await vOpen("1", 3))), `short-open 3 independent of long side passed`);
 
+// asymmetric caps: long 5, short 2 (separate instrument, starts flat)
+td.setMaxPosition("ru2610", { long: 5, short: 2 });
+const ruOpen = (dir, vol) =>
+  td.reqOrderInsert({ instrumentId: "ru2610", direction: dir, combOffsetFlag: "0", limitPrice: 10000, volumeTotalOriginal: vol })
+    .then(() => "sent")
+    .catch((e) => e.message);
+check(!/volume/i.test(String(await ruOpen("0", 5))), `asym long 5 within long-cap(5) passed`);
+check(/volume/i.test(String(await ruOpen("0", 6))), `asym long 6 over long-cap(5) blocked`);
+check(/volume/i.test(String(await ruOpen("1", 3))), `asym short 3 over short-cap(2) blocked`);
+check(!/volume/i.test(String(await ruOpen("1", 2))), `asym short 2 within short-cap(2) passed`);
+
 console.log(`RISK TEST: ${pass} pass, ${fail} fail`);
 td.close();
 process.exitCode = fail ? 1 : 0;

@@ -316,11 +316,12 @@ Napi::Value Trader::SetMultiplier(const Napi::CallbackInfo &info) {
   return info.Env().Undefined();
 }
 
-// (instrumentId, maxVolume) - per-instrument open-position lot cap; 0 = off.
+// (instrumentId, isLong, maxVolume) - per-side open-position lot cap; 0 = off.
 Napi::Value Trader::SetMaxPositionVolume(const Napi::CallbackInfo &info) {
-  if (info.Length() >= 2 && info[0].IsString() && info[1].IsNumber()) {
+  if (info.Length() >= 3 && info[0].IsString() && info[2].IsNumber()) {
     risk_.setMaxPositionVolume(info[0].As<Napi::String>().Utf8Value(),
-                               info[1].As<Napi::Number>().DoubleValue());
+                               info[1].ToBoolean().Value(),
+                               info[2].As<Napi::Number>().DoubleValue());
   }
   return info.Env().Undefined();
 }

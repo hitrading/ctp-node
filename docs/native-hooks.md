@@ -71,7 +71,7 @@ All of this is exposed on `Trader` (`src/trader.ts`):
 // Pre-trade risk (published to the C++ enforcer; takes effect immediately):
 td.riskSet({ maxOrderVolume: 5, maxPriceDeviation: 0.02, maxOrdersPerSec: 20, maxPositionCost: 5_000_000 });
 td.trackMarketData(md);                   // feed the deviation/notional reference
-td.setMaxPositions({ rb2610: 100, ru2610: 20 }); // per-instrument lot caps (per side)
+td.setMaxPositions({ rb2610: 100, ru2610: { long: 100, short: 20 } }); // per-instrument lot caps
 td.halt(); td.resume();                   // kill-switch (C++ blocks all sends instantly)
 
 // Risk inputs auto-fetched from CTP after login:
