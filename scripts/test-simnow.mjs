@@ -26,6 +26,7 @@ const cfg = {
   tdFront: env.CTP_TD_FRONT ?? "tcp://180.168.146.187:10201",
   symbol: env.CTP_SYMBOL ?? "rb2610",
   placeOrder: env.CTP_PLACE_ORDER === "1",
+  arm: env.CTP_ARM === "1",
   skipAuth: env.CTP_SKIP_AUTH === "1",
 };
 
@@ -95,26 +96,41 @@ td.on("front-connected", async () => {
     log("TD positions rows:", pos.length, pos.map((p) => `${p.instrumentId}:${p.position}`).slice(0, 6).join(" "));
 
     if (cfg.placeOrder) {
-      log("placing a test order (CTP_PLACE_ORDER=1) ...");
-      const rc = await td
-        .reqOrderInsert({
+      log("placing a test order: BUY 1 @ 1 (far below market -> rejected, no fill) ...");
+      await sleep(1200);
+      td.reqOrderInsert({
+        brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: cfg.symbol,
+        orderRef: "smoke1", direction: "0", combOffsetFlag: "0", combHedgeFlag: "1",
+        orderPriceType: "2", limitPrice: 1, volumeTotalOriginal: 1,
+        timeCondition: "3", volumeCondition: "1", contingentCondition: "1",
+        forceCloseReason: "0", isAutoSuspend: 0, userForceClose: 0,
+      })
+        .then((o) => log("order rsp: accepted", JSON.stringify(o)))
+        .catch((e) => log("order rsp: rejected -", e.message, "errorId=", e.errorId));
+    }
+
+    if (cfg.arm) {
+      log("arming BUY 1 @ 1 (fires on the next tick in C++, rejected at exchange, no fill)...");
+      td.arm(md, {
+        instrumentId: cfg.symbol, side: "buy", triggerPrice: 99999,
+        order: {
           brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: cfg.symbol,
-          orderRef: "smoke1", direction: "0", combOffsetFlag: "0", combHedgeFlag: "1",
+          orderRef: "armfire1", direction: "0", combOffsetFlag: "0", combHedgeFlag: "1",
           orderPriceType: "2", limitPrice: 1, volumeTotalOriginal: 1,
           timeCondition: "3", volumeCondition: "1", contingentCondition: "1",
           forceCloseReason: "0", isAutoSuspend: 0, userForceClose: 0,
-        })
-        .then(() => "accepted")
-        .catch((e) => `rejected: ${e.message}`);
-      log("test order:", rc, "(price 1 will be rejected by exchange — that's expected)");
+        },
+      });
+      setTimeout(() => log("arm fireCount =", td._armFireCount()), 4000);
     }
   } catch (e) {
     log("TD flow FAILED:", e.message, "errorId=", e.errorId);
   }
 });
 td.on("front-disconnected", (reason) => log("TD front-disconnected", reason));
-td.on("rtn-order", (o) => log("rtn-order", o.orderRef, "status=", o.orderStatus, o.statusMsg));
+td.on("rtn-order", (o) => log("rtn-order", `ref=${o.orderRef} status=${o.orderStatus} msg=${o.statusMsg}`));
 td.on("rtn-trade", (t) => log("rtn-trade", t.instrumentId, t.price, t.volume));
+td.on("err-rtn-order-insert", (_d, o) => log("err-rtn-order-insert:", o.rspInfo?.errorMsg));
 
 log("connecting... MD", cfg.mdFront, "| TD", cfg.tdFront, "| user", cfg.userId);
 setTimeout(() => {
