@@ -102,8 +102,15 @@ export class MarketData extends CtpClient {
     );
   }
 
-  /** Route this market data's ticks to a Trader's armed triggers (see Trader.arm). */
+  private armedTrader?: object;
+  /** Route this market data's ticks to a Trader's armed triggers (see Trader.arm).
+   *  A MarketData feeds exactly one Trader's registry; attaching a second,
+   *  different Trader throws rather than silently stealing the feed. */
   attachArm(trader: { _armRegistry(): unknown }): void {
+    if (this.armedTrader && this.armedTrader !== trader) {
+      throw new Error("this MarketData already feeds another Trader's armed triggers");
+    }
+    this.armedTrader = trader;
     this.native._attachArm(trader._armRegistry());
   }
 

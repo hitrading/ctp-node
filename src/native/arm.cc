@@ -57,9 +57,13 @@ void ArmRegistry::onTick(const char *instrumentId, double bid, double ask) {
                                      : (bid > 0.0 && bid >= a.triggerPrice);
     if (!hit)
       continue;
-    a.fired = true; // one-shot
-    fireCount_.fetch_add(1, std::memory_order_relaxed);
-    sink_->fireArmed(a); // build order + risk + ReqOrderInsert, on this thread
+    a.fired = true; // one-shot: consumed on the first trigger, sent or blocked
+    // build order + risk + ReqOrderInsert on this thread; record the outcome so
+    // a risk-blocked/failed armed order isn't silent (fireCount would mislead).
+    if (sink_->fireArmed(a) == 0)
+      fireCount_.fetch_add(1, std::memory_order_relaxed);
+    else
+      blockedCount_.fetch_add(1, std::memory_order_relaxed);
   }
 }
 

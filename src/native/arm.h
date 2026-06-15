@@ -48,7 +48,10 @@ public:
   uint64_t arm(ArmSpec spec); // JS thread
   bool disarm(uint64_t id);   // JS thread
   size_t size() const;
+  // Armed triggers that fired and were SENT (fireArmed returned 0).
   uint64_t fireCount() const { return fireCount_.load(std::memory_order_relaxed); }
+  // Armed triggers that fired but were REFUSED by the risk gate / send (rc!=0).
+  uint64_t blockedCount() const { return blockedCount_.load(std::memory_order_relaxed); }
 
   // Hot path: MD callback thread, once per depth tick.
   void onTick(const char *instrumentId, double bid, double ask);
@@ -59,6 +62,7 @@ private:
   uint64_t nextId_ = 1;
   std::atomic<size_t> count_{0}; // lock-free "any arms?" gate
   std::atomic<uint64_t> fireCount_{0};
+  std::atomic<uint64_t> blockedCount_{0};
   OrderSink *sink_ = nullptr; // guarded by m_
 };
 

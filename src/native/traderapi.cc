@@ -103,6 +103,7 @@ private:
   Napi::Value Arm(const Napi::CallbackInfo &info);
   Napi::Value Disarm(const Napi::CallbackInfo &info);
   Napi::Value ArmFireCount(const Napi::CallbackInfo &info);
+  Napi::Value ArmBlockedCount(const Napi::CallbackInfo &info);
 
   CThostFtdcTraderApi *api_ = nullptr;
   TraderSpi *spi_ = nullptr;
@@ -146,6 +147,7 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("arm", &Trader::Arm),
           InstanceMethod("disarm", &Trader::Disarm),
           InstanceMethod("_armFireCount", &Trader::ArmFireCount),
+          InstanceMethod("_armBlockedCount", &Trader::ArmBlockedCount),
           InstanceMethod("close", &Trader::Close),
       });
 }
@@ -264,6 +266,11 @@ Napi::Value Trader::Arm(const Napi::CallbackInfo &info) {
 Napi::Value Trader::Disarm(const Napi::CallbackInfo &info) {
   uint64_t id = static_cast<uint64_t>(info[0].As<Napi::Number>().DoubleValue());
   return Napi::Boolean::New(info.Env(), arm_->disarm(id));
+}
+
+Napi::Value Trader::ArmBlockedCount(const Napi::CallbackInfo &info) {
+  return Napi::Number::New(info.Env(),
+                           static_cast<double>(arm_->blockedCount()));
 }
 
 Napi::Value Trader::ArmFireCount(const Napi::CallbackInfo &info) {

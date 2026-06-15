@@ -428,11 +428,19 @@ export class Trader extends TraderBase {
    * rtn-order / rsp-order-insert events (correlate by the order's orderRef).
    */
   arm(md: MarketData, spec: ArmSpec): ArmHandle {
+    // Validate up front: the order fires from C++ with no JS in the loop, so a
+    // malformed template would silently misfire (e.g. a missing combOffsetFlag
+    // defaults to a "close" and skips the position reservation).
+    if (!spec.instrumentId || !(spec.triggerPrice > 0)) {
+      throw new Error("arm: spec.instrumentId and a positive triggerPrice are required");
+    }
+    const order = this.withAutoOrderRef(spec.order);
+    if (!order.instrumentId || order.direction === undefined || !order.combOffsetFlag ||
+        !(Number(order.volumeTotalOriginal) > 0)) {
+      throw new Error("arm: spec.order needs instrumentId, direction, combOffsetFlag and volumeTotalOriginal > 0");
+    }
     md.attachArm(this);
-    const bytes = this.encode(
-      STRUCT_ID.InputOrder,
-      this.withAutoOrderRef(spec.order) as Record<string, unknown>
-    );
+    const bytes = this.encode(STRUCT_ID.InputOrder, order as Record<string, unknown>);
     const id: number = this.native.arm(
       spec.instrumentId,
       spec.side === "buy" ? "0" : "1",
@@ -442,14 +450,26 @@ export class Trader extends TraderBase {
     return { id, disarm: () => this.native.disarm(id) as boolean };
   }
 
+  /** Observability for armed triggers (they fire in C++ with no JS in the loop):
+   *  how many fired and were sent vs were refused by the risk gate / send.
+   *  A blocked armed order is otherwise invisible, so poll this after a trigger
+   *  you expected to fire. */
+  armStats(): { fired: number; blocked: number } {
+    return { fired: this.native._armFireCount(), blocked: this.native._armBlockedCount() };
+  }
+
   /** @internal used by MarketData.attachArm to share the arm registry. */
   _armRegistry(): unknown {
     return this.native._armRegistry();
   }
 
-  /** @internal test-only: how many times armed triggers have fired. */
+  /** @internal test-only: how many times armed triggers have fired (sent). */
   _armFireCount(): number {
     return this.native._armFireCount();
+  }
+  /** @internal test-only: how many armed triggers were blocked on fire. */
+  _armBlockedCount(): number {
+    return this.native._armBlockedCount();
   }
 
   // Typed streaming events (the common ones; any event name still works).

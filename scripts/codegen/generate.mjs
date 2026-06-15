@@ -24,8 +24,12 @@ const structsRaw = await parseStructs(ST);
 
 const kindOf = (t) =>
   t.kind === "int32" ? 1 : t.kind === "int16" ? 2 : t.kind === "double" ? 3 : 0;
+// Enum (single-char) fields are typed as the template-literal union of the
+// enum's values (e.g. `${Direction}` = "0" | "1") so BOTH the raw value
+// (direction: "0") and the enum member (Direction.Buy) are assignable - char[]
+// flag fields are already plain `string`. Keeps idiomatic usage compiling.
 const tsTypeOf = (t) =>
-  t.kind === "enum" ? "enums." + t.enumName :
+  t.kind === "enum" ? "`${enums." + t.enumName + "}`" :
   t.kind === "string" || t.kind === "char" ? "string" : "number";
 const jsdoc = (c) => (c ? c.replace(/\*\//g, "* /") : "");
 

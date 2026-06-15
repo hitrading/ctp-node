@@ -113,7 +113,7 @@ export interface RspAuthenticate {
   /** App代码 */
   appId: string;
   /** App类型 */
-  appType: enums.AppType;
+  appType: `${enums.AppType}`;
 }
 
 /** CThostFtdcAuthenticationInfoField */
@@ -131,7 +131,7 @@ export interface AuthenticationInfo {
   /** App代码 */
   appId: string;
   /** App类型 */
-  appType: enums.AppType;
+  appType: `${enums.AppType}`;
   /** 终端IP地址 */
   clientIpAddress: string;
 }
@@ -203,7 +203,7 @@ export interface TransferBankToFutureReq {
   /** 期货资金账户 */
   futureAccount: string;
   /** 密码标志 */
-  futurePwdFlag: enums.FuturePwdFlag;
+  futurePwdFlag: `${enums.FuturePwdFlag}`;
   /** 密码 */
   futureAccPwd: string;
   /** 转账金额 */
@@ -235,7 +235,7 @@ export interface TransferFutureToBankReq {
   /** 期货资金账户 */
   futureAccount: string;
   /** 密码标志 */
-  futurePwdFlag: enums.FuturePwdFlag;
+  futurePwdFlag: `${enums.FuturePwdFlag}`;
   /** 密码 */
   futureAccPwd: string;
   /** 转账金额 */
@@ -267,7 +267,7 @@ export interface TransferQryBankReq {
   /** 期货资金账户 */
   futureAccount: string;
   /** 密码标志 */
-  futurePwdFlag: enums.FuturePwdFlag;
+  futurePwdFlag: `${enums.FuturePwdFlag}`;
   /** 密码 */
   futureAccPwd: string;
   /** 币种：RMB-人民币 USD-美圆 HKD-港元 */
@@ -327,7 +327,7 @@ export interface TransferQryDetailRsp {
   /** 发生金额 */
   txAmount: number;
   /** 有效标志 */
-  flag: enums.TransferValidFlag;
+  flag: `${enums.TransferValidFlag}`;
 }
 
 /** CThostFtdcRspInfoField */
@@ -345,7 +345,7 @@ export interface Exchange {
   /** 交易所名称 */
   exchangeName: string;
   /** 交易所属性 */
-  exchangeProperty: enums.ExchangeProperty;
+  exchangeProperty: `${enums.ExchangeProperty}`;
 }
 
 /** CThostFtdcProductField */
@@ -355,7 +355,7 @@ export interface Product {
   /** 交易所代码 */
   exchangeId: string;
   /** 产品类型 */
-  productClass: enums.ProductClass;
+  productClass: `${enums.ProductClass}`;
   /** 合约数量乘数 */
   volumeMultiple: number;
   /** 最小变动价位 */
@@ -369,15 +369,15 @@ export interface Product {
   /** 限价单最小下单量 */
   minLimitOrderVolume: number;
   /** 持仓类型 */
-  positionType: enums.PositionType;
+  positionType: `${enums.PositionType}`;
   /** 持仓日期类型 */
-  positionDateType: enums.PositionDateType;
+  positionDateType: `${enums.PositionDateType}`;
   /** 平仓处理类型 */
-  closeDealType: enums.CloseDealType;
+  closeDealType: `${enums.CloseDealType}`;
   /** 交易币种类型 */
   tradeCurrencyId: string;
   /** 质押资金可用范围 */
-  mortgageFundUseRange: enums.MortgageFundUseRange;
+  mortgageFundUseRange: `${enums.MortgageFundUseRange}`;
   /** 合约基础商品乘数 */
   underlyingMultiple: number;
   /** 产品代码 */
@@ -385,9 +385,9 @@ export interface Product {
   /** 交易所产品代码 */
   exchangeProductId: string;
   /** 开仓量限制粒度 */
-  openLimitControlLevel: enums.OpenLimitControlLevel;
+  openLimitControlLevel: `${enums.OpenLimitControlLevel}`;
   /** 报单频率控制粒度 */
-  orderFreqControlLevel: enums.OrderFreqControlLevel;
+  orderFreqControlLevel: `${enums.OrderFreqControlLevel}`;
 }
 
 /** CThostFtdcInstrumentField */
@@ -397,7 +397,7 @@ export interface Instrument {
   /** 合约名称 */
   instrumentName: string;
   /** 产品类型 */
-  productClass: enums.ProductClass;
+  productClass: `${enums.ProductClass}`;
   /** 交割年份 */
   deliveryYear: number;
   /** 交割月 */
@@ -425,27 +425,27 @@ export interface Instrument {
   /** 结束交割日 */
   endDelivDate: string;
   /** 合约生命周期状态 */
-  instLifePhase: enums.InstLifePhase;
+  instLifePhase: `${enums.InstLifePhase}`;
   /** 当前是否交易 */
   isTrading: number;
   /** 持仓类型 */
-  positionType: enums.PositionType;
+  positionType: `${enums.PositionType}`;
   /** 持仓日期类型 */
-  positionDateType: enums.PositionDateType;
+  positionDateType: `${enums.PositionDateType}`;
   /** 多头保证金率 */
   longMarginRatio: number;
   /** 空头保证金率 */
   shortMarginRatio: number;
   /** 是否使用大额单边保证金算法 */
-  maxMarginSideAlgorithm: enums.MaxMarginSideAlgorithm;
+  maxMarginSideAlgorithm: `${enums.MaxMarginSideAlgorithm}`;
   /** 执行价 */
   strikePrice: number;
   /** 期权类型 */
-  optionsType: enums.OptionsType;
+  optionsType: `${enums.OptionsType}`;
   /** 合约基础商品乘数 */
   underlyingMultiple: number;
   /** 组合类型 */
-  combinationType: enums.CombinationType;
+  combinationType: `${enums.CombinationType}`;
   /** 合约代码 */
   instrumentId: string;
   /** 合约在交易所的代码 */
@@ -483,7 +483,7 @@ export interface Trader {
   /** 经纪公司代码 */
   brokerId: string;
   /** 撤单时选择席位算法 */
-  orderCancelAlg: enums.OrderCancelAlg;
+  orderCancelAlg: `${enums.OrderCancelAlg}`;
   /** 交易报盘安装数量 */
   tradeInstallCount: number;
   /** 行情报盘安装数量 */
@@ -501,7 +501,7 @@ export interface Investor {
   /** 投资者名称 */
   investorName: string;
   /** 证件类型 */
-  identifiedCardType: enums.IdCardType;
+  identifiedCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 是否活跃 */
@@ -519,9 +519,9 @@ export interface Investor {
   /** 保证金率模板代码 */
   marginModelId: string;
   /** 是否频率控制 */
-  isOrderFreq: enums.EnumBool;
+  isOrderFreq: `${enums.EnumBool}`;
   /** 是否开仓限制 */
-  isOpenVolLimit: enums.EnumBool;
+  isOpenVolLimit: `${enums.EnumBool}`;
 }
 
 /** CThostFtdcTradingCodeField */
@@ -537,11 +537,11 @@ export interface TradingCode {
   /** 是否活跃 */
   isActive: number;
   /** 交易编码类型 */
-  clientIdType: enums.ClientIDType;
+  clientIdType: `${enums.ClientIDType}`;
   /** 营业部编号 */
   branchId: string;
   /** 业务类型 */
-  bizType: enums.BizType;
+  bizType: `${enums.BizType}`;
   /** 投资单元代码 */
   investUnitId: string;
 }
@@ -575,7 +575,7 @@ export interface SuperUserFunction {
   /** 用户代码 */
   userId: string;
   /** 功能代码 */
-  functionCode: enums.FunctionCode;
+  functionCode: `${enums.FunctionCode}`;
 }
 
 /** CThostFtdcInvestorGroupField */
@@ -683,7 +683,7 @@ export interface TradingAccount {
   /** 特殊产品交易所保证金 */
   specProductExchangeMargin: number;
   /** 业务类型 */
-  bizType: enums.BizType;
+  bizType: `${enums.BizType}`;
   /** 延时换汇冻结金额 */
   frozenSwap: number;
   /** 剩余换汇额度 */
@@ -697,11 +697,11 @@ export interface InvestorPosition {
   /** 投资者代码 */
   investorId: string;
   /** 持仓多空方向 */
-  posiDirection: enums.PosiDirection;
+  posiDirection: `${enums.PosiDirection}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 持仓日期 */
-  positionDate: enums.PositionDate;
+  positionDate: `${enums.PositionDate}`;
   /** 上日持仓 */
   ydPosition: number;
   /** 今日持仓 */
@@ -795,13 +795,13 @@ export interface InvestorPosition {
 /** CThostFtdcInstrumentMarginRateField */
 export interface InstrumentMarginRate {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
   investorId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 多头保证金率 */
   longMarginRatioByMoney: number;
   /** 多头保证金费 */
@@ -823,7 +823,7 @@ export interface InstrumentMarginRate {
 /** CThostFtdcInstrumentCommissionRateField */
 export interface InstrumentCommissionRate {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
@@ -843,7 +843,7 @@ export interface InstrumentCommissionRate {
   /** 交易所代码 */
   exchangeId: string;
   /** 业务类型 */
-  bizType: enums.BizType;
+  bizType: `${enums.BizType}`;
   /** 投资单元代码 */
   investUnitId: string;
   /** 合约代码 */
@@ -949,13 +949,13 @@ export interface DepthMarketData {
 /** CThostFtdcInstrumentTradingRightField */
 export interface InstrumentTradingRight {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
   investorId: string;
   /** 交易权限 */
-  tradingRight: enums.TradingRight;
+  tradingRight: `${enums.TradingRight}`;
   /** 合约代码 */
   instrumentId: string;
 }
@@ -969,7 +969,7 @@ export interface BrokerUser {
   /** 用户名称 */
   userName: string;
   /** 用户类型 */
-  userType: enums.UserType;
+  userType: `${enums.UserType}`;
   /** 是否活跃 */
   isActive: number;
   /** 是否使用令牌 */
@@ -1003,7 +1003,7 @@ export interface BrokerUserFunction {
   /** 用户代码 */
   userId: string;
   /** 经纪公司功能代码 */
-  brokerFunctionCode: enums.BrokerFunctionCode;
+  brokerFunctionCode: `${enums.BrokerFunctionCode}`;
 }
 
 /** CThostFtdcTraderOfferField */
@@ -1021,7 +1021,7 @@ export interface TraderOffer {
   /** 本地报单编号 */
   orderLocalId: string;
   /** 交易所交易员连接状态 */
-  traderConnectStatus: enums.TraderConnectStatus;
+  traderConnectStatus: `${enums.TraderConnectStatus}`;
   /** 发出连接请求的日期 */
   connectRequestDate: string;
   /** 发出连接请求的时间 */
@@ -1047,7 +1047,7 @@ export interface TraderOffer {
   /** 本席位最大报单备拷 */
   maxOrderMessageReference: string;
   /** 撤单时选择席位算法 */
-  orderCancelAlg: enums.OrderCancelAlg;
+  orderCancelAlg: `${enums.OrderCancelAlg}`;
 }
 
 /** CThostFtdcSettlementInfoField */
@@ -1073,13 +1073,13 @@ export interface SettlementInfo {
 /** CThostFtdcInstrumentMarginRateAdjustField */
 export interface InstrumentMarginRateAdjust {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
   investorId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 多头保证金率 */
   longMarginRatioByMoney: number;
   /** 多头保证金费 */
@@ -1099,7 +1099,7 @@ export interface ExchangeMarginRate {
   /** 经纪公司代码 */
   brokerId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 多头保证金率 */
   longMarginRatioByMoney: number;
   /** 多头保证金费 */
@@ -1119,7 +1119,7 @@ export interface ExchangeMarginRateAdjust {
   /** 经纪公司代码 */
   brokerId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 跟随交易所投资者多头保证金率 */
   longMarginRatioByMoney: number;
   /** 跟随交易所投资者多头保证金费 */
@@ -1287,9 +1287,9 @@ export interface InputOrder {
   /** 用户代码 */
   userId: string;
   /** 报单价格条件 */
-  orderPriceType: enums.OrderPriceType;
+  orderPriceType: `${enums.OrderPriceType}`;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 组合开平标志 */
   combOffsetFlag: string;
   /** 组合投机套保标志 */
@@ -1299,19 +1299,19 @@ export interface InputOrder {
   /** 数量 */
   volumeTotalOriginal: number;
   /** 有效期类型 */
-  timeCondition: enums.TimeCondition;
+  timeCondition: `${enums.TimeCondition}`;
   /** GTD日期 */
   gtdDate: string;
   /** 成交量类型 */
-  volumeCondition: enums.VolumeCondition;
+  volumeCondition: `${enums.VolumeCondition}`;
   /** 最小成交量 */
   minVolume: number;
   /** 触发条件 */
-  contingentCondition: enums.ContingentCondition;
+  contingentCondition: `${enums.ContingentCondition}`;
   /** 止损价 */
   stopPrice: number;
   /** 强平原因 */
-  forceCloseReason: enums.ForceCloseReason;
+  forceCloseReason: `${enums.ForceCloseReason}`;
   /** 自动挂起标志 */
   isAutoSuspend: number;
   /** 业务单元 */
@@ -1351,9 +1351,9 @@ export interface Order {
   /** 用户代码 */
   userId: string;
   /** 报单价格条件 */
-  orderPriceType: enums.OrderPriceType;
+  orderPriceType: `${enums.OrderPriceType}`;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 组合开平标志 */
   combOffsetFlag: string;
   /** 组合投机套保标志 */
@@ -1363,19 +1363,19 @@ export interface Order {
   /** 数量 */
   volumeTotalOriginal: number;
   /** 有效期类型 */
-  timeCondition: enums.TimeCondition;
+  timeCondition: `${enums.TimeCondition}`;
   /** GTD日期 */
   gtdDate: string;
   /** 成交量类型 */
-  volumeCondition: enums.VolumeCondition;
+  volumeCondition: `${enums.VolumeCondition}`;
   /** 最小成交量 */
   minVolume: number;
   /** 触发条件 */
-  contingentCondition: enums.ContingentCondition;
+  contingentCondition: `${enums.ContingentCondition}`;
   /** 止损价 */
   stopPrice: number;
   /** 强平原因 */
-  forceCloseReason: enums.ForceCloseReason;
+  forceCloseReason: `${enums.ForceCloseReason}`;
   /** 自动挂起标志 */
   isAutoSuspend: number;
   /** 业务单元 */
@@ -1395,7 +1395,7 @@ export interface Order {
   /** 安装编号 */
   installId: number;
   /** 报单提交状态 */
-  orderSubmitStatus: enums.OrderSubmitStatus;
+  orderSubmitStatus: `${enums.OrderSubmitStatus}`;
   /** 报单提示序号 */
   notifySequence: number;
   /** 交易日 */
@@ -1405,11 +1405,11 @@ export interface Order {
   /** 报单编号 */
   orderSysId: string;
   /** 报单来源 */
-  orderSource: enums.OrderSource;
+  orderSource: `${enums.OrderSource}`;
   /** 报单状态 */
-  orderStatus: enums.OrderStatus;
+  orderStatus: `${enums.OrderStatus}`;
   /** 报单类型 */
-  orderType: enums.OrderType;
+  orderType: `${enums.OrderType}`;
   /** 今成交数量 */
   volumeTraded: number;
   /** 剩余数量 */
@@ -1473,9 +1473,9 @@ export interface Order {
 /** CThostFtdcExchangeOrderField */
 export interface ExchangeOrder {
   /** 报单价格条件 */
-  orderPriceType: enums.OrderPriceType;
+  orderPriceType: `${enums.OrderPriceType}`;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 组合开平标志 */
   combOffsetFlag: string;
   /** 组合投机套保标志 */
@@ -1485,19 +1485,19 @@ export interface ExchangeOrder {
   /** 数量 */
   volumeTotalOriginal: number;
   /** 有效期类型 */
-  timeCondition: enums.TimeCondition;
+  timeCondition: `${enums.TimeCondition}`;
   /** GTD日期 */
   gtdDate: string;
   /** 成交量类型 */
-  volumeCondition: enums.VolumeCondition;
+  volumeCondition: `${enums.VolumeCondition}`;
   /** 最小成交量 */
   minVolume: number;
   /** 触发条件 */
-  contingentCondition: enums.ContingentCondition;
+  contingentCondition: `${enums.ContingentCondition}`;
   /** 止损价 */
   stopPrice: number;
   /** 强平原因 */
-  forceCloseReason: enums.ForceCloseReason;
+  forceCloseReason: `${enums.ForceCloseReason}`;
   /** 自动挂起标志 */
   isAutoSuspend: number;
   /** 业务单元 */
@@ -1517,7 +1517,7 @@ export interface ExchangeOrder {
   /** 安装编号 */
   installId: number;
   /** 报单提交状态 */
-  orderSubmitStatus: enums.OrderSubmitStatus;
+  orderSubmitStatus: `${enums.OrderSubmitStatus}`;
   /** 报单提示序号 */
   notifySequence: number;
   /** 交易日 */
@@ -1527,11 +1527,11 @@ export interface ExchangeOrder {
   /** 报单编号 */
   orderSysId: string;
   /** 报单来源 */
-  orderSource: enums.OrderSource;
+  orderSource: `${enums.OrderSource}`;
   /** 报单状态 */
-  orderStatus: enums.OrderStatus;
+  orderStatus: `${enums.OrderStatus}`;
   /** 报单类型 */
-  orderType: enums.OrderType;
+  orderType: `${enums.OrderType}`;
   /** 今成交数量 */
   volumeTraded: number;
   /** 剩余数量 */
@@ -1603,7 +1603,7 @@ export interface InputOrderAction {
   /** 报单编号 */
   orderSysId: string;
   /** 操作标志 */
-  actionFlag: enums.ActionFlag;
+  actionFlag: `${enums.ActionFlag}`;
   /** 价格 */
   limitPrice: number;
   /** 数量变化 */
@@ -1641,7 +1641,7 @@ export interface OrderAction {
   /** 报单编号 */
   orderSysId: string;
   /** 操作标志 */
-  actionFlag: enums.ActionFlag;
+  actionFlag: `${enums.ActionFlag}`;
   /** 价格 */
   limitPrice: number;
   /** 数量变化 */
@@ -1665,7 +1665,7 @@ export interface OrderAction {
   /** 业务单元 */
   businessUnit: string;
   /** 报单操作状态 */
-  orderActionStatus: enums.OrderActionStatus;
+  orderActionStatus: `${enums.OrderActionStatus}`;
   /** 用户代码 */
   userId: string;
   /** 状态信息 */
@@ -1689,7 +1689,7 @@ export interface ExchangeOrderAction {
   /** 报单编号 */
   orderSysId: string;
   /** 操作标志 */
-  actionFlag: enums.ActionFlag;
+  actionFlag: `${enums.ActionFlag}`;
   /** 价格 */
   limitPrice: number;
   /** 数量变化 */
@@ -1713,7 +1713,7 @@ export interface ExchangeOrderAction {
   /** 业务单元 */
   businessUnit: string;
   /** 报单操作状态 */
-  orderActionStatus: enums.OrderActionStatus;
+  orderActionStatus: `${enums.OrderActionStatus}`;
   /** 用户代码 */
   userId: string;
   /** 营业部编号 */
@@ -1751,7 +1751,7 @@ export interface ExchangeTrade {
   /** 成交编号 */
   tradeId: string;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 报单编号 */
   orderSysId: string;
   /** 会员代码 */
@@ -1759,11 +1759,11 @@ export interface ExchangeTrade {
   /** 客户代码 */
   clientId: string;
   /** 交易角色 */
-  tradingRole: enums.TradingRole;
+  tradingRole: `${enums.TradingRole}`;
   /** 开平标志 */
-  offsetFlag: enums.OffsetFlag;
+  offsetFlag: `${enums.OffsetFlag}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 价格 */
   price: number;
   /** 数量 */
@@ -1773,9 +1773,9 @@ export interface ExchangeTrade {
   /** 成交时间 */
   tradeTime: string;
   /** 成交类型 */
-  tradeType: enums.TradeType;
+  tradeType: `${enums.TradeType}`;
   /** 成交价来源 */
-  priceSource: enums.PriceSource;
+  priceSource: `${enums.PriceSource}`;
   /** 交易所交易员代码 */
   traderId: string;
   /** 本地报单编号 */
@@ -1787,7 +1787,7 @@ export interface ExchangeTrade {
   /** 序号 */
   sequenceNo: number;
   /** 成交来源 */
-  tradeSource: enums.TradeSource;
+  tradeSource: `${enums.TradeSource}`;
   /** 合约在交易所的代码 */
   exchangeInstId: string;
 }
@@ -1807,7 +1807,7 @@ export interface Trade {
   /** 成交编号 */
   tradeId: string;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 报单编号 */
   orderSysId: string;
   /** 会员代码 */
@@ -1815,11 +1815,11 @@ export interface Trade {
   /** 客户代码 */
   clientId: string;
   /** 交易角色 */
-  tradingRole: enums.TradingRole;
+  tradingRole: `${enums.TradingRole}`;
   /** 开平标志 */
-  offsetFlag: enums.OffsetFlag;
+  offsetFlag: `${enums.OffsetFlag}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 价格 */
   price: number;
   /** 数量 */
@@ -1829,9 +1829,9 @@ export interface Trade {
   /** 成交时间 */
   tradeTime: string;
   /** 成交类型 */
-  tradeType: enums.TradeType;
+  tradeType: `${enums.TradeType}`;
   /** 成交价来源 */
-  priceSource: enums.PriceSource;
+  priceSource: `${enums.PriceSource}`;
   /** 交易所交易员代码 */
   traderId: string;
   /** 本地报单编号 */
@@ -1849,7 +1849,7 @@ export interface Trade {
   /** 经纪公司报单编号 */
   brokerOrderSeq: number;
   /** 成交来源 */
-  tradeSource: enums.TradeSource;
+  tradeSource: `${enums.TradeSource}`;
   /** 投资单元代码 */
   investUnitId: string;
   /** 合约代码 */
@@ -1893,11 +1893,11 @@ export interface QryMaxOrderVolume {
   /** 投资者代码 */
   investorId: string;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 开平标志 */
-  offsetFlag: enums.OffsetFlag;
+  offsetFlag: `${enums.OffsetFlag}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 最大允许报单数量 */
   maxVolume: number;
   /** 交易所代码 */
@@ -1979,7 +1979,7 @@ export interface SyncingInvestor {
   /** 投资者名称 */
   investorName: string;
   /** 证件类型 */
-  identifiedCardType: enums.IdCardType;
+  identifiedCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 是否活跃 */
@@ -1997,9 +1997,9 @@ export interface SyncingInvestor {
   /** 保证金率模板代码 */
   marginModelId: string;
   /** 是否频率控制 */
-  isOrderFreq: enums.EnumBool;
+  isOrderFreq: `${enums.EnumBool}`;
   /** 是否开仓限制 */
-  isOpenVolLimit: enums.EnumBool;
+  isOpenVolLimit: `${enums.EnumBool}`;
 }
 
 /** CThostFtdcSyncingTradingCodeField */
@@ -2015,7 +2015,7 @@ export interface SyncingTradingCode {
   /** 是否活跃 */
   isActive: number;
   /** 交易编码类型 */
-  clientIdType: enums.ClientIDType;
+  clientIdType: `${enums.ClientIDType}`;
 }
 
 /** CThostFtdcSyncingInvestorGroupField */
@@ -2135,11 +2135,11 @@ export interface SyncingInvestorPosition {
   /** 投资者代码 */
   investorId: string;
   /** 持仓多空方向 */
-  posiDirection: enums.PosiDirection;
+  posiDirection: `${enums.PosiDirection}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 持仓日期 */
-  positionDate: enums.PositionDate;
+  positionDate: `${enums.PositionDate}`;
   /** 上日持仓 */
   ydPosition: number;
   /** 今日持仓 */
@@ -2233,13 +2233,13 @@ export interface SyncingInvestorPosition {
 /** CThostFtdcSyncingInstrumentMarginRateField */
 export interface SyncingInstrumentMarginRate {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
   investorId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 多头保证金率 */
   longMarginRatioByMoney: number;
   /** 多头保证金费 */
@@ -2257,7 +2257,7 @@ export interface SyncingInstrumentMarginRate {
 /** CThostFtdcSyncingInstrumentCommissionRateField */
 export interface SyncingInstrumentCommissionRate {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
@@ -2281,13 +2281,13 @@ export interface SyncingInstrumentCommissionRate {
 /** CThostFtdcSyncingInstrumentTradingRightField */
 export interface SyncingInstrumentTradingRight {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
   investorId: string;
   /** 交易权限 */
-  tradingRight: enums.TradingRight;
+  tradingRight: `${enums.TradingRight}`;
   /** 合约代码 */
   instrumentId: string;
 }
@@ -2355,7 +2355,7 @@ export interface QryTradingAccount {
   /** 币种代码 */
   currencyId: string;
   /** 业务类型 */
-  bizType: enums.BizType;
+  bizType: `${enums.BizType}`;
   /** 投资者帐号 */
   accountId: string;
 }
@@ -2379,7 +2379,7 @@ export interface QryTradingCode {
   /** 客户代码 */
   clientId: string;
   /** 交易编码类型 */
-  clientIdType: enums.ClientIDType;
+  clientIdType: `${enums.ClientIDType}`;
   /** 投资单元代码 */
   investUnitId: string;
 }
@@ -2397,7 +2397,7 @@ export interface QryInstrumentMarginRate {
   /** 投资者代码 */
   investorId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 交易所代码 */
   exchangeId: string;
   /** 投资单元代码 */
@@ -2531,7 +2531,7 @@ export interface QryExchange {
 /** CThostFtdcQryProductField */
 export interface QryProduct {
   /** 产品类型 */
-  productClass: enums.ProductClass;
+  productClass: `${enums.ProductClass}`;
   /** 交易所代码 */
   exchangeId: string;
   /** 产品代码 */
@@ -2611,7 +2611,7 @@ export interface QryExchangeMarginRate {
   /** 经纪公司代码 */
   brokerId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 交易所代码 */
   exchangeId: string;
   /** 合约代码 */
@@ -2623,7 +2623,7 @@ export interface QryExchangeMarginRateAdjust {
   /** 经纪公司代码 */
   brokerId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 合约代码 */
   instrumentId: string;
 }
@@ -2671,7 +2671,7 @@ export interface QryHisOrder {
 /** CThostFtdcOptionInstrMiniMarginField */
 export interface OptionInstrMiniMargin {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
@@ -2679,7 +2679,7 @@ export interface OptionInstrMiniMargin {
   /** 单位（手）期权合约最小保证金 */
   minMargin: number;
   /** 取值方式 */
-  valueMethod: enums.ValueMethod;
+  valueMethod: `${enums.ValueMethod}`;
   /** 是否跟随交易所收取 */
   isRelative: number;
   /** 合约代码 */
@@ -2689,7 +2689,7 @@ export interface OptionInstrMiniMargin {
 /** CThostFtdcOptionInstrMarginAdjustField */
 export interface OptionInstrMarginAdjust {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
@@ -2719,7 +2719,7 @@ export interface OptionInstrMarginAdjust {
 /** CThostFtdcOptionInstrCommRateField */
 export interface OptionInstrCommRate {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
@@ -2755,7 +2755,7 @@ export interface OptionInstrTradeCost {
   /** 投资者代码 */
   investorId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 期权合约保证金不变部分 */
   fixedMargin: number;
   /** 期权合约最小保证金 */
@@ -2781,7 +2781,7 @@ export interface QryOptionInstrTradeCost {
   /** 投资者代码 */
   investorId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 期权合约报价 */
   inputPrice: number;
   /** 标的价格,填0则用昨结算价 */
@@ -2835,17 +2835,17 @@ export interface InputExecOrder {
   /** 业务单元 */
   businessUnit: string;
   /** 开平标志 */
-  offsetFlag: enums.OffsetFlag;
+  offsetFlag: `${enums.OffsetFlag}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 执行类型 */
-  actionType: enums.ActionType;
+  actionType: `${enums.ActionType}`;
   /** 保留头寸申请的持仓方向 */
-  posiDirection: enums.PosiDirection;
+  posiDirection: `${enums.PosiDirection}`;
   /** 期权行权后是否保留期货头寸的标记,该字段已废弃 */
-  reservePositionFlag: enums.ExecOrderPositionFlag;
+  reservePositionFlag: `${enums.ExecOrderPositionFlag}`;
   /** 期权行权后生成的头寸是否自动平仓 */
-  closeFlag: enums.ExecOrderCloseFlag;
+  closeFlag: `${enums.ExecOrderCloseFlag}`;
   /** 交易所代码 */
   exchangeId: string;
   /** 投资单元代码 */
@@ -2885,7 +2885,7 @@ export interface InputExecOrderAction {
   /** 执行宣告操作编号 */
   execOrderSysId: string;
   /** 操作标志 */
-  actionFlag: enums.ActionFlag;
+  actionFlag: `${enums.ActionFlag}`;
   /** 用户代码 */
   userId: string;
   /** 投资单元代码 */
@@ -2915,17 +2915,17 @@ export interface ExecOrder {
   /** 业务单元 */
   businessUnit: string;
   /** 开平标志 */
-  offsetFlag: enums.OffsetFlag;
+  offsetFlag: `${enums.OffsetFlag}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 执行类型 */
-  actionType: enums.ActionType;
+  actionType: `${enums.ActionType}`;
   /** 保留头寸申请的持仓方向 */
-  posiDirection: enums.PosiDirection;
+  posiDirection: `${enums.PosiDirection}`;
   /** 期权行权后是否保留期货头寸的标记,该字段已废弃 */
-  reservePositionFlag: enums.ExecOrderPositionFlag;
+  reservePositionFlag: `${enums.ExecOrderPositionFlag}`;
   /** 期权行权后生成的头寸是否自动平仓 */
-  closeFlag: enums.ExecOrderCloseFlag;
+  closeFlag: `${enums.ExecOrderCloseFlag}`;
   /** 本地执行宣告编号 */
   execOrderLocalId: string;
   /** 交易所代码 */
@@ -2939,7 +2939,7 @@ export interface ExecOrder {
   /** 安装编号 */
   installId: number;
   /** 执行宣告提交状态 */
-  orderSubmitStatus: enums.OrderSubmitStatus;
+  orderSubmitStatus: `${enums.OrderSubmitStatus}`;
   /** 报单提示序号 */
   notifySequence: number;
   /** 交易日 */
@@ -2955,7 +2955,7 @@ export interface ExecOrder {
   /** 撤销时间 */
   cancelTime: string;
   /** 执行结果 */
-  execResult: enums.ExecResult;
+  execResult: `${enums.ExecResult}`;
   /** 结算会员编号 */
   clearingPartId: string;
   /** 序号 */
@@ -3011,7 +3011,7 @@ export interface ExecOrderAction {
   /** 执行宣告操作编号 */
   execOrderSysId: string;
   /** 操作标志 */
-  actionFlag: enums.ActionFlag;
+  actionFlag: `${enums.ActionFlag}`;
   /** 操作日期 */
   actionDate: string;
   /** 操作时间 */
@@ -3031,11 +3031,11 @@ export interface ExecOrderAction {
   /** 业务单元 */
   businessUnit: string;
   /** 报单操作状态 */
-  orderActionStatus: enums.OrderActionStatus;
+  orderActionStatus: `${enums.OrderActionStatus}`;
   /** 用户代码 */
   userId: string;
   /** 执行类型 */
-  actionType: enums.ActionType;
+  actionType: `${enums.ActionType}`;
   /** 状态信息 */
   statusMsg: string;
   /** 营业部编号 */
@@ -3077,17 +3077,17 @@ export interface ExchangeExecOrder {
   /** 业务单元 */
   businessUnit: string;
   /** 开平标志 */
-  offsetFlag: enums.OffsetFlag;
+  offsetFlag: `${enums.OffsetFlag}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 执行类型 */
-  actionType: enums.ActionType;
+  actionType: `${enums.ActionType}`;
   /** 保留头寸申请的持仓方向 */
-  posiDirection: enums.PosiDirection;
+  posiDirection: `${enums.PosiDirection}`;
   /** 期权行权后是否保留期货头寸的标记,该字段已废弃 */
-  reservePositionFlag: enums.ExecOrderPositionFlag;
+  reservePositionFlag: `${enums.ExecOrderPositionFlag}`;
   /** 期权行权后生成的头寸是否自动平仓 */
-  closeFlag: enums.ExecOrderCloseFlag;
+  closeFlag: `${enums.ExecOrderCloseFlag}`;
   /** 本地执行宣告编号 */
   execOrderLocalId: string;
   /** 交易所代码 */
@@ -3101,7 +3101,7 @@ export interface ExchangeExecOrder {
   /** 安装编号 */
   installId: number;
   /** 执行宣告提交状态 */
-  orderSubmitStatus: enums.OrderSubmitStatus;
+  orderSubmitStatus: `${enums.OrderSubmitStatus}`;
   /** 报单提示序号 */
   notifySequence: number;
   /** 交易日 */
@@ -3117,7 +3117,7 @@ export interface ExchangeExecOrder {
   /** 撤销时间 */
   cancelTime: string;
   /** 执行结果 */
-  execResult: enums.ExecResult;
+  execResult: `${enums.ExecResult}`;
   /** 结算会员编号 */
   clearingPartId: string;
   /** 序号 */
@@ -3163,7 +3163,7 @@ export interface ExchangeExecOrderAction {
   /** 执行宣告操作编号 */
   execOrderSysId: string;
   /** 操作标志 */
-  actionFlag: enums.ActionFlag;
+  actionFlag: `${enums.ActionFlag}`;
   /** 操作日期 */
   actionDate: string;
   /** 操作时间 */
@@ -3183,11 +3183,11 @@ export interface ExchangeExecOrderAction {
   /** 业务单元 */
   businessUnit: string;
   /** 报单操作状态 */
-  orderActionStatus: enums.OrderActionStatus;
+  orderActionStatus: `${enums.OrderActionStatus}`;
   /** 用户代码 */
   userId: string;
   /** 执行类型 */
-  actionType: enums.ActionType;
+  actionType: `${enums.ActionType}`;
   /** 营业部编号 */
   branchId: string;
   /** Mac地址 */
@@ -3229,17 +3229,17 @@ export interface ErrExecOrder {
   /** 业务单元 */
   businessUnit: string;
   /** 开平标志 */
-  offsetFlag: enums.OffsetFlag;
+  offsetFlag: `${enums.OffsetFlag}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 执行类型 */
-  actionType: enums.ActionType;
+  actionType: `${enums.ActionType}`;
   /** 保留头寸申请的持仓方向 */
-  posiDirection: enums.PosiDirection;
+  posiDirection: `${enums.PosiDirection}`;
   /** 期权行权后是否保留期货头寸的标记,该字段已废弃 */
-  reservePositionFlag: enums.ExecOrderPositionFlag;
+  reservePositionFlag: `${enums.ExecOrderPositionFlag}`;
   /** 期权行权后生成的头寸是否自动平仓 */
-  closeFlag: enums.ExecOrderCloseFlag;
+  closeFlag: `${enums.ExecOrderCloseFlag}`;
   /** 交易所代码 */
   exchangeId: string;
   /** 投资单元代码 */
@@ -3291,7 +3291,7 @@ export interface ErrExecOrderAction {
   /** 执行宣告操作编号 */
   execOrderSysId: string;
   /** 操作标志 */
-  actionFlag: enums.ActionFlag;
+  actionFlag: `${enums.ActionFlag}`;
   /** 用户代码 */
   userId: string;
   /** 投资单元代码 */
@@ -3319,15 +3319,15 @@ export interface QryErrExecOrderAction {
 /** CThostFtdcOptionInstrTradingRightField */
 export interface OptionInstrTradingRight {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
   investorId: string;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 交易权限 */
-  tradingRight: enums.TradingRight;
+  tradingRight: `${enums.TradingRight}`;
   /** 合约代码 */
   instrumentId: string;
 }
@@ -3339,7 +3339,7 @@ export interface QryOptionInstrTradingRight {
   /** 投资者代码 */
   investorId: string;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 合约代码 */
   instrumentId: string;
 }
@@ -3393,7 +3393,7 @@ export interface ForQuote {
   /** 插入时间 */
   insertTime: string;
   /** 询价状态 */
-  forQuoteStatus: enums.ForQuoteStatus;
+  forQuoteStatus: `${enums.ForQuoteStatus}`;
   /** 前置编号 */
   frontId: number;
   /** 会话编号 */
@@ -3453,7 +3453,7 @@ export interface ExchangeForQuote {
   /** 插入时间 */
   insertTime: string;
   /** 询价状态 */
-  forQuoteStatus: enums.ForQuoteStatus;
+  forQuoteStatus: `${enums.ForQuoteStatus}`;
   /** Mac地址 */
   macAddress: string;
   /** 合约在交易所的代码 */
@@ -3499,13 +3499,13 @@ export interface InputQuote {
   /** 业务单元 */
   businessUnit: string;
   /** 卖开平标志 */
-  askOffsetFlag: enums.OffsetFlag;
+  askOffsetFlag: `${enums.OffsetFlag}`;
   /** 买开平标志 */
-  bidOffsetFlag: enums.OffsetFlag;
+  bidOffsetFlag: `${enums.OffsetFlag}`;
   /** 卖投机套保标志 */
-  askHedgeFlag: enums.HedgeFlag;
+  askHedgeFlag: `${enums.HedgeFlag}`;
   /** 买投机套保标志 */
-  bidHedgeFlag: enums.HedgeFlag;
+  bidHedgeFlag: `${enums.HedgeFlag}`;
   /** 衍生卖报单引用 */
   askOrderRef: string;
   /** 衍生买报单引用 */
@@ -3527,7 +3527,7 @@ export interface InputQuote {
   /** 被顶单编号 */
   replaceSysId: string;
   /** 有效期类型 */
-  timeCondition: enums.TimeCondition;
+  timeCondition: `${enums.TimeCondition}`;
 }
 
 /** CThostFtdcInputQuoteActionField */
@@ -3551,7 +3551,7 @@ export interface InputQuoteAction {
   /** 报价操作编号 */
   quoteSysId: string;
   /** 操作标志 */
-  actionFlag: enums.ActionFlag;
+  actionFlag: `${enums.ActionFlag}`;
   /** 用户代码 */
   userId: string;
   /** 投资单元代码 */
@@ -3589,13 +3589,13 @@ export interface Quote {
   /** 业务单元 */
   businessUnit: string;
   /** 卖开平标志 */
-  askOffsetFlag: enums.OffsetFlag;
+  askOffsetFlag: `${enums.OffsetFlag}`;
   /** 买开平标志 */
-  bidOffsetFlag: enums.OffsetFlag;
+  bidOffsetFlag: `${enums.OffsetFlag}`;
   /** 卖投机套保标志 */
-  askHedgeFlag: enums.HedgeFlag;
+  askHedgeFlag: `${enums.HedgeFlag}`;
   /** 买投机套保标志 */
-  bidHedgeFlag: enums.HedgeFlag;
+  bidHedgeFlag: `${enums.HedgeFlag}`;
   /** 本地报价编号 */
   quoteLocalId: string;
   /** 交易所代码 */
@@ -3611,7 +3611,7 @@ export interface Quote {
   /** 报价提示序号 */
   notifySequence: number;
   /** 报价提交状态 */
-  orderSubmitStatus: enums.OrderSubmitStatus;
+  orderSubmitStatus: `${enums.OrderSubmitStatus}`;
   /** 交易日 */
   tradingDay: string;
   /** 结算编号 */
@@ -3625,7 +3625,7 @@ export interface Quote {
   /** 撤销时间 */
   cancelTime: string;
   /** 报价状态 */
-  quoteStatus: enums.OrderStatus;
+  quoteStatus: `${enums.OrderStatus}`;
   /** 结算会员编号 */
   clearingPartId: string;
   /** 序号 */
@@ -3671,7 +3671,7 @@ export interface Quote {
   /** 被顶单编号 */
   replaceSysId: string;
   /** 有效期类型 */
-  timeCondition: enums.TimeCondition;
+  timeCondition: `${enums.TimeCondition}`;
 }
 
 /** CThostFtdcQuoteActionField */
@@ -3695,7 +3695,7 @@ export interface QuoteAction {
   /** 报价操作编号 */
   quoteSysId: string;
   /** 操作标志 */
-  actionFlag: enums.ActionFlag;
+  actionFlag: `${enums.ActionFlag}`;
   /** 操作日期 */
   actionDate: string;
   /** 操作时间 */
@@ -3715,7 +3715,7 @@ export interface QuoteAction {
   /** 业务单元 */
   businessUnit: string;
   /** 报单操作状态 */
-  orderActionStatus: enums.OrderActionStatus;
+  orderActionStatus: `${enums.OrderActionStatus}`;
   /** 用户代码 */
   userId: string;
   /** 状态信息 */
@@ -3767,13 +3767,13 @@ export interface ExchangeQuote {
   /** 业务单元 */
   businessUnit: string;
   /** 卖开平标志 */
-  askOffsetFlag: enums.OffsetFlag;
+  askOffsetFlag: `${enums.OffsetFlag}`;
   /** 买开平标志 */
-  bidOffsetFlag: enums.OffsetFlag;
+  bidOffsetFlag: `${enums.OffsetFlag}`;
   /** 卖投机套保标志 */
-  askHedgeFlag: enums.HedgeFlag;
+  askHedgeFlag: `${enums.HedgeFlag}`;
   /** 买投机套保标志 */
-  bidHedgeFlag: enums.HedgeFlag;
+  bidHedgeFlag: `${enums.HedgeFlag}`;
   /** 本地报价编号 */
   quoteLocalId: string;
   /** 交易所代码 */
@@ -3789,7 +3789,7 @@ export interface ExchangeQuote {
   /** 报价提示序号 */
   notifySequence: number;
   /** 报价提交状态 */
-  orderSubmitStatus: enums.OrderSubmitStatus;
+  orderSubmitStatus: `${enums.OrderSubmitStatus}`;
   /** 交易日 */
   tradingDay: string;
   /** 结算编号 */
@@ -3803,7 +3803,7 @@ export interface ExchangeQuote {
   /** 撤销时间 */
   cancelTime: string;
   /** 报价状态 */
-  quoteStatus: enums.OrderStatus;
+  quoteStatus: `${enums.OrderStatus}`;
   /** 结算会员编号 */
   clearingPartId: string;
   /** 序号 */
@@ -3823,7 +3823,7 @@ export interface ExchangeQuote {
   /** IP地址 */
   ipAddress: string;
   /** 有效期类型 */
-  timeCondition: enums.TimeCondition;
+  timeCondition: `${enums.TimeCondition}`;
 }
 
 /** CThostFtdcQryExchangeQuoteField */
@@ -3857,7 +3857,7 @@ export interface ExchangeQuoteAction {
   /** 报价操作编号 */
   quoteSysId: string;
   /** 操作标志 */
-  actionFlag: enums.ActionFlag;
+  actionFlag: `${enums.ActionFlag}`;
   /** 操作日期 */
   actionDate: string;
   /** 操作时间 */
@@ -3877,7 +3877,7 @@ export interface ExchangeQuoteAction {
   /** 业务单元 */
   businessUnit: string;
   /** 报单操作状态 */
-  orderActionStatus: enums.OrderActionStatus;
+  orderActionStatus: `${enums.OrderActionStatus}`;
   /** 用户代码 */
   userId: string;
   /** Mac地址 */
@@ -3901,7 +3901,7 @@ export interface QryExchangeQuoteAction {
 /** CThostFtdcOptionInstrDeltaField */
 export interface OptionInstrDelta {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
@@ -3931,7 +3931,7 @@ export interface ForQuoteRsp {
 /** CThostFtdcStrikeOffsetField */
 export interface StrikeOffset {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
@@ -3939,7 +3939,7 @@ export interface StrikeOffset {
   /** 执行偏移值 */
   offset: number;
   /** 执行偏移类型 */
-  offsetType: enums.StrikeOffsetType;
+  offsetType: `${enums.StrikeOffsetType}`;
   /** 合约代码 */
   instrumentId: string;
 }
@@ -4013,7 +4013,7 @@ export interface BatchOrderAction {
   /** 业务单元 */
   businessUnit: string;
   /** 报单操作状态 */
-  orderActionStatus: enums.OrderActionStatus;
+  orderActionStatus: `${enums.OrderActionStatus}`;
   /** 用户代码 */
   userId: string;
   /** 状态信息 */
@@ -4047,7 +4047,7 @@ export interface ExchangeBatchOrderAction {
   /** 业务单元 */
   businessUnit: string;
   /** 报单操作状态 */
-  orderActionStatus: enums.OrderActionStatus;
+  orderActionStatus: `${enums.OrderActionStatus}`;
   /** 用户代码 */
   userId: string;
   /** Mac地址 */
@@ -4098,13 +4098,13 @@ export interface InputCombAction {
   /** 用户代码 */
   userId: string;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 数量 */
   volume: number;
   /** 组合指令方向 */
-  combDirection: enums.CombDirection;
+  combDirection: `${enums.CombDirection}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 交易所代码 */
   exchangeId: string;
   /** Mac地址 */
@@ -4132,13 +4132,13 @@ export interface CombAction {
   /** 用户代码 */
   userId: string;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 数量 */
   volume: number;
   /** 组合指令方向 */
-  combDirection: enums.CombDirection;
+  combDirection: `${enums.CombDirection}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 本地申请组合编号 */
   actionLocalId: string;
   /** 交易所代码 */
@@ -4152,7 +4152,7 @@ export interface CombAction {
   /** 安装编号 */
   installId: number;
   /** 组合状态 */
-  actionStatus: enums.OrderActionStatus;
+  actionStatus: `${enums.OrderActionStatus}`;
   /** 报单提示序号 */
   notifySequence: number;
   /** 交易日 */
@@ -4202,13 +4202,13 @@ export interface QryCombAction {
 /** CThostFtdcExchangeCombActionField */
 export interface ExchangeCombAction {
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 数量 */
   volume: number;
   /** 组合指令方向 */
-  combDirection: enums.CombDirection;
+  combDirection: `${enums.CombDirection}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 本地申请组合编号 */
   actionLocalId: string;
   /** 交易所代码 */
@@ -4222,7 +4222,7 @@ export interface ExchangeCombAction {
   /** 安装编号 */
   installId: number;
   /** 组合状态 */
-  actionStatus: enums.OrderActionStatus;
+  actionStatus: `${enums.OrderActionStatus}`;
   /** 报单提示序号 */
   notifySequence: number;
   /** 交易日 */
@@ -4304,7 +4304,7 @@ export interface ForQuoteParam {
 /** CThostFtdcMMOptionInstrCommRateField */
 export interface MMOptionInstrCommRate {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
@@ -4342,7 +4342,7 @@ export interface QryMMOptionInstrCommRate {
 /** CThostFtdcMMInstrumentCommissionRateField */
 export interface MMInstrumentCommissionRate {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
@@ -4376,13 +4376,13 @@ export interface QryMMInstrumentCommissionRate {
 /** CThostFtdcInstrumentOrderCommRateField */
 export interface InstrumentOrderCommRate {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
   investorId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 报单手续费 */
   orderCommByVolume: number;
   /** 撤单手续费 */
@@ -4414,7 +4414,7 @@ export interface TradeParam {
   /** 经纪公司代码 */
   brokerId: string;
   /** 参数代码 */
-  tradeParamId: enums.TradeParamID;
+  tradeParamId: `${enums.TradeParamID}`;
   /** 参数代码值 */
   tradeParamValue: string;
   /** 备注 */
@@ -4424,13 +4424,13 @@ export interface TradeParam {
 /** CThostFtdcInstrumentMarginRateULField */
 export interface InstrumentMarginRateUL {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
   investorId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 多头保证金率 */
   longMarginRatioByMoney: number;
   /** 多头保证金费 */
@@ -4446,7 +4446,7 @@ export interface InstrumentMarginRateUL {
 /** CThostFtdcFutureLimitPosiParamField */
 export interface FutureLimitPosiParam {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
@@ -4492,9 +4492,9 @@ export interface InputOptionSelfClose {
   /** 业务单元 */
   businessUnit: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 期权行权的头寸是否自对冲 */
-  optSelfCloseFlag: enums.OptSelfCloseFlag;
+  optSelfCloseFlag: `${enums.OptSelfCloseFlag}`;
   /** 交易所代码 */
   exchangeId: string;
   /** 投资单元代码 */
@@ -4534,7 +4534,7 @@ export interface InputOptionSelfCloseAction {
   /** 期权自对冲操作编号 */
   optionSelfCloseSysId: string;
   /** 操作标志 */
-  actionFlag: enums.ActionFlag;
+  actionFlag: `${enums.ActionFlag}`;
   /** 用户代码 */
   userId: string;
   /** 投资单元代码 */
@@ -4564,9 +4564,9 @@ export interface OptionSelfClose {
   /** 业务单元 */
   businessUnit: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 期权行权的头寸是否自对冲 */
-  optSelfCloseFlag: enums.OptSelfCloseFlag;
+  optSelfCloseFlag: `${enums.OptSelfCloseFlag}`;
   /** 本地期权自对冲编号 */
   optionSelfCloseLocalId: string;
   /** 交易所代码 */
@@ -4580,7 +4580,7 @@ export interface OptionSelfClose {
   /** 安装编号 */
   installId: number;
   /** 期权自对冲提交状态 */
-  orderSubmitStatus: enums.OrderSubmitStatus;
+  orderSubmitStatus: `${enums.OrderSubmitStatus}`;
   /** 报单提示序号 */
   notifySequence: number;
   /** 交易日 */
@@ -4596,7 +4596,7 @@ export interface OptionSelfClose {
   /** 撤销时间 */
   cancelTime: string;
   /** 自对冲结果 */
-  execResult: enums.ExecResult;
+  execResult: `${enums.ExecResult}`;
   /** 结算会员编号 */
   clearingPartId: string;
   /** 序号 */
@@ -4652,7 +4652,7 @@ export interface OptionSelfCloseAction {
   /** 期权自对冲操作编号 */
   optionSelfCloseSysId: string;
   /** 操作标志 */
-  actionFlag: enums.ActionFlag;
+  actionFlag: `${enums.ActionFlag}`;
   /** 操作日期 */
   actionDate: string;
   /** 操作时间 */
@@ -4672,7 +4672,7 @@ export interface OptionSelfCloseAction {
   /** 业务单元 */
   businessUnit: string;
   /** 报单操作状态 */
-  orderActionStatus: enums.OrderActionStatus;
+  orderActionStatus: `${enums.OrderActionStatus}`;
   /** 用户代码 */
   userId: string;
   /** 状态信息 */
@@ -4716,9 +4716,9 @@ export interface ExchangeOptionSelfClose {
   /** 业务单元 */
   businessUnit: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 期权行权的头寸是否自对冲 */
-  optSelfCloseFlag: enums.OptSelfCloseFlag;
+  optSelfCloseFlag: `${enums.OptSelfCloseFlag}`;
   /** 本地期权自对冲编号 */
   optionSelfCloseLocalId: string;
   /** 交易所代码 */
@@ -4732,7 +4732,7 @@ export interface ExchangeOptionSelfClose {
   /** 安装编号 */
   installId: number;
   /** 期权自对冲提交状态 */
-  orderSubmitStatus: enums.OrderSubmitStatus;
+  orderSubmitStatus: `${enums.OrderSubmitStatus}`;
   /** 报单提示序号 */
   notifySequence: number;
   /** 交易日 */
@@ -4748,7 +4748,7 @@ export interface ExchangeOptionSelfClose {
   /** 撤销时间 */
   cancelTime: string;
   /** 自对冲结果 */
-  execResult: enums.ExecResult;
+  execResult: `${enums.ExecResult}`;
   /** 结算会员编号 */
   clearingPartId: string;
   /** 序号 */
@@ -4780,7 +4780,7 @@ export interface ExchangeOptionSelfCloseAction {
   /** 期权自对冲操作编号 */
   optionSelfCloseSysId: string;
   /** 操作标志 */
-  actionFlag: enums.ActionFlag;
+  actionFlag: `${enums.ActionFlag}`;
   /** 操作日期 */
   actionDate: string;
   /** 操作时间 */
@@ -4800,7 +4800,7 @@ export interface ExchangeOptionSelfCloseAction {
   /** 业务单元 */
   businessUnit: string;
   /** 报单操作状态 */
-  orderActionStatus: enums.OrderActionStatus;
+  orderActionStatus: `${enums.OrderActionStatus}`;
   /** 用户代码 */
   userId: string;
   /** 营业部编号 */
@@ -4808,7 +4808,7 @@ export interface ExchangeOptionSelfCloseAction {
   /** Mac地址 */
   macAddress: string;
   /** 期权行权的头寸是否自对冲 */
-  optSelfCloseFlag: enums.OptSelfCloseFlag;
+  optSelfCloseFlag: `${enums.OptSelfCloseFlag}`;
   /** IP地址 */
   ipAddress: string;
   /** 合约在交易所的代码 */
@@ -5102,13 +5102,13 @@ export interface InstrumentStatus {
   /** 结算组代码 */
   settlementGroupId: string;
   /** 合约交易状态 */
-  instrumentStatus: enums.InstrumentStatusType;
+  instrumentStatus: `${enums.InstrumentStatusType}`;
   /** 交易阶段编号 */
   tradingSegmentSn: number;
   /** 进入本状态时间 */
   enterTime: string;
   /** 进入本状态原因 */
-  enterReason: enums.InstStatusEnterReason;
+  enterReason: `${enums.InstStatusEnterReason}`;
   /** 合约在交易所的代码 */
   exchangeInstId: string;
   /** 合约代码 */
@@ -5142,7 +5142,7 @@ export interface PositionProfitAlgorithm {
   /** 投资者帐号 */
   accountId: string;
   /** 盈亏算法 */
-  algorithm: enums.Algorithm;
+  algorithm: `${enums.Algorithm}`;
   /** 备注 */
   memo: string;
   /** 币种代码 */
@@ -5154,7 +5154,7 @@ export interface Discount {
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 投资者代码 */
   investorId: string;
   /** 资金折扣比例 */
@@ -5202,9 +5202,9 @@ export interface InvestorPositionDetail {
   /** 投资者代码 */
   investorId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 买卖 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 开仓日期 */
   openDate: string;
   /** 成交编号 */
@@ -5218,7 +5218,7 @@ export interface InvestorPositionDetail {
   /** 结算编号 */
   settlementId: number;
   /** 成交类型 */
-  tradeType: enums.TradeType;
+  tradeType: `${enums.TradeType}`;
   /** 交易所代码 */
   exchangeId: string;
   /** 逐日盯市平仓盈亏 */
@@ -5250,7 +5250,7 @@ export interface InvestorPositionDetail {
   /** 投资单元代码 */
   investUnitId: string;
   /** 特殊持仓标志 */
-  specPosiType: enums.SpecPosiType;
+  specPosiType: `${enums.SpecPosiType}`;
   /** 合约代码 */
   instrumentId: string;
   /** 组合合约代码 */
@@ -5284,7 +5284,7 @@ export interface MDTraderOffer {
   /** 本地报单编号 */
   orderLocalId: string;
   /** 交易所交易员连接状态 */
-  traderConnectStatus: enums.TraderConnectStatus;
+  traderConnectStatus: `${enums.TraderConnectStatus}`;
   /** 发出连接请求的日期 */
   connectRequestDate: string;
   /** 发出连接请求的时间 */
@@ -5310,7 +5310,7 @@ export interface MDTraderOffer {
   /** 本席位最大报单备拷 */
   maxOrderMessageReference: string;
   /** 撤单时选择席位算法 */
-  orderCancelAlg: enums.OrderCancelAlg;
+  orderCancelAlg: `${enums.OrderCancelAlg}`;
 }
 
 /** CThostFtdcQryMDTraderOfferField */
@@ -5346,7 +5346,7 @@ export interface UserRight {
   /** 用户代码 */
   userId: string;
   /** 客户权限类型 */
-  userRightType: enums.UserRightType;
+  userRightType: `${enums.UserRightType}`;
   /** 是否禁止 */
   isForbidden: number;
 }
@@ -5374,15 +5374,15 @@ export interface BrokerWithdrawAlgorithm {
   /** 经纪公司代码 */
   brokerId: string;
   /** 可提资金算法 */
-  withdrawAlgorithm: enums.Algorithm;
+  withdrawAlgorithm: `${enums.Algorithm}`;
   /** 资金使用率 */
   usingRatio: number;
   /** 可提是否包含平仓盈利 */
-  includeCloseProfit: enums.IncludeCloseProfit;
+  includeCloseProfit: `${enums.IncludeCloseProfit}`;
   /** 本日无仓且无成交客户是否受可提比例限制 */
-  allWithoutTrade: enums.AllWithoutTrade;
+  allWithoutTrade: `${enums.AllWithoutTrade}`;
   /** 可用是否包含平仓盈利 */
-  availIncludeCloseProfit: enums.IncludeCloseProfit;
+  availIncludeCloseProfit: `${enums.IncludeCloseProfit}`;
   /** 是否启用用户事件 */
   isBrokerUserEvent: number;
   /** 币种代码 */
@@ -5390,7 +5390,7 @@ export interface BrokerWithdrawAlgorithm {
   /** 货币质押比率 */
   fundMortgageRatio: number;
   /** 权益算法 */
-  balanceAlgorithm: enums.BalanceAlgorithm;
+  balanceAlgorithm: `${enums.BalanceAlgorithm}`;
 }
 
 /** CThostFtdcTradingAccountPasswordUpdateV1Field */
@@ -5440,7 +5440,7 @@ export interface CombinationLeg {
   /** 单腿编号 */
   legId: number;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 单腿乘数 */
   legMultiple: number;
   /** 派生层数 */
@@ -5456,7 +5456,7 @@ export interface SyncStatus {
   /** 交易日 */
   tradingDay: string;
   /** 数据同步状态 */
-  dataSyncStatus: enums.DataSyncStatus;
+  dataSyncStatus: `${enums.DataSyncStatus}`;
 }
 
 /** CThostFtdcQryLinkManField */
@@ -5474,9 +5474,9 @@ export interface LinkMan {
   /** 投资者代码 */
   investorId: string;
   /** 联系人类型 */
-  personType: enums.PersonType;
+  personType: `${enums.PersonType}`;
   /** 证件类型 */
-  identifiedCardType: enums.IdCardType;
+  identifiedCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 名称 */
@@ -5502,7 +5502,7 @@ export interface QryBrokerUserEvent {
   /** 用户代码 */
   userId: string;
   /** 用户事件类型 */
-  userEventType: enums.UserEventType;
+  userEventType: `${enums.UserEventType}`;
 }
 
 /** CThostFtdcBrokerUserEventField */
@@ -5512,7 +5512,7 @@ export interface BrokerUserEvent {
   /** 用户代码 */
   userId: string;
   /** 用户事件类型 */
-  userEventType: enums.UserEventType;
+  userEventType: `${enums.UserEventType}`;
   /** 用户事件序号 */
   eventSequenceNo: number;
   /** 事件发生日期 */
@@ -5572,9 +5572,9 @@ export interface InvestorPositionCombineDetail {
   /** 撮合编号 */
   tradeId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 买卖 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 持仓量 */
   totalAmt: number;
   /** 投资者保证金 */
@@ -5610,9 +5610,9 @@ export interface ParkedOrder {
   /** 用户代码 */
   userId: string;
   /** 报单价格条件 */
-  orderPriceType: enums.OrderPriceType;
+  orderPriceType: `${enums.OrderPriceType}`;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 组合开平标志 */
   combOffsetFlag: string;
   /** 组合投机套保标志 */
@@ -5622,19 +5622,19 @@ export interface ParkedOrder {
   /** 数量 */
   volumeTotalOriginal: number;
   /** 有效期类型 */
-  timeCondition: enums.TimeCondition;
+  timeCondition: `${enums.TimeCondition}`;
   /** GTD日期 */
   gtdDate: string;
   /** 成交量类型 */
-  volumeCondition: enums.VolumeCondition;
+  volumeCondition: `${enums.VolumeCondition}`;
   /** 最小成交量 */
   minVolume: number;
   /** 触发条件 */
-  contingentCondition: enums.ContingentCondition;
+  contingentCondition: `${enums.ContingentCondition}`;
   /** 止损价 */
   stopPrice: number;
   /** 强平原因 */
-  forceCloseReason: enums.ForceCloseReason;
+  forceCloseReason: `${enums.ForceCloseReason}`;
   /** 自动挂起标志 */
   isAutoSuspend: number;
   /** 业务单元 */
@@ -5648,9 +5648,9 @@ export interface ParkedOrder {
   /** 预埋报单编号 */
   parkedOrderId: string;
   /** 用户类型 */
-  userType: enums.UserType;
+  userType: `${enums.UserType}`;
   /** 预埋单状态 */
-  status: enums.ParkedOrderStatus;
+  status: `${enums.ParkedOrderStatus}`;
   /** 错误代码 */
   errorId: number;
   /** 错误信息 */
@@ -5694,7 +5694,7 @@ export interface ParkedOrderAction {
   /** 报单编号 */
   orderSysId: string;
   /** 操作标志 */
-  actionFlag: enums.ActionFlag;
+  actionFlag: `${enums.ActionFlag}`;
   /** 价格 */
   limitPrice: number;
   /** 数量变化 */
@@ -5704,9 +5704,9 @@ export interface ParkedOrderAction {
   /** 预埋撤单单编号 */
   parkedOrderActionId: string;
   /** 用户类型 */
-  userType: enums.UserType;
+  userType: `${enums.UserType}`;
   /** 预埋撤单状态 */
-  status: enums.ParkedOrderStatus;
+  status: `${enums.ParkedOrderStatus}`;
   /** 错误代码 */
   errorId: number;
   /** 错误信息 */
@@ -5778,7 +5778,7 @@ export interface InvestorWithdrawAlgorithm {
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 投资者代码 */
   investorId: string;
   /** 可提资金比例 */
@@ -5856,7 +5856,7 @@ export interface TradingNotice {
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 投资者代码 */
   investorId: string;
   /** 序列系列号 */
@@ -5902,9 +5902,9 @@ export interface ErrOrder {
   /** 用户代码 */
   userId: string;
   /** 报单价格条件 */
-  orderPriceType: enums.OrderPriceType;
+  orderPriceType: `${enums.OrderPriceType}`;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 组合开平标志 */
   combOffsetFlag: string;
   /** 组合投机套保标志 */
@@ -5914,19 +5914,19 @@ export interface ErrOrder {
   /** 数量 */
   volumeTotalOriginal: number;
   /** 有效期类型 */
-  timeCondition: enums.TimeCondition;
+  timeCondition: `${enums.TimeCondition}`;
   /** GTD日期 */
   gtdDate: string;
   /** 成交量类型 */
-  volumeCondition: enums.VolumeCondition;
+  volumeCondition: `${enums.VolumeCondition}`;
   /** 最小成交量 */
   minVolume: number;
   /** 触发条件 */
-  contingentCondition: enums.ContingentCondition;
+  contingentCondition: `${enums.ContingentCondition}`;
   /** 止损价 */
   stopPrice: number;
   /** 强平原因 */
-  forceCloseReason: enums.ForceCloseReason;
+  forceCloseReason: `${enums.ForceCloseReason}`;
   /** 自动挂起标志 */
   isAutoSuspend: number;
   /** 业务单元 */
@@ -5970,9 +5970,9 @@ export interface ErrorConditionalOrder {
   /** 用户代码 */
   userId: string;
   /** 报单价格条件 */
-  orderPriceType: enums.OrderPriceType;
+  orderPriceType: `${enums.OrderPriceType}`;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 组合开平标志 */
   combOffsetFlag: string;
   /** 组合投机套保标志 */
@@ -5982,19 +5982,19 @@ export interface ErrorConditionalOrder {
   /** 数量 */
   volumeTotalOriginal: number;
   /** 有效期类型 */
-  timeCondition: enums.TimeCondition;
+  timeCondition: `${enums.TimeCondition}`;
   /** GTD日期 */
   gtdDate: string;
   /** 成交量类型 */
-  volumeCondition: enums.VolumeCondition;
+  volumeCondition: `${enums.VolumeCondition}`;
   /** 最小成交量 */
   minVolume: number;
   /** 触发条件 */
-  contingentCondition: enums.ContingentCondition;
+  contingentCondition: `${enums.ContingentCondition}`;
   /** 止损价 */
   stopPrice: number;
   /** 强平原因 */
-  forceCloseReason: enums.ForceCloseReason;
+  forceCloseReason: `${enums.ForceCloseReason}`;
   /** 自动挂起标志 */
   isAutoSuspend: number;
   /** 业务单元 */
@@ -6014,7 +6014,7 @@ export interface ErrorConditionalOrder {
   /** 安装编号 */
   installId: number;
   /** 报单提交状态 */
-  orderSubmitStatus: enums.OrderSubmitStatus;
+  orderSubmitStatus: `${enums.OrderSubmitStatus}`;
   /** 报单提示序号 */
   notifySequence: number;
   /** 交易日 */
@@ -6024,11 +6024,11 @@ export interface ErrorConditionalOrder {
   /** 报单编号 */
   orderSysId: string;
   /** 报单来源 */
-  orderSource: enums.OrderSource;
+  orderSource: `${enums.OrderSource}`;
   /** 报单状态 */
-  orderStatus: enums.OrderStatus;
+  orderStatus: `${enums.OrderStatus}`;
   /** 报单类型 */
-  orderType: enums.OrderType;
+  orderType: `${enums.OrderType}`;
   /** 今成交数量 */
   volumeTraded: number;
   /** 剩余数量 */
@@ -6122,7 +6122,7 @@ export interface ErrOrderAction {
   /** 报单编号 */
   orderSysId: string;
   /** 操作标志 */
-  actionFlag: enums.ActionFlag;
+  actionFlag: `${enums.ActionFlag}`;
   /** 价格 */
   limitPrice: number;
   /** 数量变化 */
@@ -6146,7 +6146,7 @@ export interface ErrOrderAction {
   /** 业务单元 */
   businessUnit: string;
   /** 报单操作状态 */
-  orderActionStatus: enums.OrderActionStatus;
+  orderActionStatus: `${enums.OrderActionStatus}`;
   /** 用户代码 */
   userId: string;
   /** 状态信息 */
@@ -6180,7 +6180,7 @@ export interface ExchangeSequence {
   /** 序号 */
   sequenceNo: number;
   /** 合约交易状态 */
-  marketStatus: enums.InstrumentStatusType;
+  marketStatus: `${enums.InstrumentStatusType}`;
 }
 
 /** CThostFtdcQryMaxOrderVolumeWithPriceField */
@@ -6190,11 +6190,11 @@ export interface QryMaxOrderVolumeWithPrice {
   /** 投资者代码 */
   investorId: string;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 开平标志 */
-  offsetFlag: enums.OffsetFlag;
+  offsetFlag: `${enums.OffsetFlag}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 最大允许报单数量 */
   maxVolume: number;
   /** 报单价格 */
@@ -6226,15 +6226,15 @@ export interface BrokerTradingParams {
   /** 投资者代码 */
   investorId: string;
   /** 保证金价格类型 */
-  marginPriceType: enums.MarginPriceType;
+  marginPriceType: `${enums.MarginPriceType}`;
   /** 盈亏算法 */
-  algorithm: enums.Algorithm;
+  algorithm: `${enums.Algorithm}`;
   /** 可用是否包含平仓盈利 */
-  availIncludeCloseProfit: enums.IncludeCloseProfit;
+  availIncludeCloseProfit: `${enums.IncludeCloseProfit}`;
   /** 币种代码 */
   currencyId: string;
   /** 期权权利金价格类型 */
-  optionRoyaltyPriceType: enums.OptionRoyaltyPriceType;
+  optionRoyaltyPriceType: `${enums.OptionRoyaltyPriceType}`;
   /** 投资者帐号 */
   accountId: string;
 }
@@ -6256,11 +6256,11 @@ export interface BrokerTradingAlgos {
   /** 交易所代码 */
   exchangeId: string;
   /** 持仓处理算法编号 */
-  handlePositionAlgoId: enums.HandlePositionAlgoID;
+  handlePositionAlgoId: `${enums.HandlePositionAlgoID}`;
   /** 寻找保证金率算法编号 */
-  findMarginRateAlgoId: enums.FindMarginRateAlgoID;
+  findMarginRateAlgoId: `${enums.FindMarginRateAlgoID}`;
   /** 资金处理算法编号 */
-  handleTradingAccountAlgoId: enums.HandleTradingAccountAlgoID;
+  handleTradingAccountAlgoId: `${enums.HandleTradingAccountAlgoID}`;
   /** 合约代码 */
   instrumentId: string;
 }
@@ -6324,7 +6324,7 @@ export interface CFMMCBrokerKey {
   /** 动态密钥 */
   currentKey: string;
   /** 动态密钥类型 */
-  keyKind: enums.CFMMCKeyKind;
+  keyKind: `${enums.CFMMCKeyKind}`;
 }
 
 /** CThostFtdcCFMMCTradingAccountKeyField */
@@ -6366,7 +6366,7 @@ export interface BrokerUserOTPParam {
   /** 成功值 */
   lastSuccess: number;
   /** 动态令牌类型 */
-  otpType: enums.OTPType;
+  otpType: `${enums.OTPType}`;
 }
 
 /** CThostFtdcManualSyncBrokerUserOTPField */
@@ -6376,7 +6376,7 @@ export interface ManualSyncBrokerUserOTP {
   /** 用户代码 */
   userId: string;
   /** 动态令牌类型 */
-  otpType: enums.OTPType;
+  otpType: `${enums.OTPType}`;
   /** 第一个动态密码 */
   firstOtp: string;
   /** 第二个动态密码 */
@@ -6430,9 +6430,9 @@ export interface EWarrantOffset {
   /** 交易所代码 */
   exchangeId: string;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 数量 */
   volume: number;
   /** 投资单元代码 */
@@ -6462,7 +6462,7 @@ export interface QryInvestorProductGroupMargin {
   /** 投资者代码 */
   investorId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 交易所代码 */
   exchangeId: string;
   /** 投资单元代码 */
@@ -6524,7 +6524,7 @@ export interface InvestorProductGroupMargin {
   /** 交易所空头折抵总金额 */
   shortExchOffsetAmount: number;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 交易所代码 */
   exchangeId: string;
   /** 投资单元代码 */
@@ -6674,21 +6674,21 @@ export interface ReqOpenAccount {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 性别 */
-  gender: enums.Gender;
+  gender: `${enums.Gender}`;
   /** 国家代码 */
   countryCode: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 地址 */
   address: string;
   /** 邮编 */
@@ -6702,7 +6702,7 @@ export interface ReqOpenAccount {
   /** 电子邮件 */
   eMail: string;
   /** 资金账户状态 */
-  moneyAccountStatus: enums.MoneyAccountStatus;
+  moneyAccountStatus: `${enums.MoneyAccountStatus}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -6714,27 +6714,27 @@ export interface ReqOpenAccount {
   /** 安装编号 */
   installId: number;
   /** 验证客户证件号码标志 */
-  verifyCertNoFlag: enums.YesNoIndicator;
+  verifyCertNoFlag: `${enums.YesNoIndicator}`;
   /** 币种代码 */
   currencyId: string;
   /** 汇钞标志 */
-  cashExchangeCode: enums.CashExchangeCode;
+  cashExchangeCode: `${enums.CashExchangeCode}`;
   /** 摘要 */
   digest: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 渠道标志 */
   deviceId: string;
   /** 期货单位帐号类型 */
-  bankSecuAccType: enums.BankAccType;
+  bankSecuAccType: `${enums.BankAccType}`;
   /** 期货公司银行编码 */
   brokerIdByBank: string;
   /** 期货单位帐号 */
   bankSecuAcc: string;
   /** 银行密码标志 */
-  bankPwdFlag: enums.PwdFlag;
+  bankPwdFlag: `${enums.PwdFlag}`;
   /** 期货资金密码核对标志 */
-  secuPwdFlag: enums.PwdFlag;
+  secuPwdFlag: `${enums.PwdFlag}`;
   /** 交易柜员 */
   operNo: string;
   /** 交易ID */
@@ -6768,21 +6768,21 @@ export interface ReqCancelAccount {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 性别 */
-  gender: enums.Gender;
+  gender: `${enums.Gender}`;
   /** 国家代码 */
   countryCode: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 地址 */
   address: string;
   /** 邮编 */
@@ -6796,7 +6796,7 @@ export interface ReqCancelAccount {
   /** 电子邮件 */
   eMail: string;
   /** 资金账户状态 */
-  moneyAccountStatus: enums.MoneyAccountStatus;
+  moneyAccountStatus: `${enums.MoneyAccountStatus}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -6808,27 +6808,27 @@ export interface ReqCancelAccount {
   /** 安装编号 */
   installId: number;
   /** 验证客户证件号码标志 */
-  verifyCertNoFlag: enums.YesNoIndicator;
+  verifyCertNoFlag: `${enums.YesNoIndicator}`;
   /** 币种代码 */
   currencyId: string;
   /** 汇钞标志 */
-  cashExchangeCode: enums.CashExchangeCode;
+  cashExchangeCode: `${enums.CashExchangeCode}`;
   /** 摘要 */
   digest: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 渠道标志 */
   deviceId: string;
   /** 期货单位帐号类型 */
-  bankSecuAccType: enums.BankAccType;
+  bankSecuAccType: `${enums.BankAccType}`;
   /** 期货公司银行编码 */
   brokerIdByBank: string;
   /** 期货单位帐号 */
   bankSecuAcc: string;
   /** 银行密码标志 */
-  bankPwdFlag: enums.PwdFlag;
+  bankPwdFlag: `${enums.PwdFlag}`;
   /** 期货资金密码核对标志 */
-  secuPwdFlag: enums.PwdFlag;
+  secuPwdFlag: `${enums.PwdFlag}`;
   /** 交易柜员 */
   operNo: string;
   /** 交易ID */
@@ -6862,21 +6862,21 @@ export interface ReqChangeAccount {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 性别 */
-  gender: enums.Gender;
+  gender: `${enums.Gender}`;
   /** 国家代码 */
   countryCode: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 地址 */
   address: string;
   /** 邮编 */
@@ -6890,7 +6890,7 @@ export interface ReqChangeAccount {
   /** 电子邮件 */
   eMail: string;
   /** 资金账户状态 */
-  moneyAccountStatus: enums.MoneyAccountStatus;
+  moneyAccountStatus: `${enums.MoneyAccountStatus}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -6904,19 +6904,19 @@ export interface ReqChangeAccount {
   /** 期货密码 */
   password: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 安装编号 */
   installId: number;
   /** 验证客户证件号码标志 */
-  verifyCertNoFlag: enums.YesNoIndicator;
+  verifyCertNoFlag: `${enums.YesNoIndicator}`;
   /** 币种代码 */
   currencyId: string;
   /** 期货公司银行编码 */
   brokerIdByBank: string;
   /** 银行密码标志 */
-  bankPwdFlag: enums.PwdFlag;
+  bankPwdFlag: `${enums.PwdFlag}`;
   /** 期货资金密码核对标志 */
-  secuPwdFlag: enums.PwdFlag;
+  secuPwdFlag: `${enums.PwdFlag}`;
   /** 交易ID */
   tid: number;
   /** 摘要 */
@@ -6948,17 +6948,17 @@ export interface ReqTransfer {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -6974,7 +6974,7 @@ export interface ReqTransfer {
   /** 用户标识 */
   userId: string;
   /** 验证客户证件号码标志 */
-  verifyCertNoFlag: enums.YesNoIndicator;
+  verifyCertNoFlag: `${enums.YesNoIndicator}`;
   /** 币种代码 */
   currencyId: string;
   /** 转帐金额 */
@@ -6982,7 +6982,7 @@ export interface ReqTransfer {
   /** 期货可取金额 */
   futureFetchAmount: number;
   /** 费用支付标志 */
-  feePayFlag: enums.FeePayFlag;
+  feePayFlag: `${enums.FeePayFlag}`;
   /** 应收客户费用 */
   custFee: number;
   /** 应收期货公司费用 */
@@ -6992,19 +6992,19 @@ export interface ReqTransfer {
   /** 摘要 */
   digest: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 渠道标志 */
   deviceId: string;
   /** 期货单位帐号类型 */
-  bankSecuAccType: enums.BankAccType;
+  bankSecuAccType: `${enums.BankAccType}`;
   /** 期货公司银行编码 */
   brokerIdByBank: string;
   /** 期货单位帐号 */
   bankSecuAcc: string;
   /** 银行密码标志 */
-  bankPwdFlag: enums.PwdFlag;
+  bankPwdFlag: `${enums.PwdFlag}`;
   /** 期货资金密码核对标志 */
-  secuPwdFlag: enums.PwdFlag;
+  secuPwdFlag: `${enums.PwdFlag}`;
   /** 交易柜员 */
   operNo: string;
   /** 请求编号 */
@@ -7012,7 +7012,7 @@ export interface ReqTransfer {
   /** 交易ID */
   tid: number;
   /** 转账交易状态 */
-  transferStatus: enums.TransferStatus;
+  transferStatus: `${enums.TransferStatus}`;
   /** 长客户姓名 */
   longCustomerName: string;
 }
@@ -7040,17 +7040,17 @@ export interface RspTransfer {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -7066,7 +7066,7 @@ export interface RspTransfer {
   /** 用户标识 */
   userId: string;
   /** 验证客户证件号码标志 */
-  verifyCertNoFlag: enums.YesNoIndicator;
+  verifyCertNoFlag: `${enums.YesNoIndicator}`;
   /** 币种代码 */
   currencyId: string;
   /** 转帐金额 */
@@ -7074,7 +7074,7 @@ export interface RspTransfer {
   /** 期货可取金额 */
   futureFetchAmount: number;
   /** 费用支付标志 */
-  feePayFlag: enums.FeePayFlag;
+  feePayFlag: `${enums.FeePayFlag}`;
   /** 应收客户费用 */
   custFee: number;
   /** 应收期货公司费用 */
@@ -7084,19 +7084,19 @@ export interface RspTransfer {
   /** 摘要 */
   digest: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 渠道标志 */
   deviceId: string;
   /** 期货单位帐号类型 */
-  bankSecuAccType: enums.BankAccType;
+  bankSecuAccType: `${enums.BankAccType}`;
   /** 期货公司银行编码 */
   brokerIdByBank: string;
   /** 期货单位帐号 */
   bankSecuAcc: string;
   /** 银行密码标志 */
-  bankPwdFlag: enums.PwdFlag;
+  bankPwdFlag: `${enums.PwdFlag}`;
   /** 期货资金密码核对标志 */
-  secuPwdFlag: enums.PwdFlag;
+  secuPwdFlag: `${enums.PwdFlag}`;
   /** 交易柜员 */
   operNo: string;
   /** 请求编号 */
@@ -7104,7 +7104,7 @@ export interface RspTransfer {
   /** 交易ID */
   tid: number;
   /** 转账交易状态 */
-  transferStatus: enums.TransferStatus;
+  transferStatus: `${enums.TransferStatus}`;
   /** 错误代码 */
   errorId: number;
   /** 错误信息 */
@@ -7120,9 +7120,9 @@ export interface ReqRepeal {
   /** 已经冲正次数 */
   repealedTimes: number;
   /** 银行冲正标志 */
-  bankRepealFlag: enums.BankRepealFlag;
+  bankRepealFlag: `${enums.BankRepealFlag}`;
   /** 期商冲正标志 */
-  brokerRepealFlag: enums.BrokerRepealFlag;
+  brokerRepealFlag: `${enums.BrokerRepealFlag}`;
   /** 被冲正平台流水号 */
   plateRepealSerial: number;
   /** 被冲正银行流水号 */
@@ -7150,17 +7150,17 @@ export interface ReqRepeal {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -7176,7 +7176,7 @@ export interface ReqRepeal {
   /** 用户标识 */
   userId: string;
   /** 验证客户证件号码标志 */
-  verifyCertNoFlag: enums.YesNoIndicator;
+  verifyCertNoFlag: `${enums.YesNoIndicator}`;
   /** 币种代码 */
   currencyId: string;
   /** 转帐金额 */
@@ -7184,7 +7184,7 @@ export interface ReqRepeal {
   /** 期货可取金额 */
   futureFetchAmount: number;
   /** 费用支付标志 */
-  feePayFlag: enums.FeePayFlag;
+  feePayFlag: `${enums.FeePayFlag}`;
   /** 应收客户费用 */
   custFee: number;
   /** 应收期货公司费用 */
@@ -7194,19 +7194,19 @@ export interface ReqRepeal {
   /** 摘要 */
   digest: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 渠道标志 */
   deviceId: string;
   /** 期货单位帐号类型 */
-  bankSecuAccType: enums.BankAccType;
+  bankSecuAccType: `${enums.BankAccType}`;
   /** 期货公司银行编码 */
   brokerIdByBank: string;
   /** 期货单位帐号 */
   bankSecuAcc: string;
   /** 银行密码标志 */
-  bankPwdFlag: enums.PwdFlag;
+  bankPwdFlag: `${enums.PwdFlag}`;
   /** 期货资金密码核对标志 */
-  secuPwdFlag: enums.PwdFlag;
+  secuPwdFlag: `${enums.PwdFlag}`;
   /** 交易柜员 */
   operNo: string;
   /** 请求编号 */
@@ -7214,7 +7214,7 @@ export interface ReqRepeal {
   /** 交易ID */
   tid: number;
   /** 转账交易状态 */
-  transferStatus: enums.TransferStatus;
+  transferStatus: `${enums.TransferStatus}`;
   /** 长客户姓名 */
   longCustomerName: string;
 }
@@ -7226,9 +7226,9 @@ export interface RspRepeal {
   /** 已经冲正次数 */
   repealedTimes: number;
   /** 银行冲正标志 */
-  bankRepealFlag: enums.BankRepealFlag;
+  bankRepealFlag: `${enums.BankRepealFlag}`;
   /** 期商冲正标志 */
-  brokerRepealFlag: enums.BrokerRepealFlag;
+  brokerRepealFlag: `${enums.BrokerRepealFlag}`;
   /** 被冲正平台流水号 */
   plateRepealSerial: number;
   /** 被冲正银行流水号 */
@@ -7256,17 +7256,17 @@ export interface RspRepeal {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -7282,7 +7282,7 @@ export interface RspRepeal {
   /** 用户标识 */
   userId: string;
   /** 验证客户证件号码标志 */
-  verifyCertNoFlag: enums.YesNoIndicator;
+  verifyCertNoFlag: `${enums.YesNoIndicator}`;
   /** 币种代码 */
   currencyId: string;
   /** 转帐金额 */
@@ -7290,7 +7290,7 @@ export interface RspRepeal {
   /** 期货可取金额 */
   futureFetchAmount: number;
   /** 费用支付标志 */
-  feePayFlag: enums.FeePayFlag;
+  feePayFlag: `${enums.FeePayFlag}`;
   /** 应收客户费用 */
   custFee: number;
   /** 应收期货公司费用 */
@@ -7300,19 +7300,19 @@ export interface RspRepeal {
   /** 摘要 */
   digest: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 渠道标志 */
   deviceId: string;
   /** 期货单位帐号类型 */
-  bankSecuAccType: enums.BankAccType;
+  bankSecuAccType: `${enums.BankAccType}`;
   /** 期货公司银行编码 */
   brokerIdByBank: string;
   /** 期货单位帐号 */
   bankSecuAcc: string;
   /** 银行密码标志 */
-  bankPwdFlag: enums.PwdFlag;
+  bankPwdFlag: `${enums.PwdFlag}`;
   /** 期货资金密码核对标志 */
-  secuPwdFlag: enums.PwdFlag;
+  secuPwdFlag: `${enums.PwdFlag}`;
   /** 交易柜员 */
   operNo: string;
   /** 请求编号 */
@@ -7320,7 +7320,7 @@ export interface RspRepeal {
   /** 交易ID */
   tid: number;
   /** 转账交易状态 */
-  transferStatus: enums.TransferStatus;
+  transferStatus: `${enums.TransferStatus}`;
   /** 错误代码 */
   errorId: number;
   /** 错误信息 */
@@ -7352,17 +7352,17 @@ export interface ReqQueryAccount {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -7378,25 +7378,25 @@ export interface ReqQueryAccount {
   /** 用户标识 */
   userId: string;
   /** 验证客户证件号码标志 */
-  verifyCertNoFlag: enums.YesNoIndicator;
+  verifyCertNoFlag: `${enums.YesNoIndicator}`;
   /** 币种代码 */
   currencyId: string;
   /** 摘要 */
   digest: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 渠道标志 */
   deviceId: string;
   /** 期货单位帐号类型 */
-  bankSecuAccType: enums.BankAccType;
+  bankSecuAccType: `${enums.BankAccType}`;
   /** 期货公司银行编码 */
   brokerIdByBank: string;
   /** 期货单位帐号 */
   bankSecuAcc: string;
   /** 银行密码标志 */
-  bankPwdFlag: enums.PwdFlag;
+  bankPwdFlag: `${enums.PwdFlag}`;
   /** 期货资金密码核对标志 */
-  secuPwdFlag: enums.PwdFlag;
+  secuPwdFlag: `${enums.PwdFlag}`;
   /** 交易柜员 */
   operNo: string;
   /** 请求编号 */
@@ -7430,17 +7430,17 @@ export interface RspQueryAccount {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -7456,25 +7456,25 @@ export interface RspQueryAccount {
   /** 用户标识 */
   userId: string;
   /** 验证客户证件号码标志 */
-  verifyCertNoFlag: enums.YesNoIndicator;
+  verifyCertNoFlag: `${enums.YesNoIndicator}`;
   /** 币种代码 */
   currencyId: string;
   /** 摘要 */
   digest: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 渠道标志 */
   deviceId: string;
   /** 期货单位帐号类型 */
-  bankSecuAccType: enums.BankAccType;
+  bankSecuAccType: `${enums.BankAccType}`;
   /** 期货公司银行编码 */
   brokerIdByBank: string;
   /** 期货单位帐号 */
   bankSecuAcc: string;
   /** 银行密码标志 */
-  bankPwdFlag: enums.PwdFlag;
+  bankPwdFlag: `${enums.PwdFlag}`;
   /** 期货资金密码核对标志 */
-  secuPwdFlag: enums.PwdFlag;
+  secuPwdFlag: `${enums.PwdFlag}`;
   /** 交易柜员 */
   operNo: string;
   /** 请求编号 */
@@ -7512,7 +7512,7 @@ export interface FutureSignIO {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 安装编号 */
@@ -7558,7 +7558,7 @@ export interface RspFutureSignIn {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 安装编号 */
@@ -7612,7 +7612,7 @@ export interface ReqFutureSignOut {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 安装编号 */
@@ -7658,7 +7658,7 @@ export interface RspFutureSignOut {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 安装编号 */
@@ -7708,23 +7708,23 @@ export interface ReqQueryTradeResultBySerial {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 流水号 */
   reference: number;
   /** 本流水号发布者的机构类型 */
-  refrenceIssureType: enums.InstitutionType;
+  refrenceIssureType: `${enums.InstitutionType}`;
   /** 本流水号发布者机构编码 */
   refrenceIssure: string;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -7766,7 +7766,7 @@ export interface RspQueryTradeResultBySerial {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 错误代码 */
@@ -7776,7 +7776,7 @@ export interface RspQueryTradeResultBySerial {
   /** 流水号 */
   reference: number;
   /** 本流水号发布者的机构类型 */
-  refrenceIssureType: enums.InstitutionType;
+  refrenceIssureType: `${enums.InstitutionType}`;
   /** 本流水号发布者机构编码 */
   refrenceIssure: string;
   /** 原始返回代码 */
@@ -7822,11 +7822,11 @@ export interface ReqDayEndFileReady {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 文件业务功能 */
-  fileBusinessCode: enums.FileBusinessCode;
+  fileBusinessCode: `${enums.FileBusinessCode}`;
   /** 摘要 */
   digest: string;
 }
@@ -7862,7 +7862,7 @@ export interface VerifyFuturePassword {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 投资者帐号 */
@@ -7886,11 +7886,11 @@ export interface VerifyCustInfo {
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 长客户姓名 */
   longCustomerName: string;
 }
@@ -7900,11 +7900,11 @@ export interface VerifyFuturePasswordAndCustInfo {
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 投资者帐号 */
   accountId: string;
   /** 期货密码 */
@@ -7956,7 +7956,7 @@ export interface ReqSyncKey {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 安装编号 */
@@ -8000,7 +8000,7 @@ export interface RspSyncKey {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 安装编号 */
@@ -8048,17 +8048,17 @@ export interface NotifyQueryAccount {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -8074,25 +8074,25 @@ export interface NotifyQueryAccount {
   /** 用户标识 */
   userId: string;
   /** 验证客户证件号码标志 */
-  verifyCertNoFlag: enums.YesNoIndicator;
+  verifyCertNoFlag: `${enums.YesNoIndicator}`;
   /** 币种代码 */
   currencyId: string;
   /** 摘要 */
   digest: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 渠道标志 */
   deviceId: string;
   /** 期货单位帐号类型 */
-  bankSecuAccType: enums.BankAccType;
+  bankSecuAccType: `${enums.BankAccType}`;
   /** 期货公司银行编码 */
   brokerIdByBank: string;
   /** 期货单位帐号 */
   bankSecuAcc: string;
   /** 银行密码标志 */
-  bankPwdFlag: enums.PwdFlag;
+  bankPwdFlag: `${enums.PwdFlag}`;
   /** 期货资金密码核对标志 */
-  secuPwdFlag: enums.PwdFlag;
+  secuPwdFlag: `${enums.PwdFlag}`;
   /** 交易柜员 */
   operNo: string;
   /** 请求编号 */
@@ -8130,7 +8130,7 @@ export interface TransferSerial {
   /** 银行分支机构编码 */
   bankBranchId: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行流水号 */
@@ -8140,7 +8140,7 @@ export interface TransferSerial {
   /** 期商分支机构代码 */
   brokerBranchId: string;
   /** 期货公司帐号类型 */
-  futureAccType: enums.FutureAccType;
+  futureAccType: `${enums.FutureAccType}`;
   /** 投资者帐号 */
   accountId: string;
   /** 投资者代码 */
@@ -8148,7 +8148,7 @@ export interface TransferSerial {
   /** 期货公司流水号 */
   futureSerial: number;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 币种代码 */
@@ -8160,7 +8160,7 @@ export interface TransferSerial {
   /** 应收期货公司费用 */
   brokerFee: number;
   /** 有效标志 */
-  availabilityFlag: enums.AvailabilityFlag;
+  availabilityFlag: `${enums.AvailabilityFlag}`;
   /** 操作员 */
   operatorCode: string;
   /** 新银行帐号 */
@@ -8206,7 +8206,7 @@ export interface NotifyFutureSignIn {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 安装编号 */
@@ -8260,7 +8260,7 @@ export interface NotifyFutureSignOut {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 安装编号 */
@@ -8310,7 +8310,7 @@ export interface NotifySyncKey {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 安装编号 */
@@ -8366,7 +8366,7 @@ export interface Accountregister {
   /** 投资者帐号 */
   accountId: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 客户姓名 */
@@ -8374,7 +8374,7 @@ export interface Accountregister {
   /** 币种代码 */
   currencyId: string;
   /** 开销户类别 */
-  openOrDestroy: enums.OpenOrDestroy;
+  openOrDestroy: `${enums.OpenOrDestroy}`;
   /** 签约日期 */
   regDate: string;
   /** 解约日期 */
@@ -8382,9 +8382,9 @@ export interface Accountregister {
   /** 交易ID */
   tid: number;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 长客户姓名 */
   longCustomerName: string;
 }
@@ -8412,21 +8412,21 @@ export interface OpenAccount {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 性别 */
-  gender: enums.Gender;
+  gender: `${enums.Gender}`;
   /** 国家代码 */
   countryCode: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 地址 */
   address: string;
   /** 邮编 */
@@ -8440,7 +8440,7 @@ export interface OpenAccount {
   /** 电子邮件 */
   eMail: string;
   /** 资金账户状态 */
-  moneyAccountStatus: enums.MoneyAccountStatus;
+  moneyAccountStatus: `${enums.MoneyAccountStatus}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -8452,27 +8452,27 @@ export interface OpenAccount {
   /** 安装编号 */
   installId: number;
   /** 验证客户证件号码标志 */
-  verifyCertNoFlag: enums.YesNoIndicator;
+  verifyCertNoFlag: `${enums.YesNoIndicator}`;
   /** 币种代码 */
   currencyId: string;
   /** 汇钞标志 */
-  cashExchangeCode: enums.CashExchangeCode;
+  cashExchangeCode: `${enums.CashExchangeCode}`;
   /** 摘要 */
   digest: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 渠道标志 */
   deviceId: string;
   /** 期货单位帐号类型 */
-  bankSecuAccType: enums.BankAccType;
+  bankSecuAccType: `${enums.BankAccType}`;
   /** 期货公司银行编码 */
   brokerIdByBank: string;
   /** 期货单位帐号 */
   bankSecuAcc: string;
   /** 银行密码标志 */
-  bankPwdFlag: enums.PwdFlag;
+  bankPwdFlag: `${enums.PwdFlag}`;
   /** 期货资金密码核对标志 */
-  secuPwdFlag: enums.PwdFlag;
+  secuPwdFlag: `${enums.PwdFlag}`;
   /** 交易柜员 */
   operNo: string;
   /** 交易ID */
@@ -8510,21 +8510,21 @@ export interface CancelAccount {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 性别 */
-  gender: enums.Gender;
+  gender: `${enums.Gender}`;
   /** 国家代码 */
   countryCode: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 地址 */
   address: string;
   /** 邮编 */
@@ -8538,7 +8538,7 @@ export interface CancelAccount {
   /** 电子邮件 */
   eMail: string;
   /** 资金账户状态 */
-  moneyAccountStatus: enums.MoneyAccountStatus;
+  moneyAccountStatus: `${enums.MoneyAccountStatus}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -8550,27 +8550,27 @@ export interface CancelAccount {
   /** 安装编号 */
   installId: number;
   /** 验证客户证件号码标志 */
-  verifyCertNoFlag: enums.YesNoIndicator;
+  verifyCertNoFlag: `${enums.YesNoIndicator}`;
   /** 币种代码 */
   currencyId: string;
   /** 汇钞标志 */
-  cashExchangeCode: enums.CashExchangeCode;
+  cashExchangeCode: `${enums.CashExchangeCode}`;
   /** 摘要 */
   digest: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 渠道标志 */
   deviceId: string;
   /** 期货单位帐号类型 */
-  bankSecuAccType: enums.BankAccType;
+  bankSecuAccType: `${enums.BankAccType}`;
   /** 期货公司银行编码 */
   brokerIdByBank: string;
   /** 期货单位帐号 */
   bankSecuAcc: string;
   /** 银行密码标志 */
-  bankPwdFlag: enums.PwdFlag;
+  bankPwdFlag: `${enums.PwdFlag}`;
   /** 期货资金密码核对标志 */
-  secuPwdFlag: enums.PwdFlag;
+  secuPwdFlag: `${enums.PwdFlag}`;
   /** 交易柜员 */
   operNo: string;
   /** 交易ID */
@@ -8608,21 +8608,21 @@ export interface ChangeAccount {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 性别 */
-  gender: enums.Gender;
+  gender: `${enums.Gender}`;
   /** 国家代码 */
   countryCode: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 地址 */
   address: string;
   /** 邮编 */
@@ -8636,7 +8636,7 @@ export interface ChangeAccount {
   /** 电子邮件 */
   eMail: string;
   /** 资金账户状态 */
-  moneyAccountStatus: enums.MoneyAccountStatus;
+  moneyAccountStatus: `${enums.MoneyAccountStatus}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -8650,19 +8650,19 @@ export interface ChangeAccount {
   /** 期货密码 */
   password: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 安装编号 */
   installId: number;
   /** 验证客户证件号码标志 */
-  verifyCertNoFlag: enums.YesNoIndicator;
+  verifyCertNoFlag: `${enums.YesNoIndicator}`;
   /** 币种代码 */
   currencyId: string;
   /** 期货公司银行编码 */
   brokerIdByBank: string;
   /** 银行密码标志 */
-  bankPwdFlag: enums.PwdFlag;
+  bankPwdFlag: `${enums.PwdFlag}`;
   /** 期货资金密码核对标志 */
-  secuPwdFlag: enums.PwdFlag;
+  secuPwdFlag: `${enums.PwdFlag}`;
   /** 交易ID */
   tid: number;
   /** 摘要 */
@@ -8740,7 +8740,7 @@ export interface FensUserInfo {
   /** 用户代码 */
   userId: string;
   /** 登录模式 */
-  loginMode: enums.LoginMode;
+  loginMode: `${enums.LoginMode}`;
 }
 
 /** CThostFtdcCurrTransferIdentityField */
@@ -8822,21 +8822,21 @@ export interface ReserveOpenAccountConfirm {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 性别 */
-  gender: enums.Gender;
+  gender: `${enums.Gender}`;
   /** 国家代码 */
   countryCode: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 地址 */
   address: string;
   /** 邮编 */
@@ -8850,7 +8850,7 @@ export interface ReserveOpenAccountConfirm {
   /** 电子邮件 */
   eMail: string;
   /** 资金账户状态 */
-  moneyAccountStatus: enums.MoneyAccountStatus;
+  moneyAccountStatus: `${enums.MoneyAccountStatus}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -8858,13 +8858,13 @@ export interface ReserveOpenAccountConfirm {
   /** 安装编号 */
   installId: number;
   /** 验证客户证件号码标志 */
-  verifyCertNoFlag: enums.YesNoIndicator;
+  verifyCertNoFlag: `${enums.YesNoIndicator}`;
   /** 币种代码 */
   currencyId: string;
   /** 摘要 */
   digest: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 期货公司银行编码 */
   brokerIdByBank: string;
   /** 交易ID */
@@ -8908,21 +8908,21 @@ export interface ReserveOpenAccount {
   /** 银期平台消息流水号 */
   plateSerial: number;
   /** 最后分片标志 */
-  lastFragment: enums.LastFragment;
+  lastFragment: `${enums.LastFragment}`;
   /** 会话号 */
   sessionId: number;
   /** 客户姓名 */
   customerName: string;
   /** 证件类型 */
-  idCardType: enums.IdCardType;
+  idCardType: `${enums.IdCardType}`;
   /** 证件号码 */
   identifiedCardNo: string;
   /** 性别 */
-  gender: enums.Gender;
+  gender: `${enums.Gender}`;
   /** 国家代码 */
   countryCode: string;
   /** 客户类型 */
-  custType: enums.CustType;
+  custType: `${enums.CustType}`;
   /** 地址 */
   address: string;
   /** 邮编 */
@@ -8936,7 +8936,7 @@ export interface ReserveOpenAccount {
   /** 电子邮件 */
   eMail: string;
   /** 资金账户状态 */
-  moneyAccountStatus: enums.MoneyAccountStatus;
+  moneyAccountStatus: `${enums.MoneyAccountStatus}`;
   /** 银行帐号 */
   bankAccount: string;
   /** 银行密码 */
@@ -8944,19 +8944,19 @@ export interface ReserveOpenAccount {
   /** 安装编号 */
   installId: number;
   /** 验证客户证件号码标志 */
-  verifyCertNoFlag: enums.YesNoIndicator;
+  verifyCertNoFlag: `${enums.YesNoIndicator}`;
   /** 币种代码 */
   currencyId: string;
   /** 摘要 */
   digest: string;
   /** 银行帐号类型 */
-  bankAccType: enums.BankAccType;
+  bankAccType: `${enums.BankAccType}`;
   /** 期货公司银行编码 */
   brokerIdByBank: string;
   /** 交易ID */
   tid: number;
   /** 预约开户状态 */
-  reserveOpenAccStas: enums.ReserveOpenAccStas;
+  reserveOpenAccStas: `${enums.ReserveOpenAccStas}`;
   /** 错误代码 */
   errorId: number;
   /** 错误信息 */
@@ -8980,7 +8980,7 @@ export interface AccountProperty {
   /** 是否活跃 */
   isActive: number;
   /** 账户来源 */
-  accountSourceType: enums.AccountSourceType;
+  accountSourceType: `${enums.AccountSourceType}`;
   /** 开户日期 */
   openDate: string;
   /** 注销日期 */
@@ -9192,7 +9192,7 @@ export interface DepartmentUser {
   /** 用户代码 */
   userId: string;
   /** 投资者范围 */
-  investorRange: enums.DepartmentRange;
+  investorRange: `${enums.DepartmentRange}`;
   /** 投资者代码 */
   investorId: string;
 }
@@ -9262,7 +9262,7 @@ export interface AuthUserID {
   /** 用户代码 */
   userId: string;
   /** 校验类型 */
-  authType: enums.AuthType;
+  authType: `${enums.AuthType}`;
 }
 
 /** CThostFtdcAuthIPField */
@@ -9286,9 +9286,9 @@ export interface QryClassifiedInstrument {
   /** 产品代码 */
   productId: string;
   /** 合约交易状态 */
-  tradingType: enums.TradingType;
+  tradingType: `${enums.TradingType}`;
   /** 合约分类类型 */
-  classType: enums.ClassType;
+  classType: `${enums.ClassType}`;
 }
 
 /** CThostFtdcQryCombPromotionParamField */
@@ -9368,11 +9368,11 @@ export interface RiskSettleInvstPosition {
   /** 投资者代码 */
   investorId: string;
   /** 持仓多空方向 */
-  posiDirection: enums.PosiDirection;
+  posiDirection: `${enums.PosiDirection}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 持仓日期 */
-  positionDate: enums.PositionDate;
+  positionDate: `${enums.PositionDate}`;
   /** 上日持仓 */
   ydPosition: number;
   /** 今日持仓 */
@@ -9468,7 +9468,7 @@ export interface RiskSettleProductStatus {
   /** 产品编号 */
   productId: string;
   /** 产品结算状态 */
-  productStatus: enums.ProductStatus;
+  productStatus: `${enums.ProductStatus}`;
 }
 
 /** CThostFtdcSyncDeltaInfoField */
@@ -9476,7 +9476,7 @@ export interface SyncDeltaInfo {
   /** 追平序号 */
   syncDeltaSequenceNo: number;
   /** 追平状态 */
-  syncDeltaStatus: enums.SyncDeltaStatus;
+  syncDeltaStatus: `${enums.SyncDeltaStatus}`;
   /** 追平描述 */
   syncDescription: string;
   /** 是否只有资金追平 */
@@ -9492,7 +9492,7 @@ export interface SyncDeltaProductStatus {
   /** 产品代码 */
   productId: string;
   /** 是否允许交易 */
-  productStatus: enums.ProductStatus;
+  productStatus: `${enums.ProductStatus}`;
 }
 
 /** CThostFtdcSyncDeltaInvstPosDtlField */
@@ -9504,9 +9504,9 @@ export interface SyncDeltaInvstPosDtl {
   /** 投资者代码 */
   investorId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 买卖 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 开仓日期 */
   openDate: string;
   /** 成交编号 */
@@ -9520,7 +9520,7 @@ export interface SyncDeltaInvstPosDtl {
   /** 结算编号 */
   settlementId: number;
   /** 成交类型 */
-  tradeType: enums.TradeType;
+  tradeType: `${enums.TradeType}`;
   /** 组合合约代码 */
   combInstrumentId: string;
   /** 交易所代码 */
@@ -9552,9 +9552,9 @@ export interface SyncDeltaInvstPosDtl {
   /** 先开先平剩余数量 */
   timeFirstVolume: number;
   /** 特殊持仓标志 */
-  specPosiType: enums.SpecPosiType;
+  specPosiType: `${enums.SpecPosiType}`;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -9580,9 +9580,9 @@ export interface SyncDeltaInvstPosCombDtl {
   /** 合约代码 */
   instrumentId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 买卖 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 持仓量 */
   totalAmt: number;
   /** 投资者保证金 */
@@ -9600,7 +9600,7 @@ export interface SyncDeltaInvstPosCombDtl {
   /** 成交组号 */
   tradeGroupId: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -9752,17 +9752,17 @@ export interface SyncDeltaDceCombInstrument {
   /** 成交组号 */
   tradeGroupId: number;
   /** 投机套保标志 */
-  combHedgeFlag: enums.HedgeFlag;
+  combHedgeFlag: `${enums.HedgeFlag}`;
   /** 组合类型 */
-  combinationType: enums.DceCombinationType;
+  combinationType: `${enums.DceCombinationType}`;
   /** 买卖 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 产品代码 */
   productId: string;
   /** 期权组合保证金比例 */
   xparameter: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -9772,13 +9772,13 @@ export interface SyncDeltaInvstMarginRate {
   /** 合约代码 */
   instrumentId: string;
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
   investorId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 多头保证金率 */
   longMarginRatioByMoney: number;
   /** 多头保证金费 */
@@ -9790,7 +9790,7 @@ export interface SyncDeltaInvstMarginRate {
   /** 是否相对交易所收取 */
   isRelative: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -9802,7 +9802,7 @@ export interface SyncDeltaExchMarginRate {
   /** 合约代码 */
   instrumentId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 多头保证金率 */
   longMarginRatioByMoney: number;
   /** 多头保证金费 */
@@ -9812,7 +9812,7 @@ export interface SyncDeltaExchMarginRate {
   /** 空头保证金费 */
   shortMarginRatioByVolume: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -9840,7 +9840,7 @@ export interface SyncDeltaOptExchMargin {
   /** 做市商空头保证金调整系数 */
   mShortMarginRatioByVolume: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -9850,7 +9850,7 @@ export interface SyncDeltaOptInvstMargin {
   /** 合约代码 */
   instrumentId: string;
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
@@ -9874,7 +9874,7 @@ export interface SyncDeltaOptInvstMargin {
   /** 做市商空头保证金调整系数 */
   mShortMarginRatioByVolume: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -9884,13 +9884,13 @@ export interface SyncDeltaInvstMarginRateUL {
   /** 合约代码 */
   instrumentId: string;
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
   investorId: string;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 多头保证金率 */
   longMarginRatioByMoney: number;
   /** 多头保证金费 */
@@ -9900,7 +9900,7 @@ export interface SyncDeltaInvstMarginRateUL {
   /** 空头保证金费 */
   shortMarginRatioByVolume: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -9910,7 +9910,7 @@ export interface SyncDeltaOptInvstCommRate {
   /** 合约代码 */
   instrumentId: string;
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
@@ -9932,7 +9932,7 @@ export interface SyncDeltaOptInvstCommRate {
   /** 执行手续费 */
   strikeRatioByVolume: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -9942,7 +9942,7 @@ export interface SyncDeltaInvstCommRate {
   /** 合约代码 */
   instrumentId: string;
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
@@ -9960,7 +9960,7 @@ export interface SyncDeltaInvstCommRate {
   /** 平今手续费 */
   closeTodayRatioByVolume: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -9974,7 +9974,7 @@ export interface SyncDeltaProductExchRate {
   /** 汇率 */
   exchangeRate: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -10074,7 +10074,7 @@ export interface SyncDeltaDepthMarketData {
   /** 下带价 */
   bandingLowerPrice: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -10088,7 +10088,7 @@ export interface SyncDeltaIndexPrice {
   /** 指数现货收盘价 */
   closePrice: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -10106,13 +10106,13 @@ export interface SyncDeltaEWarrantOffset {
   /** 合约代码 */
   instrumentId: string;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 投机套保标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 数量 */
   volume: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -10130,7 +10130,7 @@ export interface SPBMFutureParameter {
   /** 期货合约因子 */
   cvf: number;
   /** 阶段标识 */
-  timeRange: enums.TimeRange;
+  timeRange: `${enums.TimeRange}`;
   /** 品种保证金标准 */
   marginRate: number;
   /** 期货合约内部对锁仓费率折扣比例 */
@@ -10266,7 +10266,7 @@ export interface SPBMInvestorPortfDef {
 /** CThostFtdcInvestorPortfMarginRatioField */
 export interface InvestorPortfMarginRatio {
   /** 投资者范围 */
-  investorRange: enums.InvestorRange;
+  investorRange: `${enums.InvestorRange}`;
   /** 经纪公司代码 */
   brokerId: string;
   /** 投资者代码 */
@@ -10374,7 +10374,7 @@ export interface PortfTradeParamSetting {
   /** 投资者代码 */
   investorId: string;
   /** 新型组保算法 */
-  portfolio: enums.Portfolio;
+  portfolio: `${enums.Portfolio}`;
   /** 撤单是否验资 */
   isActionVerify: number;
   /** 平仓是否验资 */
@@ -10388,7 +10388,7 @@ export interface InvestorTradingRight {
   /** 投资者代码 */
   investorId: string;
   /** 交易权限 */
-  invstTradingRight: enums.InvstTradingRight;
+  invstTradingRight: `${enums.InvstTradingRight}`;
 }
 
 /** CThostFtdcMortgageParamField */
@@ -10410,7 +10410,7 @@ export interface WithDrawParam {
   /** 投资者帐号 */
   accountId: string;
   /** 参数代码 */
-  withDrawParamId: enums.WithDrawParamID;
+  withDrawParamId: `${enums.WithDrawParamID}`;
   /** 参数代码值 */
   withDrawParamValue: string;
 }
@@ -10594,7 +10594,7 @@ export interface SPMMInstParam {
   /** 合约代码 */
   instrumentId: string;
   /** SPMM合约保证金算法 */
-  instMarginCalId: enums.InstMarginCalID;
+  instMarginCalId: `${enums.InstMarginCalID}`;
   /** 商品组代码 */
   commodityId: string;
   /** 商品群代码 */
@@ -10716,7 +10716,7 @@ export interface RCAMSShortOptAdjustParam {
   /** 产品组合代码 */
   combProductId: string;
   /** 投套标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 空头期权风险调整标准 */
   adjustValue: number;
 }
@@ -10732,9 +10732,9 @@ export interface RCAMSInvestorCombPosition {
   /** 合约代码 */
   instrumentId: string;
   /** 投套标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 持仓多空方向 */
-  posiDirection: enums.PosiDirection;
+  posiDirection: `${enums.PosiDirection}`;
   /** 组合合约代码 */
   combInstrumentId: string;
   /** 单腿编号 */
@@ -10760,7 +10760,7 @@ export interface InvestorProdRCAMSMargin {
   /** 产品组合代码 */
   combProductId: string;
   /** 投套标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 商品群代码 */
   productGroupId: string;
   /** 品种组合前风险 */
@@ -10878,7 +10878,7 @@ export interface RULEInstrParameter {
   /** 合约代码 */
   instrumentId: string;
   /** 合约类型 */
-  instrumentClass: enums.InstrumentClass;
+  instrumentClass: `${enums.InstrumentClass}`;
   /** 标准合约 */
   stdInstrumentId: string;
   /** 投机买折算系数 */
@@ -10978,7 +10978,7 @@ export interface InvestorProdRULEMargin {
   /** 品种代码 */
   prodFamilyCode: string;
   /** 合约类型 */
-  instrumentClass: enums.InstrumentClass;
+  instrumentClass: `${enums.InstrumentClass}`;
   /** 商品群号 */
   commodityGroupId: number;
   /** 买标准持仓 */
@@ -11050,7 +11050,7 @@ export interface SyncDeltaSPBMPortfDefinition {
   /** 是否启用SPBM */
   isSpbm: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11066,7 +11066,7 @@ export interface SyncDeltaSPBMInvstPortfDef {
   /** 组合保证金套餐代码 */
   portfolioDefId: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11084,7 +11084,7 @@ export interface SyncDeltaSPBMFutureParameter {
   /** 期货合约因子 */
   cvf: number;
   /** 阶段标识 */
-  timeRange: enums.TimeRange;
+  timeRange: `${enums.TimeRange}`;
   /** 品种保证金标准 */
   marginRate: number;
   /** 期货合约内部对锁仓费率折扣比例 */
@@ -11096,7 +11096,7 @@ export interface SyncDeltaSPBMFutureParameter {
   /** 期货合约内部对锁仓附加费率折扣比例 */
   addOnLockRateX2: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11122,7 +11122,7 @@ export interface SyncDeltaSPBMOptionParameter {
   /** 昨结算价 */
   preSettlementPrice: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11140,7 +11140,7 @@ export interface SyncDeltaSPBMIntraParameter {
   /** 品种内合约间对锁仓附加费率折扣比例 */
   addOnIntraRateY2: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11160,7 +11160,7 @@ export interface SyncDeltaSPBMInterParameter {
   /** 第二腿构成品种 */
   leg2ProdFamilyCode: string;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11180,7 +11180,7 @@ export interface SyncDeltaSPBMAddOnInterParam {
   /** 第二腿构成品种 */
   leg2ProdFamilyCode: string;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11192,13 +11192,13 @@ export interface SyncDeltaSPMMInstParam {
   /** 合约代码 */
   instrumentId: string;
   /** SPMM合约保证金算法 */
-  instMarginCalId: enums.InstMarginCalID;
+  instMarginCalId: `${enums.InstMarginCalID}`;
   /** 商品组代码 */
   commodityId: string;
   /** 商品群代码 */
   commodityGroupId: string;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11214,7 +11214,7 @@ export interface SyncDeltaSPMMProductParam {
   /** 商品群代码 */
   commodityGroupId: string;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11230,7 +11230,7 @@ export interface SyncDeltaInvestorSPMMModel {
   /** SPMM模板ID */
   spmmModelId: string;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11252,7 +11252,7 @@ export interface SyncDeltaSPMMModelParam {
   /** 商品群最小保证金比例 */
   miniMarginRatio: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11270,7 +11270,7 @@ export interface SyncDeltaRCAMSCombProdInfo {
   /** 商品群代码 */
   productGroupId: string;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11286,7 +11286,7 @@ export interface SyncDeltaRCAMSInstrParameter {
   /** 同合约风险对冲比率 */
   hedgeRate: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11302,7 +11302,7 @@ export interface SyncDeltaRCAMSIntraParameter {
   /** 品种内对冲比率 */
   hedgeRate: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11324,7 +11324,7 @@ export interface SyncDeltaRCAMSInterParameter {
   /** 产品组合代码2 */
   combProduct2: string;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11338,11 +11338,11 @@ export interface SyncDeltaRCAMSSOptAdjParam {
   /** 产品组合代码 */
   combProductId: string;
   /** 投套标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 空头期权风险调整标准 */
   adjustValue: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11360,7 +11360,7 @@ export interface SyncDeltaRCAMSCombRuleDtl {
   /** 优先级 */
   priority: number;
   /** 投套标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 组合保证金标准 */
   combMargin: number;
   /** 交易所组合合约代码 */
@@ -11370,11 +11370,11 @@ export interface SyncDeltaRCAMSCombRuleDtl {
   /** 单腿合约代码 */
   legInstrumentId: string;
   /** 买卖方向 */
-  direction: enums.Direction;
+  direction: `${enums.Direction}`;
   /** 单腿乘数 */
   legMultiple: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11390,9 +11390,9 @@ export interface SyncDeltaRCAMSInvstCombPos {
   /** 合约代码 */
   instrumentId: string;
   /** 投套标志 */
-  hedgeFlag: enums.HedgeFlag;
+  hedgeFlag: `${enums.HedgeFlag}`;
   /** 持仓多空方向 */
-  posiDirection: enums.PosiDirection;
+  posiDirection: `${enums.PosiDirection}`;
   /** 组合合约代码 */
   combInstrumentId: string;
   /** 单腿编号 */
@@ -11406,7 +11406,7 @@ export interface SyncDeltaRCAMSInvstCombPos {
   /** 投资者保证金 */
   margin: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11420,7 +11420,7 @@ export interface SyncDeltaRULEInstrParameter {
   /** 合约代码 */
   instrumentId: string;
   /** 合约类型 */
-  instrumentClass: enums.InstrumentClass;
+  instrumentClass: `${enums.InstrumentClass}`;
   /** 标准合约 */
   stdInstrumentId: string;
   /** 投机买折算系数 */
@@ -11438,7 +11438,7 @@ export interface SyncDeltaRULEInstrParameter {
   /** 商品群号 */
   commodityGroupId: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11460,7 +11460,7 @@ export interface SyncDeltaRULEIntraParameter {
   /** 临近交割合约组合保证金系数 */
   deliveryIntraRate: number;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
@@ -11488,7 +11488,7 @@ export interface SyncDeltaRULEInterParameter {
   /** 商品群名称 */
   commodityGroupName: string;
   /** 操作标志 */
-  actionDirection: enums.ActionDirection;
+  actionDirection: `${enums.ActionDirection}`;
   /** 追平序号 */
   syncDeltaSequenceNo: number;
 }

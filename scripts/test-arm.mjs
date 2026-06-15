@@ -22,21 +22,24 @@ const handle = td.arm(md, {
     investorId: "test",
     instrumentId: "rb2510",
     direction: "0",
+    combOffsetFlag: "0", // open (required; a missing flag would misfire as a close)
     limitPrice: 3500,
     volumeTotalOriginal: 1,
-    orderRef: "arm-1",
   },
 });
 
-// onTick -> fireArmed runs synchronously inside the inject (same thread).
+// onTick -> fireArmed runs synchronously inside the inject (same thread). On the
+// dead test front the send is refused, so the fire counts as "blocked"; total
+// attempts (fired + blocked) is what proves the trigger fired exactly once.
+const attempts = () => td._armFireCount() + td._armBlockedCount();
 md._injectTestTick();
-const fired1 = td._armFireCount();
+const a1 = attempts();
 md._injectTestTick(); // one-shot: must NOT fire again
-const fired2 = td._armFireCount();
+const a2 = attempts();
 
-const ok = fired1 === 1 && fired2 === 1;
+const ok = a1 === 1 && a2 === 1;
 console.log(
-  `ARM TEST: matching tick fired=${fired1}, second tick (one-shot)=${fired2} -> ${ok ? "PASS" : "FAIL"}`
+  `ARM TEST: matching tick attempts=${a1} (blocked=${td._armBlockedCount()}), second tick (one-shot)=${a2} -> ${ok ? "PASS" : "FAIL"}`
 );
 
 handle.disarm();
