@@ -251,7 +251,9 @@ export abstract class CtpClient extends EventEmitter {
             ? "blocked by pre-trade risk"
             : rc === -10002
               ? "rate limited (order rate exceeded)"
-              : `request rejected by CTP API (code ${rc})`;
+              : rc === -10003
+                ? "blocked by max position cost"
+                : `request rejected by CTP API (code ${rc})`;
         reject(new Error(msg));
       }
     });

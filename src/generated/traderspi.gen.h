@@ -3,6 +3,7 @@
 #define CTP_TRADERSPI_GEN_H
 #include "ThostFtdcTraderApi.h"
 #include "../native/channel.h"
+#include "../native/risk.h"
 namespace ctp {
 enum {
   ET_BASE = 8192,
@@ -167,6 +168,8 @@ public:
   TraderSpi(CThostFtdcTraderApi *api, EventChannel *channel) : api_(api), ch_(channel) {}
   ~TraderSpi() {}
 
+  void setRisk(RiskEngine *r) { risk_ = r; }
+
   void OnFrontConnected() override;
   void OnFrontDisconnected(int arg) override;
   void OnHeartBeatWarning(int arg) override;
@@ -325,6 +328,7 @@ public:
 private:
   CThostFtdcTraderApi *api_;
   EventChannel *ch_;
+  RiskEngine *risk_ = nullptr;
 };
 } // namespace ctp
 #endif

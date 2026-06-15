@@ -81,6 +81,10 @@ private:
   Napi::Value RiskHalt(const Napi::CallbackInfo &info);
   Napi::Value RiskResume(const Napi::CallbackInfo &info);
   Napi::Value SetRefPrice(const Napi::CallbackInfo &info);
+  Napi::Value SetMultiplier(const Napi::CallbackInfo &info);
+  Napi::Value SeedPosition(const Napi::CallbackInfo &info);
+  Napi::Value PositionCost(const Napi::CallbackInfo &info);
+  Napi::Value ApplyTestTrade(const Napi::CallbackInfo &info);
   Napi::Value Start(const Napi::CallbackInfo &info);
   Napi::Value Buffer(const Napi::CallbackInfo &info);
   Napi::Value ClaimBatch(const Napi::CallbackInfo &info);
@@ -114,6 +118,10 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("riskHalt", &Trader::RiskHalt),
           InstanceMethod("riskResume", &Trader::RiskResume),
           InstanceMethod("setRefPrice", &Trader::SetRefPrice),
+          InstanceMethod("setMultiplier", &Trader::SetMultiplier),
+          InstanceMethod("seedPosition", &Trader::SeedPosition),
+          InstanceMethod("positionCost", &Trader::PositionCost),
+          InstanceMethod("_applyTestTrade", &Trader::ApplyTestTrade),
           InstanceMethod("_start", &Trader::Start),
           InstanceMethod("_buffer", &Trader::Buffer),
           InstanceMethod("_claim", &Trader::ClaimBatch),
@@ -145,6 +153,7 @@ Trader::Trader(const Napi::CallbackInfo &info) : Napi::ObjectWrap<Trader>(info) 
   }
   ch_ = new EventChannel(4096, static_cast<size_t>(ctpMaxStructSize()));
   spi_ = new TraderSpi(api_, ch_);
+  spi_->setRisk(&risk_); // fills update the position-cost tracker
   api_->RegisterSpi(spi_);
   arm_->setSink(this); // armed triggers fire orders through this Trader
   api_->SubscribePublicTopic(THOST_TERT_QUICK);
@@ -258,6 +267,7 @@ Napi::Value Trader::RiskSet(const Napi::CallbackInfo &info) {
     cfg.maxNotional = getDbl(o, "maxNotional", 0.0);
     cfg.maxOrdersPerSec = getDbl(o, "maxOrdersPerSec", 0.0);
     cfg.orderBurst = getDbl(o, "orderBurst", 0.0);
+    cfg.maxPositionCost = getDbl(o, "maxPositionCost", 0.0);
     risk_.configure(cfg);
   }
   return info.Env().Undefined();
@@ -277,6 +287,40 @@ Napi::Value Trader::SetRefPrice(const Napi::CallbackInfo &info) {
   if (info.Length() >= 2 && info[0].IsString() && info[1].IsNumber()) {
     risk_.setRefPrice(info[0].As<Napi::String>().Utf8Value(),
                       info[1].As<Napi::Number>().DoubleValue());
+  }
+  return info.Env().Undefined();
+}
+
+Napi::Value Trader::SetMultiplier(const Napi::CallbackInfo &info) {
+  if (info.Length() >= 2 && info[0].IsString() && info[1].IsNumber()) {
+    risk_.setMultiplier(info[0].As<Napi::String>().Utf8Value(),
+                        info[1].As<Napi::Number>().DoubleValue());
+  }
+  return info.Env().Undefined();
+}
+
+// (instrumentId, isLong, volume, openCost) - seed a pre-existing position.
+Napi::Value Trader::SeedPosition(const Napi::CallbackInfo &info) {
+  if (info.Length() >= 4) {
+    risk_.seedPosition(info[0].As<Napi::String>().Utf8Value(),
+                       info[1].ToBoolean().Value(),
+                       info[2].As<Napi::Number>().DoubleValue(),
+                       info[3].As<Napi::Number>().DoubleValue());
+  }
+  return info.Env().Undefined();
+}
+
+Napi::Value Trader::PositionCost(const Napi::CallbackInfo &info) {
+  return Napi::Number::New(info.Env(), risk_.currentPositionCost());
+}
+
+// test-only: (instrumentId, isBuy, isOpen, price, volume)
+Napi::Value Trader::ApplyTestTrade(const Napi::CallbackInfo &info) {
+  if (info.Length() >= 5) {
+    risk_.onTrade(info[0].As<Napi::String>().Utf8Value(),
+                  info[1].ToBoolean().Value(), info[2].ToBoolean().Value(),
+                  info[3].As<Napi::Number>().DoubleValue(),
+                  info[4].As<Napi::Number>().DoubleValue());
   }
   return info.Env().Undefined();
 }

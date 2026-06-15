@@ -25,6 +25,7 @@ struct RiskConfig {
   double maxNotional = 0.0;        // price * volume; 0 = disabled
   double maxOrdersPerSec = 0.0;    // token-bucket rate; 0 = disabled
   double orderBurst = 0.0;         // bucket burst; <=0 -> defaults to rate
+  double maxPositionCost = 0.0;    // cap on total open-position cost; 0 = off
 };
 
 struct RiskVerdict {
@@ -65,17 +66,32 @@ public:
   void setRefPrice(const std::string &instrumentId, double price);
   double refPrice(const std::string &instrumentId) const;
 
-  // TODO(position): per-instrument net-position limits need live position
-  //   state from the trade-return path (not built yet). Reserved hook.
+  // Max total open-position cost (sum of open price*volume*multiplier). Updated
+  // by fills (onTrade) on the trader callback thread; seed pre-existing
+  // positions with seedPosition. Set the contract multiplier for accuracy.
+  void setMultiplier(const std::string &instrumentId, double multiplier);
+  void seedPosition(const std::string &instrumentId, bool isLong, double volume, double cost);
+  void onTrade(const std::string &instrumentId, bool isBuy, bool isOpen, double price, double volume);
+  void resetPositions();
+  double currentPositionCost() const;
+  // True if opening this order keeps the total open cost within maxPositionCost.
+  bool allowOpen(const std::string &instrumentId, double price, double volume) const;
 
 private:
   std::atomic<bool> halted_{false};
   std::atomic<int> maxOrderVolume_{0};
   std::atomic<double> maxPriceDeviation_{0.0};
   std::atomic<double> maxNotional_{0.0};
+  std::atomic<double> maxPositionCost_{0.0};
   RateLimiter limiter_;
   mutable std::mutex refMutex_;
   std::unordered_map<std::string, double> refPrices_;
+
+  struct Pos {
+    double longVol = 0, longCost = 0, shortVol = 0, shortCost = 0, mult = 1.0;
+  };
+  mutable std::mutex posMutex_;
+  std::unordered_map<std::string, Pos> positions_;
 };
 
 } // namespace ctp

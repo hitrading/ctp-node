@@ -36,6 +36,7 @@ let h = `/* AUTO-GENERATED. Do not edit. */
 #define CTP_TRADERSPI_GEN_H
 #include "ThostFtdcTraderApi.h"
 #include "../native/channel.h"
+#include "../native/risk.h"
 namespace ctp {
 enum {
   ET_BASE = ${ET_BASE},
@@ -48,12 +49,15 @@ public:
   TraderSpi(CThostFtdcTraderApi *api, EventChannel *channel) : api_(api), ch_(channel) {}
   ~TraderSpi() {}
 
+  void setRisk(RiskEngine *r) { risk_ = r; }
+
 `;
 for (const s of spi) h += `  void ${s.name}(${rawDecl(s)}) override;\n`;
 h += `
 private:
   CThostFtdcTraderApi *api_;
   EventChannel *ch_;
+  RiskEngine *risk_ = nullptr;
 };
 } // namespace ctp
 #endif
@@ -101,6 +105,9 @@ for (const s of spi) {
     len = "0";
   }
   c += `void TraderSpi::${s.name}(${rawDecl(s)}) {\n`;
+  if (s.name === "OnRtnTrade") {
+    c += `  if (p && risk_)\n    risk_->onTrade(p->InstrumentID, p->Direction == '0', p->OffsetFlag == '0', p->Price, p->Volume);\n`;
+  }
   c += `  ch_->push(ET_${member(s.name)}, ${reqId}, ${isLast}, ${errId}, ${errMsg}, ${sid}, ${ptr}, ${len});\n`;
   c += `}\n\n`;
 }
@@ -113,6 +120,7 @@ let rh = `/* AUTO-GENERATED. Do not edit. */
 #include "ThostFtdcTraderApi.h"
 #define CTP_RISK_BLOCKED -10001
 #define CTP_RATE_LIMITED -10002
+#define CTP_POSITION_LIMIT -10003
 namespace ctp {
 class RiskEngine;
 enum {
@@ -148,6 +156,7 @@ for (const r of req) {
     rc += `    if (risk) {\n`;
     rc += `      RiskVerdict v = risk->check(f.LimitPrice, risk->refPrice(f.InstrumentID), f.VolumeTotalOriginal);\n`;
     rc += `      if (!v.ok) return CTP_RISK_BLOCKED;\n`;
+    rc += `      if (f.CombOffsetFlag[0] == '0' &&\n          !risk->allowOpen(f.InstrumentID, f.LimitPrice, f.VolumeTotalOriginal))\n        return CTP_POSITION_LIMIT;\n`;
     rc += `      if (!risk->allowRate()) return CTP_RATE_LIMITED;\n`;
     rc += `    }\n`;
   }

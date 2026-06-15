@@ -26,6 +26,10 @@ export interface RiskConfig {
   maxOrdersPerSec?: number;
   /** Token-bucket burst; defaults to maxOrdersPerSec. */
   orderBurst?: number;
+  /** Cap on total open-position cost (Σ open price × volume × multiplier).
+   *  0/undefined = disabled. Set contract multipliers via setMultiplier and
+   *  seed any pre-existing positions (seedPosition / seedFromPositions). */
+  maxPositionCost?: number;
 }
 
 /** A latency-critical armed order: evaluated and fired in C++ on the market-data
@@ -88,6 +92,51 @@ export class Trader extends TraderBase {
       this.native.setRefPrice(t.instrumentId, t.lastPrice)
     );
     return this;
+  }
+
+  /** Set a contract's multiplier (合约乘数) for position-cost accounting. */
+  setMultiplier(instrumentId: string, multiplier: number): this {
+    this.native.setMultiplier(instrumentId, multiplier);
+    return this;
+  }
+
+  /** Seed a pre-existing position's open cost (for the maxPositionCost cap). */
+  seedPosition(
+    instrumentId: string,
+    side: "long" | "short",
+    volume: number,
+    openCost: number
+  ): this {
+    this.native.seedPosition(instrumentId, side === "long", volume, openCost);
+    return this;
+  }
+
+  /** Seed open-position cost from reqQryInvestorPosition() rows (posiDirection
+   *  '2' = long, '3' = short). */
+  seedFromPositions(
+    positions: ReadonlyArray<{
+      instrumentId: string;
+      posiDirection: string;
+      position: number;
+      openCost: number;
+    }>
+  ): this {
+    for (const p of positions) {
+      if (p.position > 0) {
+        this.seedPosition(p.instrumentId, p.posiDirection === "2" ? "long" : "short", p.position, p.openCost);
+      }
+    }
+    return this;
+  }
+
+  /** Current total open-position cost tracked by the C++ risk engine. */
+  positionCost(): number {
+    return this.native.positionCost();
+  }
+
+  /** @internal test-only: feed a synthetic fill into the position-cost tracker. */
+  _applyTestTrade(instrumentId: string, isBuy: boolean, isOpen: boolean, price: number, volume: number): void {
+    this.native._applyTestTrade(instrumentId, isBuy, isOpen, price, volume);
   }
 
   /**

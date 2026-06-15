@@ -308,6 +308,8 @@ void TraderSpi::OnRtnOrder(CThostFtdcOrderField *p) {
 }
 
 void TraderSpi::OnRtnTrade(CThostFtdcTradeField *p) {
+  if (p && risk_)
+    risk_->onTrade(p->InstrumentID, p->Direction == '0', p->OffsetFlag == '0', p->Price, p->Volume);
   ch_->push(ET_RtnTrade, 0, -1, 0, "", p ? SID_Trade : -1, p, p ? (int)sizeof(*p) : 0);
 }
 

@@ -44,6 +44,7 @@ void RiskEngine::configure(const RiskConfig &cfg) {
   maxOrderVolume_.store(cfg.maxOrderVolume, std::memory_order_relaxed);
   maxPriceDeviation_.store(cfg.maxPriceDeviation, std::memory_order_relaxed);
   maxNotional_.store(cfg.maxNotional, std::memory_order_relaxed);
+  maxPositionCost_.store(cfg.maxPositionCost, std::memory_order_relaxed);
   limiter_.configure(cfg.maxOrdersPerSec, cfg.orderBurst);
 }
 
@@ -59,6 +60,79 @@ double RiskEngine::refPrice(const std::string &instrumentId) const {
   std::lock_guard<std::mutex> lk(refMutex_);
   auto it = refPrices_.find(instrumentId);
   return it != refPrices_.end() ? it->second : 0.0;
+}
+
+void RiskEngine::setMultiplier(const std::string &instrumentId, double mult) {
+  std::lock_guard<std::mutex> lk(posMutex_);
+  positions_[instrumentId].mult = mult > 0.0 ? mult : 1.0;
+}
+
+void RiskEngine::seedPosition(const std::string &instrumentId, bool isLong,
+                              double volume, double cost) {
+  std::lock_guard<std::mutex> lk(posMutex_);
+  Pos &p = positions_[instrumentId];
+  if (isLong) {
+    p.longVol = volume;
+    p.longCost = cost;
+  } else {
+    p.shortVol = volume;
+    p.shortCost = cost;
+  }
+}
+
+void RiskEngine::resetPositions() {
+  std::lock_guard<std::mutex> lk(posMutex_);
+  positions_.clear();
+}
+
+void RiskEngine::onTrade(const std::string &instrumentId, bool isBuy,
+                         bool isOpen, double price, double volume) {
+  std::lock_guard<std::mutex> lk(posMutex_);
+  Pos &p = positions_[instrumentId];
+  const double cost = price * volume * p.mult;
+  if (isOpen) {
+    if (isBuy) {
+      p.longVol += volume;
+      p.longCost += cost;
+    } else {
+      p.shortVol += volume;
+      p.shortCost += cost;
+    }
+  } else if (isBuy) { // closing a short: release its open cost proportionally
+    const double v = std::min(volume, p.shortVol);
+    const double rel = p.shortVol > 0.0 ? p.shortCost * (v / p.shortVol) : 0.0;
+    p.shortCost -= rel;
+    p.shortVol -= v;
+  } else { // closing a long
+    const double v = std::min(volume, p.longVol);
+    const double rel = p.longVol > 0.0 ? p.longCost * (v / p.longVol) : 0.0;
+    p.longCost -= rel;
+    p.longVol -= v;
+  }
+}
+
+double RiskEngine::currentPositionCost() const {
+  std::lock_guard<std::mutex> lk(posMutex_);
+  double total = 0.0;
+  for (const auto &kv : positions_)
+    total += kv.second.longCost + kv.second.shortCost;
+  return total;
+}
+
+bool RiskEngine::allowOpen(const std::string &instrumentId, double price,
+                           double volume) const {
+  const double maxCost = maxPositionCost_.load(std::memory_order_relaxed);
+  if (maxCost <= 0.0)
+    return true;
+  std::lock_guard<std::mutex> lk(posMutex_);
+  double total = 0.0;
+  double mult = 1.0;
+  for (const auto &kv : positions_)
+    total += kv.second.longCost + kv.second.shortCost;
+  auto it = positions_.find(instrumentId);
+  if (it != positions_.end())
+    mult = it->second.mult;
+  return total + price * volume * mult <= maxCost;
 }
 
 RiskVerdict RiskEngine::check(double price, double refPrice, int volume) const {

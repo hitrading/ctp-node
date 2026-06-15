@@ -22,12 +22,15 @@ notified afterward.
 
 1. **Risk (pre-trade)** — `src/native/risk.h` `RiskEngine`
    Hard checks run before every send: kill-switch, max order volume, price
-   deviation (fat-finger), max notional. Enforced in C++ so they hold even if
-   the JS process is mid-GC, blocked, or buggy. *Safety win — worth it even for
-   slow strategies.*
-   - Status: **real** (kill-switch, volume, deviation, notional).
-   - TODO: per-instrument net-position limits (needs live position state from
-     the trade-return path).
+   deviation (fat-finger), max notional, and max total open-position cost.
+   Enforced in C++ so they hold even if the JS process is mid-GC, blocked, or
+   buggy. *Safety win — worth it even for slow strategies.*
+   - Status: **all real**. Price deviation uses a per-instrument reference fed
+     from market data (`setRefPrice` / `trackMarketData`). Position-cost tracks
+     Σ(open price × volume × multiplier) per instrument (long/short, with
+     proportional release on close), updated from `OnRtnTrade` on the trader
+     callback thread; seed pre-existing positions via `seedPosition` /
+     `seedFromPositions` and set contract multipliers via `setMultiplier`.
 
 2. **Rate limit** — `src/native/risk.h` `RateLimiter`
    Token bucket guaranteeing the seat never exceeds the exchange/CTP order rate,
