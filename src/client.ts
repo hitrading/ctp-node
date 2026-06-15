@@ -163,11 +163,20 @@ export abstract class CtpClient extends EventEmitter {
       rspInfo,
     };
 
-    if (reqId !== 0) {
-      const p = this.pending.get(reqId);
-      if (p) {
+    // Responses (Rsp*) carry isLast (0/1); streaming pushes (Rtn*, front, …)
+    // use -1. Correlate a response to its pending request by requestId, but
+    // fall back to the oldest pending request when the server returns
+    // requestId 0 — SimNow's market-data login, for one, does not echo it.
+    if (isLastRaw !== -1 && this.pending.size > 0) {
+      let key: number | undefined =
+        reqId !== 0 && this.pending.has(reqId) ? reqId : undefined;
+      if (key === undefined && reqId === 0) {
+        key = this.pending.keys().next().value;
+      }
+      const p = key !== undefined ? this.pending.get(key) : undefined;
+      if (p && key !== undefined) {
         if (rspInfo) {
-          this.pending.delete(reqId);
+          this.pending.delete(key);
           p.reject(
             Object.assign(
               new Error(rspInfo.errorMsg || `CTP error ${rspInfo.errorId}`),
@@ -177,7 +186,7 @@ export abstract class CtpClient extends EventEmitter {
         } else {
           if (value !== undefined) p.rows.push(value);
           if (isLastRaw === 1) {
-            this.pending.delete(reqId);
+            this.pending.delete(key);
             p.resolve(p.single ? p.rows[0] : p.rows);
           }
         }

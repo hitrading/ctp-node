@@ -6,8 +6,14 @@
 // Override any of: CTP_BROKER CTP_USER CTP_PASS CTP_APPID CTP_AUTHCODE
 //                  CTP_MD_FRONT CTP_TD_FRONT CTP_SYMBOL CTP_PLACE_ORDER
 import { MarketData, Trader } from "../dist/index.js";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, appendFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
+
+const LOGF = "simnow.out.log";
+try { writeFileSync(LOGF, `=== run ${new Date().toISOString()} ===\n`); } catch {}
+const flog = (line) => { try { appendFileSync(LOGF, line + "\n"); } catch {} };
+process.on("uncaughtException", (e) => flog("UNCAUGHT: " + (e?.stack || e)));
+process.on("unhandledRejection", (e) => flog("UNHANDLED: " + (e?.stack || e?.message || e)));
 
 const env = process.env;
 const cfg = {
@@ -20,6 +26,7 @@ const cfg = {
   tdFront: env.CTP_TD_FRONT ?? "tcp://180.168.146.187:10201",
   symbol: env.CTP_SYMBOL ?? "rb2610",
   placeOrder: env.CTP_PLACE_ORDER === "1",
+  skipAuth: env.CTP_SKIP_AUTH === "1",
 };
 
 if (!cfg.userId || !cfg.password) {
@@ -29,17 +36,24 @@ if (!cfg.userId || !cfg.password) {
 
 mkdirSync("flow-md", { recursive: true });
 mkdirSync("flow-td", { recursive: true });
-const log = (...a) => console.log(new Date().toISOString().slice(11, 23), ...a);
+const log = (...a) => {
+  const line = new Date().toISOString().slice(11, 23) + " " + a.map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x))).join(" ");
+  console.log(line);
+  flog(line);
+};
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------------- Market data ----------------
 const md = new MarketData("./flow-md/", cfg.mdFront);
+md.on("rsp-user-login", (d, o) => log(`MD [event] rsp-user-login: reqId=${o.requestId} isLast=${o.isLast}`, o.rspInfo ? o.rspInfo.errorMsg : `ok tradingDay=${d?.tradingDay}`));
+md.on("rsp-error", (d, o) => log("MD [event] rsp-error:", JSON.stringify(o.rspInfo)));
 md.on("front-connected", async () => {
-  log("MD front-connected");
+  log("MD front-connected; logging in...");
   try {
     const r = await md.login({ brokerId: cfg.brokerId, userId: cfg.userId, password: cfg.password });
     log("MD login ok, tradingDay =", r.tradingDay);
-    md.subscribe([cfg.symbol]);
-    log("MD subscribed", cfg.symbol);
+    const rc = md.subscribe([cfg.symbol]);
+    log("MD subscribed", cfg.symbol, "rc=", rc);
   } catch (e) {
     log("MD login FAILED:", e.message);
   }
@@ -57,8 +71,16 @@ td.riskSet({ maxOrderVolume: 5, maxOrdersPerSec: 5 });
 td.on("front-connected", async () => {
   log("TD front-connected");
   try {
-    await td.reqAuthenticate({ brokerId: cfg.brokerId, userId: cfg.userId, appId: cfg.appId, authCode: cfg.authCode });
-    log("TD authenticated");
+    if (cfg.skipAuth) {
+      log("TD skipping authenticate (CTP_SKIP_AUTH=1)");
+    } else {
+      try {
+        await td.reqAuthenticate({ brokerId: cfg.brokerId, userId: cfg.userId, appId: cfg.appId, authCode: cfg.authCode });
+        log("TD authenticated");
+      } catch (e) {
+        log("TD authenticate failed (continuing to login):", e.message, "errorId=", e.errorId);
+      }
+    }
     const li = await td.reqUserLogin({ brokerId: cfg.brokerId, userId: cfg.userId, password: cfg.password });
     log("TD login ok, frontId =", li.frontId, "sessionId =", li.sessionId, "maxOrderRef =", li.maxOrderRef);
 
@@ -66,10 +88,11 @@ td.on("front-connected", async () => {
     await td.reqSettlementInfoConfirm({ brokerId: cfg.brokerId, investorId: cfg.userId }).catch(() => {});
 
     const acct = await td.reqQryTradingAccount({ brokerId: cfg.brokerId, investorId: cfg.userId });
-    log("TD trading account rows:", acct.length, acct[0] ? `available=${acct[0].available}` : "");
+    log("TD trading account rows:", acct.length, acct[0] ? `available=${acct[0].available} balance=${acct[0].balance}` : "");
 
+    await sleep(1200); // SimNow throttles queries to 1/sec
     const pos = await td.reqQryInvestorPosition({ brokerId: cfg.brokerId, investorId: cfg.userId });
-    log("TD positions rows:", pos.length);
+    log("TD positions rows:", pos.length, pos.map((p) => `${p.instrumentId}:${p.position}`).slice(0, 6).join(" "));
 
     if (cfg.placeOrder) {
       log("placing a test order (CTP_PLACE_ORDER=1) ...");
@@ -86,7 +109,7 @@ td.on("front-connected", async () => {
       log("test order:", rc, "(price 1 will be rejected by exchange — that's expected)");
     }
   } catch (e) {
-    log("TD flow FAILED:", e.message);
+    log("TD flow FAILED:", e.message, "errorId=", e.errorId);
   }
 });
 td.on("front-disconnected", (reason) => log("TD front-disconnected", reason));

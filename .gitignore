@@ -5,9 +5,8 @@ prebuilds/
 *.node
 *.log
 
-# CTP runtime flow directories
-flow/
-flowMd/
-flowTd/
+# CTP runtime flow directories + local test artifacts
+flow*/
 con*.dat
 *.con
+probe.txt
