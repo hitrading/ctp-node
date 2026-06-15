@@ -105,9 +105,9 @@ void RiskEngine::resetPositions() {
 void RiskEngine::onTrade(const std::string &instrumentId, bool isBuy,
                          bool isOpen, double price, double volume) {
   // Real CTP fills are always positive & finite; ignore malformed data rather
-  // than let a negative/NaN price/volume corrupt the tracked cost. The !(>0)
-  // form (not <=0) also rejects NaN, which would silently void the cost cap.
-  if (!(price > 0.0) || !(volume > 0.0))
+  // than let a bad price/volume corrupt the tracked cost. isfinite rejects NaN
+  // AND +/-Inf (a NaN would silently void the cost cap; +Inf would jam it).
+  if (!std::isfinite(price) || !std::isfinite(volume) || price <= 0.0 || volume <= 0.0)
     return;
   std::lock_guard<std::mutex> lk(posMutex_);
   const double cost = price * volume * multiplierLocked(instrumentId);

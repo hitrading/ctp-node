@@ -80,6 +80,13 @@ bool EventChannel::push(int32_t eventType, int32_t requestId, int32_t isLast,
 
 uint32_t EventChannel::claim() {
   pending_.store(false, std::memory_order_release);
+  // Full fence so clearing pending_ is ordered BEFORE reading writeIdx_ (a
+  // release store + acquire load on different atomics does NOT order StoreLoad,
+  // and x86 reorders it). Without this, a concurrent push could both observe
+  // pending_ still true (skip the doorbell) AND publish a writeIdx this load
+  // misses -> a stranded record (lost wakeup). The producer's exchange() is a
+  // locked RMW (already a full barrier), so only the consumer needs this.
+  std::atomic_thread_fence(std::memory_order_seq_cst);
   const uint64_t w = writeIdx_.load(std::memory_order_acquire);
   const uint64_t r = readIdx_.load(std::memory_order_relaxed);
   return static_cast<uint32_t>(w - r);

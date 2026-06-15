@@ -195,7 +195,10 @@ void Trader::doClose() {
   if (closed_)
     return;
   closed_ = true;
-  arm_->clearSink(); // taken under the arm lock: no fire can race the release
+  // Order matters: clearSink() (under the arm lock) guarantees no fireArmed is
+  // running or will start, so the non-atomic api_ below is never read after it
+  // is nulled. Do NOT move the api_ teardown before clearSink().
+  arm_->clearSink();
   if (api_) {
     api_->Release();
     api_ = nullptr;
