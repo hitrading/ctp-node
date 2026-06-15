@@ -251,8 +251,18 @@ void RiskEngine::onOrderUpdate(int frontId, int sessionId,
     return; // only opening orders reserve
   std::lock_guard<std::mutex> lk(posMutex_);
   const std::string key = resvKey(frontId, sessionId, orderRef);
-  const bool working = (status == '1' || status == '3'); // queueing
-  double desiredVol = working ? volTotal - volTraded : 0.0;
+  // The order still holds live working volume UNLESS it has reached a terminal
+  // state. Release only on a definitively-done status: AllTraded '0',
+  // PartTradedNotQueueing '2', NoTradeNotQueueing '4', Canceled '5'. Everything
+  // else — queueing ('1'/'3') and the transient pre-trade states a conditional
+  // order can report before '3' (Unknown 'a', NotTouched 'b', Touched 'c'), plus
+  // any status CTP might add later — keeps the reservation. Releasing on a
+  // transient status that merely precedes '3' would briefly drop the cap for
+  // this order's volume (a burst could then slip past). Conservative by design:
+  // hold the reservation until the order is provably finished.
+  const bool terminal =
+      (status == '0' || status == '2' || status == '4' || status == '5');
+  double desiredVol = terminal ? 0.0 : volTotal - volTraded;
   if (desiredVol < 0.0)
     desiredVol = 0.0;
   const double mult = multiplierLocked(instrumentId);

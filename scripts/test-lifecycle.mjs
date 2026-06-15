@@ -80,6 +80,22 @@ check(after - before < 120, `no ring leak on close (RSS ${before} -> ${after} MB
   md.close();
 }
 
+// ----- front-address validation: empty fronts throw, never segfault -----
+// RegisterFront("") faults deep inside the CTP DLL; the constructor must reject
+// empty/empty-list fronts with a clean JS error and skip empties in a mix.
+{
+  const throwsFront = (fn) => {
+    try { const x = fn(); if (x && x.close) x.close(); return false; }
+    catch (e) { return /front/i.test(e.message); }
+  };
+  check(throwsFront(() => new MarketData("./flow-md/", "")), `MD empty front string throws (no segfault)`);
+  check(throwsFront(() => new MarketData("./flow-md/", [])), `MD empty front list throws`);
+  check(throwsFront(() => new Trader("./flow-td/", ["", ""])), `Trader all-empty fronts throw`);
+  let mixOk = false;
+  try { const md = new MarketData("./flow-md/", ["tcp://127.0.0.1:1", ""]); mixOk = true; md.close(); } catch { /* */ }
+  check(mixOk, `valid + empty front: empty skipped, construction succeeds`);
+}
+
 // ----- reentrant close() inside a drain handler must not UAF the freed ring -----
 // close() frees the native ring synchronously. If a handler invoked from drain()
 // calls close() mid-batch (e.g. a kill-switch on a tick), the loop must stop
@@ -96,6 +112,32 @@ check(after - before < 120, `no ring leak on close (RSS ${before} -> ${after} MB
   md._burstTicks(5000, 0);
   await sleep(300);
   check(got >= 1, `reentrant close() in handler: survived a mid-batch close (delivered ${got}, no UAF)`);
+}
+
+// ----- a throwing event handler must NOT wedge / re-deliver / stall the ring -----
+// emit() rethrows a listener exception synchronously; before the fix this
+// abandoned the drain loop before _release()/readPos advanced, so the poison
+// record re-delivered forever and everything behind it stalled (silently, under
+// Node's default policy). The fix absorbs the throw per-record (ring still
+// advances) and re-surfaces it via the 'error' event / uncaughtException.
+{
+  const md = new MarketData("./flow-md/", "tcp://127.0.0.1:1");
+  const seen = [];
+  let surfaced = 0;
+  md.on("error", () => surfaced++); // catch the re-surfaced handler errors
+  md.on("rtn-depth-market-data", (d) => {
+    seen.push(d.volume); // _burstTicks echoes the sequence number in Volume
+    if (d.volume === 3) throw new Error("poison handler"); // one bad record
+  });
+  const N = 30;
+  md._burstTicks(N, 0);
+  await sleep(400);
+  const uniq = new Set(seen);
+  const maxSeq = seen.length ? Math.max(...seen) : -1;
+  check(seen.length === uniq.size, `throwing handler: no record re-delivered (delivered ${seen.length}, unique ${uniq.size})`);
+  check(maxSeq >= N - 1, `throwing handler: ring not wedged, records past the poison (#3) all flow (max seq ${maxSeq}/${N - 1})`);
+  check(surfaced >= 1, `throwing handler: error re-surfaced via 'error' event (${surfaced}x)`);
+  md.close();
 }
 
 console.log(`LIFECYCLE TEST: ${pass} pass, ${fail} fail`);

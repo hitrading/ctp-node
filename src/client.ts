@@ -156,6 +156,19 @@ export abstract class CtpClient extends EventEmitter {
     this.native.close();
   }
 
+  /** Re-surface an exception thrown by a user event handler without letting it
+   *  break the drain loop. By the time this runs (next tick) the ring has
+   *  already advanced, so the feed never wedges. If the app subscribes to
+   *  'error' the exception is routed there (catchable); otherwise it is rethrown
+   *  as an uncaughtException — the normal fate of a throwing EventEmitter
+   *  listener, just deferred so the data plane stays consistent. */
+  private surfaceHandlerError(err: unknown): void {
+    setImmediate(() => {
+      if (this.listenerCount("error") > 0) this.emit("error", err);
+      else throw err;
+    });
+  }
+
   private decoderFor(id: number): Decoder {
     let d = this.decoders[id];
     if (d === undefined) {
@@ -175,7 +188,15 @@ export abstract class CtpClient extends EventEmitter {
         // frees the ring; stop before reading freed memory for the next record.
         if (this.closing) return;
         const slot = ((this.readPos + i) % numSlots) * slotSize;
-        this.dispatch(slot);
+        try {
+          this.dispatch(slot);
+        } catch (err) {
+          // A user event handler threw. Never let it wedge the data plane: the
+          // ring MUST keep advancing, else this record re-delivers forever and
+          // every record behind it stalls (silently, under Node's default
+          // listener-exception policy). Absorb here; re-surface on the next tick.
+          this.surfaceHandlerError(err);
+        }
       }
       if (this.closing) return;
       this.native._release(count);

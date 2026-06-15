@@ -128,6 +128,20 @@ MarketData::MarketData(const Napi::CallbackInfo &info)
   }
   std::string flowPath = info[0].As<Napi::String>().Utf8Value();
 
+  // Validate fronts BEFORE allocating anything: RegisterFront("") faults deep
+  // inside the CTP DLL, so drop empty addresses and reject an empty result with
+  // a clean JS error rather than crashing the process.
+  std::vector<std::string> fronts;
+  for (auto &addr : toStringList(info[1]))
+    if (!addr.empty())
+      fronts.push_back(addr);
+  if (fronts.empty()) {
+    Napi::TypeError::New(
+        env, "MarketData: at least one non-empty front address is required")
+        .ThrowAsJavaScriptException();
+    return;
+  }
+
   api_ = CThostFtdcMdApi::CreateFtdcMdApi(flowPath.c_str());
   if (!api_) {
     Napi::Error::New(env, "CreateFtdcMdApi failed").ThrowAsJavaScriptException();
@@ -137,7 +151,7 @@ MarketData::MarketData(const Napi::CallbackInfo &info)
   spi_ = new MdSpi(api_, ch_);
   api_->RegisterSpi(spi_);
 
-  for (auto &addr : toStringList(info[1]))
+  for (auto &addr : fronts)
     api_->RegisterFront(const_cast<char *>(addr.c_str()));
 }
 

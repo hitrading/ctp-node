@@ -161,6 +161,22 @@ check(/volume/i.test(String(await vOpen2(1))), `two sessions' ref "1" both count
 td._applyTestOrder(1, 100, "1", "rb2610", true, true, "5", 3000, 2, 0); // their order cancelled -> release only theirs
 check(!/volume/i.test(String(await vOpen2(1))), `after one session's cancel: 2 left, +1<=3 passed`);
 
+// ----- transient OrderStatus holds the reservation (only terminal states release) -----
+// A conditional order can report Unknown 'a' / NotTouched 'b' / Touched 'c'
+// before it reaches NoTradeQueueing '3'; releasing the reservation on those
+// would briefly drop the cap. Only 0/2/4/5 (done) release.
+td.resetPositions();
+td.riskSet({});
+td.setMaxPosition("rb2610", 3);
+td._applyTestOrder(1, 100, "t1", "rb2610", true, true, "a", 3000, 3, 0); // Unknown, working 3
+check(/volume/i.test(String(await vOpen2(1))), `transient 'a' (Unknown) still reserves -> 3+1>3 blocked`);
+td._applyTestOrder(1, 100, "t1", "rb2610", true, true, "b", 3000, 3, 0); // NotTouched, still working
+check(/volume/i.test(String(await vOpen2(1))), `transient 'b' (NotTouched) still reserves -> blocked`);
+td._applyTestOrder(1, 100, "t1", "rb2610", true, true, "3", 3000, 3, 0); // now queueing, unchanged
+check(/volume/i.test(String(await vOpen2(1))), `'3' (Queueing) after transients keeps the same reservation -> blocked`);
+td._applyTestOrder(1, 100, "t1", "rb2610", true, true, "5", 3000, 3, 0); // cancelled -> release
+check(!/volume/i.test(String(await vOpen2(1))), `terminal '5' (Canceled) releases the reservation -> +1<=3 passed`);
+
 // ----- kill-switch (halt) covers ALL position-opening inserts, not just orders -----
 // halt() must block regular/exec/quote/forquote/option-self-close/comb inserts;
 // cancels & other actions stay open so you can pull working orders while halted.

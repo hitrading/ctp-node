@@ -161,6 +161,20 @@ Trader::Trader(const Napi::CallbackInfo &info) : Napi::ObjectWrap<Trader>(info) 
   }
   std::string flowPath = info[0].As<Napi::String>().Utf8Value();
 
+  // Validate fronts BEFORE allocating anything: RegisterFront("") faults deep
+  // inside the CTP DLL, so drop empty addresses and reject an empty result with
+  // a clean JS error rather than crashing the process.
+  std::vector<std::string> fronts;
+  for (auto &addr : toStringList(info[1]))
+    if (!addr.empty())
+      fronts.push_back(addr);
+  if (fronts.empty()) {
+    Napi::TypeError::New(
+        env, "Trader: at least one non-empty front address is required")
+        .ThrowAsJavaScriptException();
+    return;
+  }
+
   api_ = CThostFtdcTraderApi::CreateFtdcTraderApi(flowPath.c_str());
   if (!api_) {
     Napi::Error::New(env, "CreateFtdcTraderApi failed")
@@ -175,7 +189,7 @@ Trader::Trader(const Napi::CallbackInfo &info) : Napi::ObjectWrap<Trader>(info) 
   api_->SubscribePublicTopic(THOST_TERT_QUICK);
   api_->SubscribePrivateTopic(THOST_TERT_QUICK);
 
-  for (auto &addr : toStringList(info[1]))
+  for (auto &addr : fronts)
     api_->RegisterFront(const_cast<char *>(addr.c_str()));
 }
 
