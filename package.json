@@ -1,12 +1,30 @@
 {
   "name": "@hitrading/ctp-node",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "High-performance, type-safe CTP (Chinese futures) binding for Node.js",
-  "keywords": ["ctp", "futures", "trading", "quant", "上期技术", "期货", "napi", "addon", "market-data"],
+  "keywords": [
+    "ctp",
+    "futures",
+    "trading",
+    "quant",
+    "上期技术",
+    "期货",
+    "napi",
+    "addon",
+    "market-data"
+  ],
   "homepage": "https://github.com/hitrading/ctp-node#readme",
-  "repository": { "type": "git", "url": "git+https://github.com/hitrading/ctp-node.git" },
-  "bugs": { "url": "https://github.com/hitrading/ctp-node/issues" },
-  "publishConfig": { "access": "public", "provenance": true },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hitrading/ctp-node.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hitrading/ctp-node/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
