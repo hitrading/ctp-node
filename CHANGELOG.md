@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/hitrading/ctp-node/compare/v1.0.0...v1.1.0) (2026-06-16)
+
+
+### Features
+
+* dual ESM + CommonJS build so require() works alongside import ([addeee4](https://github.com/hitrading/ctp-node/commit/addeee4db3d2e565b15347fd33f67749633038f4))
+
 # 1.0.0 (2026-06-16)
 
 
