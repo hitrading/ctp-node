@@ -48,7 +48,7 @@ node-gyp package).
 ```ts
 import { MarketData } from "@hitrading/ctp-node";
 
-const md = new MarketData("./flow/md/", "tcp://180.168.146.187:10131");
+const md = new MarketData("./flow/md/", "tcp://182.254.243.31:30012");
 
 md.on("front-connected", async () => {
   await md.login({ brokerId: "9999", userId: "your-id", password: "your-pw" });
@@ -67,7 +67,7 @@ md.on("rtn-depth-market-data", (tick) => {
 ```ts
 import { Trader, Direction, OffsetFlag } from "@hitrading/ctp-node";
 
-const td = new Trader("./flow/td/", "tcp://180.168.146.187:10130");
+const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
 td.riskSet({ maxOrderVolume: 10, maxNotional: 5_000_000, maxOrdersPerSec: 20 });
 td.setMaxPosition("rb2510", 100); // never hold more than 100 lots/side
@@ -131,19 +131,19 @@ events.
 | Parameter | Type | Meaning |
 |---|---|---|
 | `flowPath` | `string` | Directory CTP uses for its flow files (caches sequence state). Created if missing; use a per-client path, e.g. `"./flow/md/"`. |
-| `fronts` | `string \| string[]` | One or more front addresses, e.g. `"tcp://180.168.146.187:10131"`. Empty/empty-list throws. |
+| `fronts` | `string \| string[]` | One or more front addresses, e.g. `"tcp://182.254.243.31:30012"`. Empty/empty-list throws. |
 
 Construction connects asynchronously; wire your handlers, then act in the
 `front-connected` handler.
 
 ```ts
 // single front
-const md = new MarketData("./flow/md/", "tcp://180.168.146.187:10131");
+const md = new MarketData("./flow/md/", "tcp://182.254.243.31:30012");
 
 // multiple fronts for failover
 const md2 = new MarketData("./flow/md/", [
-  "tcp://180.168.146.187:10131",
-  "tcp://180.168.146.187:10111",
+  "tcp://182.254.243.31:30012",
+  "tcp://182.254.243.31:30011",
 ]);
 ```
 
@@ -328,9 +328,9 @@ and seeds its auto-`OrderRef` counter past the broker's `maxOrderRef` so refs
 never collide with a prior session.
 
 ```ts
-const td = new Trader("./flow/td/", "tcp://180.168.146.187:10130");
+const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 // failover fronts:
-const td2 = new Trader("./flow/td/", ["tcp://180.168.146.187:10130", "tcp://180.168.146.187:10110"]);
+const td2 = new Trader("./flow/td/", ["tcp://182.254.243.31:30002", "tcp://182.254.243.31:30001"]);
 ```
 
 ### `td.session(opts)` → `Promise<{ multipliers, positions, orders }>`
@@ -1095,8 +1095,8 @@ const CREDS = {
 };
 const SYMBOL = "rb2510";
 
-const md = new MarketData("./flow/md/", "tcp://180.168.146.187:10131");
-const td = new Trader("./flow/td/", "tcp://180.168.146.187:10130");
+const md = new MarketData("./flow/md/", "tcp://182.254.243.31:30012");
+const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
 // 1) Configure risk BEFORE any order can be sent (enforced in C++).
 td.riskSet({ maxOrderVolume: 5, maxNotional: 2_000_000, maxOrdersPerSec: 10, maxPriceDeviation: 0.02, maxPositionCost: 5_000_000 });

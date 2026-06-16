@@ -45,7 +45,7 @@ node-gyp 包一样，需要 C++ 工具链 + Python）。
 ```ts
 import { MarketData } from "@hitrading/ctp-node";
 
-const md = new MarketData("./flow/md/", "tcp://180.168.146.187:10131");
+const md = new MarketData("./flow/md/", "tcp://182.254.243.31:30012");
 
 md.on("front-connected", async () => {
   await md.login({ brokerId: "9999", userId: "your-id", password: "your-pw" });
@@ -64,7 +64,7 @@ md.on("rtn-depth-market-data", (tick) => {
 ```ts
 import { Trader, Direction, OffsetFlag } from "@hitrading/ctp-node";
 
-const td = new Trader("./flow/td/", "tcp://180.168.146.187:10130");
+const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
 td.riskSet({ maxOrderVolume: 10, maxNotional: 5_000_000, maxOrdersPerSec: 20 });
 td.setMaxPosition("rb2510", 100); // 单边持仓不超过 100 手
@@ -123,18 +123,18 @@ td.on("rtn-trade", (t) => console.log("已成交", t.instrumentId, t.price, t.vo
 | 参数 | 类型 | 含义 |
 |---|---|---|
 | `flowPath` | `string` | CTP 存放流文件的目录（缓存序列状态）。不存在会自动创建；每个客户端用各自的路径，如 `"./flow/md/"`。 |
-| `fronts` | `string \| string[]` | 一个或多个前置地址，如 `"tcp://180.168.146.187:10131"`。空字符串/空数组会抛错。 |
+| `fronts` | `string \| string[]` | 一个或多个前置地址，如 `"tcp://182.254.243.31:30012"`。空字符串/空数组会抛错。 |
 
 构造会异步连接；先挂好你的处理函数，然后在 `front-connected` 处理函数里行动。
 
 ```ts
 // 单个前置
-const md = new MarketData("./flow/md/", "tcp://180.168.146.187:10131");
+const md = new MarketData("./flow/md/", "tcp://182.254.243.31:30012");
 
 // 多个前置做故障切换
 const md2 = new MarketData("./flow/md/", [
-  "tcp://180.168.146.187:10131",
-  "tcp://180.168.146.187:10111",
+  "tcp://182.254.243.31:30012",
+  "tcp://182.254.243.31:30011",
 ]);
 ```
 
@@ -309,9 +309,9 @@ md.on("front-disconnected", (reason) => console.warn("行情断开，码", reaso
 一会话冲突。
 
 ```ts
-const td = new Trader("./flow/td/", "tcp://180.168.146.187:10130");
+const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 // 故障切换前置：
-const td2 = new Trader("./flow/td/", ["tcp://180.168.146.187:10130", "tcp://180.168.146.187:10110"]);
+const td2 = new Trader("./flow/td/", ["tcp://182.254.243.31:30002", "tcp://182.254.243.31:30001"]);
 ```
 
 ### `td.session(opts)` → `Promise<{ multipliers, positions, orders }>`
@@ -1024,8 +1024,8 @@ const CREDS = {
 };
 const SYMBOL = "rb2510";
 
-const md = new MarketData("./flow/md/", "tcp://180.168.146.187:10131");
-const td = new Trader("./flow/td/", "tcp://180.168.146.187:10130");
+const md = new MarketData("./flow/md/", "tcp://182.254.243.31:30012");
+const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
 // 1) 在任何报单能发出之前先配置风控（在 C++ 中执行）。
 td.riskSet({ maxOrderVolume: 5, maxNotional: 2_000_000, maxOrdersPerSec: 10, maxPriceDeviation: 0.02, maxPositionCost: 5_000_000 });

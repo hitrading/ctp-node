@@ -51,7 +51,7 @@ npm install @hitrading/ctp-node
 ```ts
 import { MarketData } from "@hitrading/ctp-node";
 
-const md = new MarketData("./flow/md/", "tcp://180.168.146.187:10212");
+const md = new MarketData("./flow/md/", "tcp://182.254.243.31:30012");
 
 md.on("front-connected", async () => {
   await md.login({ brokerId: "9999", userId: "xxxx", password: "xxxx" });
@@ -69,7 +69,7 @@ md.on("rtn-depth-market-data", (tick) => {
 ```ts
 import { Trader } from "@hitrading/ctp-node";
 
-const td = new Trader("./flow/td/", "tcp://180.168.146.187:10202");
+const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
 // Pre-trade risk, enforced in C++ on every order:
 td.riskSet({ maxOrderVolume: 10, maxOrdersPerSec: 20, maxPriceDeviation: 0.02, maxPositionCost: 5_000_000 });
