@@ -22,6 +22,9 @@ jobs:
       - run: npm ci
       - run: npm run build:ts
       - run: npm run coverage   # runs the suite under c8 and FAILS if coverage drops below .c8rc.json thresholds
+      - name: C++ unit tests (standalone risk/arm) + coverage report
+        if: matrix.os == 'ubuntu-latest'   # Linux leg: g++/gcov; the C++ logic is platform-agnostic
+        run: CXX=g++ COVERAGE=1 npm run test:cpp   # gates the C++ tests passing; coverage is reported (best-effort)
       - run: npm run prebuild
       - name: bundle CTP libs alongside the prebuilt addon
         shell: bash
