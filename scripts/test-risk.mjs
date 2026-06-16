@@ -185,6 +185,20 @@ check(/volume/i.test(String(await vOpen2(1))), `two sessions' ref "1" both count
 td._applyTestOrder(1, 100, "1", "rb2610", true, true, "5", 3000, 2, 0); // their order cancelled -> release only theirs
 check(!/volume/i.test(String(await vOpen2(1))), `after one session's cancel: 2 left, +1<=3 passed`);
 
+// ----- rebuildOpenReservations dedupes duplicate order rows (syncOrders path) -----
+// reqQryOrder can return the same (front:session:ref) twice; the rebuild must
+// reserve it ONCE, else pending inflates with no map entry to release it -> a
+// phantom reservation that over-blocks until the next resync.
+td.resetPositions();
+td.riskSet({});
+td.setMaxPosition("rb2610", 5);
+const dupRow = { frontId: 1, sessionId: 100, orderRef: "X", instrumentId: "rb2610", isLong: true, vol: 3, price: 3000 };
+td.native.rebuildReservations([dupRow, { ...dupRow }]); // SAME order twice -> reserve 3, not 6
+check(!/volume/i.test(String(await vOpen2(2))), `dup rows reserved once: held 0 + inflight 3 + 2 <= 5 passed (not double-counted to 6)`);
+check(/volume/i.test(String(await vOpen2(3))), `dup rows reserved once: 3 + 3 > 5 blocked`);
+td.native.rebuildReservations([]); // authoritative clear
+check(!/volume/i.test(String(await vOpen2(5))), `after rebuild([]): reservations cleared, 0 + 5 <= 5 passed`);
+
 // ----- DBL_MAX (CTP unset-price sentinel) must not poison the reference price -----
 // CTP fills unset price fields with DBL_MAX before the first trade prints; a user
 // wiring tick.lastPrice -> setRefPrice would otherwise set ref=DBL_MAX, making

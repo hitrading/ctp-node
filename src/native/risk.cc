@@ -5,6 +5,7 @@
 #include "risk.h"
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace ctp {
 
@@ -26,13 +27,13 @@ static inline bool sanePositive(double x) {
 // per-fill backstop, but a long chain of huge (test-hook / absurd-seed) fills can
 // still overflow the SUM to +Inf, and a later proportional close (Inf - Inf)
 // would yield NaN, silently voiding the cost cap (NaN > cap is false). Pin an
-// overflowed sum to 1e300: still far above any real cost cap (so it keeps
-// blocking) yet finite (so the proportional-close arithmetic stays finite).
-// Unreachable from the live feed (real fills are tiny); this is defense-in-depth
-// matching the sanePositive sentinel guards.
+// overflowed sum to the largest finite double: it stays above EVERY finite
+// configured cap (so it keeps blocking - +Inf would block too but breaks the
+// proportional close) while keeping that close arithmetic finite. Unreachable
+// from the live feed (real fills are tiny); defense-in-depth matching sanePositive.
 static inline void clampFiniteCost(double &cost) {
   if (!std::isfinite(cost))
-    cost = 1e300;
+    cost = std::numeric_limits<double>::max();
 }
 
 void RateLimiter::configure(double ratePerSec, double burst) {
@@ -376,6 +377,14 @@ void RiskEngine::rebuildOpenReservations(const std::vector<OpenOrderInfo> &order
   for (const auto &o : orders) {
     if (o.vol <= 0.0)
       continue;
+    const std::string key = resvKey(o.frontId, o.sessionId, o.orderRef);
+    // Dedupe by key: reqQryOrder can return the same working order more than once
+    // (paged / duplicate rows). Each (front:session:ref) must reserve exactly
+    // once; a duplicate would inflate the pending counters while reservations_
+    // collapses to a single entry, leaving a phantom reservation with no map
+    // entry to release it - it would over-block opens until the next full resync.
+    if (reservations_.count(key))
+      continue;
     const double cost = o.vol * o.price * multiplierLocked(o.instrumentId);
     Pos &pp = positions_[o.instrumentId];
     if (o.isLong) {
@@ -385,8 +394,7 @@ void RiskEngine::rebuildOpenReservations(const std::vector<OpenOrderInfo> &order
       pp.shortPendVol += o.vol;
       pp.shortPendCost += cost;
     }
-    reservations_[resvKey(o.frontId, o.sessionId, o.orderRef)] =
-        Reservation{o.instrumentId, o.isLong, o.vol, cost};
+    reservations_[key] = Reservation{o.instrumentId, o.isLong, o.vol, cost};
   }
 }
 

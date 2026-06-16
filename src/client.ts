@@ -440,7 +440,14 @@ export abstract class CtpClient extends EventEmitter {
   }
 
   protected nextRequestId(): number {
-    return ++this.reqSeq;
+    // CTP echoes the requestId as an int32, and dispatch() reads it back via
+    // getInt32, so the pending-map key MUST stay within positive int32 or it
+    // would stop matching the echoed wire id past 2^31 requests (responses would
+    // then only ever reject on the idle timeout). Cycle 1..2^31-1; skip 0, which
+    // is the "no id" / zeroIdFallback sentinel. (Reuse can't collide: nothing
+    // stays pending across 2^31 requests — the idle timeout is seconds.)
+    this.reqSeq = this.reqSeq >= 0x7fffffff ? 1 : this.reqSeq + 1;
+    return this.reqSeq;
   }
 
   /** Message for a non-zero send code. Risk sentinels get a specific message;
