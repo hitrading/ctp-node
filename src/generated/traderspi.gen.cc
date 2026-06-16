@@ -23,6 +23,10 @@ void TraderSpi::OnRspAuthenticate(CThostFtdcRspAuthenticateField *p, CThostFtdcR
   ch_->push(ET_RspAuthenticate, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_RspAuthenticate : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
+void TraderSpi::OnRtnPrivateSeqNo(int arg) {
+  ch_->push(ET_RtnPrivateSeqNo, 0, -1, 0, "", -2, &arg, sizeof(arg));
+}
+
 void TraderSpi::OnRspUserLogin(CThostFtdcRspUserLoginField *p, CThostFtdcRspInfoField *e, int id, bool last) {
   if (p && risk_)
     risk_->setSession(p->FrontID, p->SessionID);
@@ -153,6 +157,10 @@ void TraderSpi::OnRspQryInstrumentMarginRate(CThostFtdcInstrumentMarginRateField
 
 void TraderSpi::OnRspQryInstrumentCommissionRate(CThostFtdcInstrumentCommissionRateField *p, CThostFtdcRspInfoField *e, int id, bool last) {
   ch_->push(ET_RspQryInstrumentCommissionRate, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_InstrumentCommissionRate : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRspQryUserSession(CThostFtdcUserSessionField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  ch_->push(ET_RspQryUserSession, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_UserSession : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
 void TraderSpi::OnRspQryExchange(CThostFtdcExchangeField *p, CThostFtdcRspInfoField *e, int id, bool last) {
@@ -631,6 +639,94 @@ void TraderSpi::OnRspQryRULEInterParameter(CThostFtdcRULEInterParameterField *p,
 
 void TraderSpi::OnRspQryInvestorProdRULEMargin(CThostFtdcInvestorProdRULEMarginField *p, CThostFtdcRspInfoField *e, int id, bool last) {
   ch_->push(ET_RspQryInvestorProdRULEMargin, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_InvestorProdRULEMargin : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRspQryInvestorPortfSetting(CThostFtdcInvestorPortfSettingField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  ch_->push(ET_RspQryInvestorPortfSetting, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_InvestorPortfSetting : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRspQryInvestorInfoCommRec(CThostFtdcInvestorInfoCommRecField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  ch_->push(ET_RspQryInvestorInfoCommRec, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_InvestorInfoCommRec : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRspQryCombLeg(CThostFtdcCombLegField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  ch_->push(ET_RspQryCombLeg, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_CombLeg : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRspOffsetSetting(CThostFtdcInputOffsetSettingField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  ch_->push(ET_RspOffsetSetting, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_InputOffsetSetting : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRspCancelOffsetSetting(CThostFtdcInputOffsetSettingField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  ch_->push(ET_RspCancelOffsetSetting, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_InputOffsetSetting : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRtnOffsetSetting(CThostFtdcOffsetSettingField *p) {
+  ch_->push(ET_RtnOffsetSetting, 0, -1, 0, "", p ? SID_OffsetSetting : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnErrRtnOffsetSetting(CThostFtdcInputOffsetSettingField *p, CThostFtdcRspInfoField *e) {
+  ch_->push(ET_ErrRtnOffsetSetting, 0, -1, eid(e), emsg(e), p ? SID_InputOffsetSetting : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnErrRtnCancelOffsetSetting(CThostFtdcCancelOffsetSettingField *p, CThostFtdcRspInfoField *e) {
+  ch_->push(ET_ErrRtnCancelOffsetSetting, 0, -1, eid(e), emsg(e), p ? SID_CancelOffsetSetting : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRspQryOffsetSetting(CThostFtdcOffsetSettingField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  ch_->push(ET_RspQryOffsetSetting, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_OffsetSetting : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRspGenSMSCode(CThostFtdcRspGenSMSCodeField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  ch_->push(ET_RspGenSMSCode, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_RspGenSMSCode : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRspSpdApply(CThostFtdcInputSpdApplyField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  ch_->push(ET_RspSpdApply, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_InputSpdApply : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRspSpdApplyAction(CThostFtdcInputSpdApplyActionField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  ch_->push(ET_RspSpdApplyAction, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_InputSpdApplyAction : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRspQrySpdApply(CThostFtdcSpdApplyField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  ch_->push(ET_RspQrySpdApply, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_SpdApply : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRtnSpdApply(CThostFtdcSpdApplyField *p) {
+  ch_->push(ET_RtnSpdApply, 0, -1, 0, "", p ? SID_SpdApply : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnErrRtnSpdApply(CThostFtdcInputSpdApplyField *p, CThostFtdcRspInfoField *e) {
+  ch_->push(ET_ErrRtnSpdApply, 0, -1, eid(e), emsg(e), p ? SID_InputSpdApply : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnErrRtnSpdApplyAction(CThostFtdcSpdApplyActionField *p, CThostFtdcRspInfoField *e) {
+  ch_->push(ET_ErrRtnSpdApplyAction, 0, -1, eid(e), emsg(e), p ? SID_SpdApplyAction : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRspHedgeCfm(CThostFtdcInputHedgeCfmField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  ch_->push(ET_RspHedgeCfm, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_InputHedgeCfm : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRspHedgeCfmAction(CThostFtdcInputHedgeCfmActionField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  ch_->push(ET_RspHedgeCfmAction, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_InputHedgeCfmAction : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRspQryHedgeCfm(CThostFtdcHedgeCfmField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  ch_->push(ET_RspQryHedgeCfm, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_HedgeCfm : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnRtnHedgeCfm(CThostFtdcHedgeCfmField *p) {
+  ch_->push(ET_RtnHedgeCfm, 0, -1, 0, "", p ? SID_HedgeCfm : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnErrRtnHedgeCfm(CThostFtdcInputHedgeCfmField *p, CThostFtdcRspInfoField *e) {
+  ch_->push(ET_ErrRtnHedgeCfm, 0, -1, eid(e), emsg(e), p ? SID_InputHedgeCfm : -1, p, p ? (int)sizeof(*p) : 0);
+}
+
+void TraderSpi::OnErrRtnHedgeCfmAction(CThostFtdcHedgeCfmActionField *p, CThostFtdcRspInfoField *e) {
+  ch_->push(ET_ErrRtnHedgeCfmAction, 0, -1, eid(e), emsg(e), p ? SID_HedgeCfmAction : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
 } // namespace ctp

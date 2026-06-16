@@ -248,6 +248,12 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
     return api->ReqQryInstrumentCommissionRate(&f, requestId);
   }
+  case M_ReqQryUserSession: {
+    CThostFtdcQryUserSessionField f;
+    std::memset(&f, 0, sizeof(f));
+    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    return api->ReqQryUserSession(&f, requestId);
+  }
   case M_ReqQryExchange: {
     CThostFtdcQryExchangeField f;
     std::memset(&f, 0, sizeof(f));
@@ -697,6 +703,84 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
     return api->ReqQryInvestorProdRULEMargin(&f, requestId);
+  }
+  case M_ReqQryInvestorPortfSetting: {
+    CThostFtdcQryInvestorPortfSettingField f;
+    std::memset(&f, 0, sizeof(f));
+    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    return api->ReqQryInvestorPortfSetting(&f, requestId);
+  }
+  case M_ReqQryInvestorInfoCommRec: {
+    CThostFtdcQryInvestorInfoCommRecField f;
+    std::memset(&f, 0, sizeof(f));
+    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    return api->ReqQryInvestorInfoCommRec(&f, requestId);
+  }
+  case M_ReqQryCombLeg: {
+    CThostFtdcQryCombLegField f;
+    std::memset(&f, 0, sizeof(f));
+    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    return api->ReqQryCombLeg(&f, requestId);
+  }
+  case M_ReqOffsetSetting: {
+    CThostFtdcInputOffsetSettingField f;
+    std::memset(&f, 0, sizeof(f));
+    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    return api->ReqOffsetSetting(&f, requestId);
+  }
+  case M_ReqCancelOffsetSetting: {
+    CThostFtdcInputOffsetSettingField f;
+    std::memset(&f, 0, sizeof(f));
+    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    return api->ReqCancelOffsetSetting(&f, requestId);
+  }
+  case M_ReqQryOffsetSetting: {
+    CThostFtdcQryOffsetSettingField f;
+    std::memset(&f, 0, sizeof(f));
+    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    return api->ReqQryOffsetSetting(&f, requestId);
+  }
+  case M_ReqGenSMSCode: {
+    CThostFtdcReqGenSMSCodeField f;
+    std::memset(&f, 0, sizeof(f));
+    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    return api->ReqGenSMSCode(&f, requestId);
+  }
+  case M_ReqSpdApply: {
+    CThostFtdcInputSpdApplyField f;
+    std::memset(&f, 0, sizeof(f));
+    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    return api->ReqSpdApply(&f, requestId);
+  }
+  case M_ReqSpdApplyAction: {
+    CThostFtdcInputSpdApplyActionField f;
+    std::memset(&f, 0, sizeof(f));
+    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    return api->ReqSpdApplyAction(&f, requestId);
+  }
+  case M_ReqQrySpdApply: {
+    CThostFtdcQrySpdApplyField f;
+    std::memset(&f, 0, sizeof(f));
+    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    return api->ReqQrySpdApply(&f, requestId);
+  }
+  case M_ReqHedgeCfm: {
+    CThostFtdcInputHedgeCfmField f;
+    std::memset(&f, 0, sizeof(f));
+    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    return api->ReqHedgeCfm(&f, requestId);
+  }
+  case M_ReqHedgeCfmAction: {
+    CThostFtdcInputHedgeCfmActionField f;
+    std::memset(&f, 0, sizeof(f));
+    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    return api->ReqHedgeCfmAction(&f, requestId);
+  }
+  case M_ReqQryHedgeCfm: {
+    CThostFtdcQryHedgeCfmField f;
+    std::memset(&f, 0, sizeof(f));
+    std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    return api->ReqQryHedgeCfm(&f, requestId);
   }
   default:
     return -1;

@@ -9,6 +9,7 @@ export enum TraderEvent {
   FrontDisconnected = "front-disconnected",
   HeartBeatWarning = "heart-beat-warning",
   RspAuthenticate = "rsp-authenticate",
+  RtnPrivateSeqNo = "rtn-private-seq-no",
   RspUserLogin = "rsp-user-login",
   RspUserLogout = "rsp-user-logout",
   RspUserPasswordUpdate = "rsp-user-password-update",
@@ -41,6 +42,7 @@ export enum TraderEvent {
   RspQryTradingCode = "rsp-qry-trading-code",
   RspQryInstrumentMarginRate = "rsp-qry-instrument-margin-rate",
   RspQryInstrumentCommissionRate = "rsp-qry-instrument-commission-rate",
+  RspQryUserSession = "rsp-qry-user-session",
   RspQryExchange = "rsp-qry-exchange",
   RspQryProduct = "rsp-qry-product",
   RspQryInstrument = "rsp-qry-instrument",
@@ -159,6 +161,28 @@ export enum TraderEvent {
   RspQryRULEIntraParameter = "rsp-qry-rule-intra-parameter",
   RspQryRULEInterParameter = "rsp-qry-rule-inter-parameter",
   RspQryInvestorProdRULEMargin = "rsp-qry-investor-prod-rule-margin",
+  RspQryInvestorPortfSetting = "rsp-qry-investor-portf-setting",
+  RspQryInvestorInfoCommRec = "rsp-qry-investor-info-comm-rec",
+  RspQryCombLeg = "rsp-qry-comb-leg",
+  RspOffsetSetting = "rsp-offset-setting",
+  RspCancelOffsetSetting = "rsp-cancel-offset-setting",
+  RtnOffsetSetting = "rtn-offset-setting",
+  ErrRtnOffsetSetting = "err-rtn-offset-setting",
+  ErrRtnCancelOffsetSetting = "err-rtn-cancel-offset-setting",
+  RspQryOffsetSetting = "rsp-qry-offset-setting",
+  RspGenSMSCode = "rsp-gen-sms-code",
+  RspSpdApply = "rsp-spd-apply",
+  RspSpdApplyAction = "rsp-spd-apply-action",
+  RspQrySpdApply = "rsp-qry-spd-apply",
+  RtnSpdApply = "rtn-spd-apply",
+  ErrRtnSpdApply = "err-rtn-spd-apply",
+  ErrRtnSpdApplyAction = "err-rtn-spd-apply-action",
+  RspHedgeCfm = "rsp-hedge-cfm",
+  RspHedgeCfmAction = "rsp-hedge-cfm-action",
+  RspQryHedgeCfm = "rsp-qry-hedge-cfm",
+  RtnHedgeCfm = "rtn-hedge-cfm",
+  ErrRtnHedgeCfm = "err-rtn-hedge-cfm",
+  ErrRtnHedgeCfmAction = "err-rtn-hedge-cfm-action",
 }
 
 export const TRADER_EVENTS: Map<number, string> = new Map([
@@ -166,156 +190,180 @@ export const TRADER_EVENTS: Map<number, string> = new Map([
   [8192 + 2, "front-disconnected"],
   [8192 + 3, "heart-beat-warning"],
   [8192 + 4, "rsp-authenticate"],
-  [8192 + 5, "rsp-user-login"],
-  [8192 + 6, "rsp-user-logout"],
-  [8192 + 7, "rsp-user-password-update"],
-  [8192 + 8, "rsp-trading-account-password-update"],
-  [8192 + 9, "rsp-user-auth-method"],
-  [8192 + 10, "rsp-gen-user-captcha"],
-  [8192 + 11, "rsp-gen-user-text"],
-  [8192 + 12, "rsp-order-insert"],
-  [8192 + 13, "rsp-parked-order-insert"],
-  [8192 + 14, "rsp-parked-order-action"],
-  [8192 + 15, "rsp-order-action"],
-  [8192 + 16, "rsp-qry-max-order-volume"],
-  [8192 + 17, "rsp-settlement-info-confirm"],
-  [8192 + 18, "rsp-remove-parked-order"],
-  [8192 + 19, "rsp-remove-parked-order-action"],
-  [8192 + 20, "rsp-exec-order-insert"],
-  [8192 + 21, "rsp-exec-order-action"],
-  [8192 + 22, "rsp-for-quote-insert"],
-  [8192 + 23, "rsp-quote-insert"],
-  [8192 + 24, "rsp-quote-action"],
-  [8192 + 25, "rsp-batch-order-action"],
-  [8192 + 26, "rsp-option-self-close-insert"],
-  [8192 + 27, "rsp-option-self-close-action"],
-  [8192 + 28, "rsp-comb-action-insert"],
-  [8192 + 29, "rsp-qry-order"],
-  [8192 + 30, "rsp-qry-trade"],
-  [8192 + 31, "rsp-qry-investor-position"],
-  [8192 + 32, "rsp-qry-trading-account"],
-  [8192 + 33, "rsp-qry-investor"],
-  [8192 + 34, "rsp-qry-trading-code"],
-  [8192 + 35, "rsp-qry-instrument-margin-rate"],
-  [8192 + 36, "rsp-qry-instrument-commission-rate"],
-  [8192 + 37, "rsp-qry-exchange"],
-  [8192 + 38, "rsp-qry-product"],
-  [8192 + 39, "rsp-qry-instrument"],
-  [8192 + 40, "rsp-qry-depth-market-data"],
-  [8192 + 41, "rsp-qry-trader-offer"],
-  [8192 + 42, "rsp-qry-settlement-info"],
-  [8192 + 43, "rsp-qry-transfer-bank"],
-  [8192 + 44, "rsp-qry-investor-position-detail"],
-  [8192 + 45, "rsp-qry-notice"],
-  [8192 + 46, "rsp-qry-settlement-info-confirm"],
-  [8192 + 47, "rsp-qry-investor-position-combine-detail"],
-  [8192 + 48, "rsp-qry-cfmmc-trading-account-key"],
-  [8192 + 49, "rsp-qry-e-warrant-offset"],
-  [8192 + 50, "rsp-qry-investor-product-group-margin"],
-  [8192 + 51, "rsp-qry-exchange-margin-rate"],
-  [8192 + 52, "rsp-qry-exchange-margin-rate-adjust"],
-  [8192 + 53, "rsp-qry-exchange-rate"],
-  [8192 + 54, "rsp-qry-sec-agent-acid-map"],
-  [8192 + 55, "rsp-qry-product-exch-rate"],
-  [8192 + 56, "rsp-qry-product-group"],
-  [8192 + 57, "rsp-qry-mm-instrument-commission-rate"],
-  [8192 + 58, "rsp-qry-mm-option-instr-comm-rate"],
-  [8192 + 59, "rsp-qry-instrument-order-comm-rate"],
-  [8192 + 60, "rsp-qry-sec-agent-trading-account"],
-  [8192 + 61, "rsp-qry-sec-agent-check-mode"],
-  [8192 + 62, "rsp-qry-sec-agent-trade-info"],
-  [8192 + 63, "rsp-qry-option-instr-trade-cost"],
-  [8192 + 64, "rsp-qry-option-instr-comm-rate"],
-  [8192 + 65, "rsp-qry-exec-order"],
-  [8192 + 66, "rsp-qry-for-quote"],
-  [8192 + 67, "rsp-qry-quote"],
-  [8192 + 68, "rsp-qry-option-self-close"],
-  [8192 + 69, "rsp-qry-invest-unit"],
-  [8192 + 70, "rsp-qry-comb-instrument-guard"],
-  [8192 + 71, "rsp-qry-comb-action"],
-  [8192 + 72, "rsp-qry-transfer-serial"],
-  [8192 + 73, "rsp-qry-accountregister"],
-  [8192 + 74, "rsp-error"],
-  [8192 + 75, "rtn-order"],
-  [8192 + 76, "rtn-trade"],
-  [8192 + 77, "err-rtn-order-insert"],
-  [8192 + 78, "err-rtn-order-action"],
-  [8192 + 79, "rtn-instrument-status"],
-  [8192 + 80, "rtn-bulletin"],
-  [8192 + 81, "rtn-trading-notice"],
-  [8192 + 82, "rtn-error-conditional-order"],
-  [8192 + 83, "rtn-exec-order"],
-  [8192 + 84, "err-rtn-exec-order-insert"],
-  [8192 + 85, "err-rtn-exec-order-action"],
-  [8192 + 86, "err-rtn-for-quote-insert"],
-  [8192 + 87, "rtn-quote"],
-  [8192 + 88, "err-rtn-quote-insert"],
-  [8192 + 89, "err-rtn-quote-action"],
-  [8192 + 90, "rtn-for-quote-rsp"],
-  [8192 + 91, "rtn-cfmmc-trading-account-token"],
-  [8192 + 92, "err-rtn-batch-order-action"],
-  [8192 + 93, "rtn-option-self-close"],
-  [8192 + 94, "err-rtn-option-self-close-insert"],
-  [8192 + 95, "err-rtn-option-self-close-action"],
-  [8192 + 96, "rtn-comb-action"],
-  [8192 + 97, "err-rtn-comb-action-insert"],
-  [8192 + 98, "rsp-qry-contract-bank"],
-  [8192 + 99, "rsp-qry-parked-order"],
-  [8192 + 100, "rsp-qry-parked-order-action"],
-  [8192 + 101, "rsp-qry-trading-notice"],
-  [8192 + 102, "rsp-qry-broker-trading-params"],
-  [8192 + 103, "rsp-qry-broker-trading-algos"],
-  [8192 + 104, "rsp-query-cfmmc-trading-account-token"],
-  [8192 + 105, "rtn-from-bank-to-future-by-bank"],
-  [8192 + 106, "rtn-from-future-to-bank-by-bank"],
-  [8192 + 107, "rtn-repeal-from-bank-to-future-by-bank"],
-  [8192 + 108, "rtn-repeal-from-future-to-bank-by-bank"],
-  [8192 + 109, "rtn-from-bank-to-future-by-future"],
-  [8192 + 110, "rtn-from-future-to-bank-by-future"],
-  [8192 + 111, "rtn-repeal-from-bank-to-future-by-future-manual"],
-  [8192 + 112, "rtn-repeal-from-future-to-bank-by-future-manual"],
-  [8192 + 113, "rtn-query-bank-balance-by-future"],
-  [8192 + 114, "err-rtn-bank-to-future-by-future"],
-  [8192 + 115, "err-rtn-future-to-bank-by-future"],
-  [8192 + 116, "err-rtn-repeal-bank-to-future-by-future-manual"],
-  [8192 + 117, "err-rtn-repeal-future-to-bank-by-future-manual"],
-  [8192 + 118, "err-rtn-query-bank-balance-by-future"],
-  [8192 + 119, "rtn-repeal-from-bank-to-future-by-future"],
-  [8192 + 120, "rtn-repeal-from-future-to-bank-by-future"],
-  [8192 + 121, "rsp-from-bank-to-future-by-future"],
-  [8192 + 122, "rsp-from-future-to-bank-by-future"],
-  [8192 + 123, "rsp-query-bank-account-money-by-future"],
-  [8192 + 124, "rtn-open-account-by-bank"],
-  [8192 + 125, "rtn-cancel-account-by-bank"],
-  [8192 + 126, "rtn-change-account-by-bank"],
-  [8192 + 127, "rsp-qry-classified-instrument"],
-  [8192 + 128, "rsp-qry-comb-promotion-param"],
-  [8192 + 129, "rsp-qry-risk-settle-invst-position"],
-  [8192 + 130, "rsp-qry-risk-settle-product-status"],
-  [8192 + 131, "rsp-qry-spbm-future-parameter"],
-  [8192 + 132, "rsp-qry-spbm-option-parameter"],
-  [8192 + 133, "rsp-qry-spbm-intra-parameter"],
-  [8192 + 134, "rsp-qry-spbm-inter-parameter"],
-  [8192 + 135, "rsp-qry-spbm-portf-definition"],
-  [8192 + 136, "rsp-qry-spbm-investor-portf-def"],
-  [8192 + 137, "rsp-qry-investor-portf-margin-ratio"],
-  [8192 + 138, "rsp-qry-investor-prod-spbm-detail"],
-  [8192 + 139, "rsp-qry-investor-commodity-spmm-margin"],
-  [8192 + 140, "rsp-qry-investor-commodity-group-spmm-margin"],
-  [8192 + 141, "rsp-qry-spmm-inst-param"],
-  [8192 + 142, "rsp-qry-spmm-product-param"],
-  [8192 + 143, "rsp-qry-spbm-add-on-inter-parameter"],
-  [8192 + 144, "rsp-qry-rcams-comb-product-info"],
-  [8192 + 145, "rsp-qry-rcams-instr-parameter"],
-  [8192 + 146, "rsp-qry-rcams-intra-parameter"],
-  [8192 + 147, "rsp-qry-rcams-inter-parameter"],
-  [8192 + 148, "rsp-qry-rcams-short-opt-adjust-param"],
-  [8192 + 149, "rsp-qry-rcams-investor-comb-position"],
-  [8192 + 150, "rsp-qry-investor-prod-rcams-margin"],
-  [8192 + 151, "rsp-qry-rule-instr-parameter"],
-  [8192 + 152, "rsp-qry-rule-intra-parameter"],
-  [8192 + 153, "rsp-qry-rule-inter-parameter"],
-  [8192 + 154, "rsp-qry-investor-prod-rule-margin"],
+  [8192 + 5, "rtn-private-seq-no"],
+  [8192 + 6, "rsp-user-login"],
+  [8192 + 7, "rsp-user-logout"],
+  [8192 + 8, "rsp-user-password-update"],
+  [8192 + 9, "rsp-trading-account-password-update"],
+  [8192 + 10, "rsp-user-auth-method"],
+  [8192 + 11, "rsp-gen-user-captcha"],
+  [8192 + 12, "rsp-gen-user-text"],
+  [8192 + 13, "rsp-order-insert"],
+  [8192 + 14, "rsp-parked-order-insert"],
+  [8192 + 15, "rsp-parked-order-action"],
+  [8192 + 16, "rsp-order-action"],
+  [8192 + 17, "rsp-qry-max-order-volume"],
+  [8192 + 18, "rsp-settlement-info-confirm"],
+  [8192 + 19, "rsp-remove-parked-order"],
+  [8192 + 20, "rsp-remove-parked-order-action"],
+  [8192 + 21, "rsp-exec-order-insert"],
+  [8192 + 22, "rsp-exec-order-action"],
+  [8192 + 23, "rsp-for-quote-insert"],
+  [8192 + 24, "rsp-quote-insert"],
+  [8192 + 25, "rsp-quote-action"],
+  [8192 + 26, "rsp-batch-order-action"],
+  [8192 + 27, "rsp-option-self-close-insert"],
+  [8192 + 28, "rsp-option-self-close-action"],
+  [8192 + 29, "rsp-comb-action-insert"],
+  [8192 + 30, "rsp-qry-order"],
+  [8192 + 31, "rsp-qry-trade"],
+  [8192 + 32, "rsp-qry-investor-position"],
+  [8192 + 33, "rsp-qry-trading-account"],
+  [8192 + 34, "rsp-qry-investor"],
+  [8192 + 35, "rsp-qry-trading-code"],
+  [8192 + 36, "rsp-qry-instrument-margin-rate"],
+  [8192 + 37, "rsp-qry-instrument-commission-rate"],
+  [8192 + 38, "rsp-qry-user-session"],
+  [8192 + 39, "rsp-qry-exchange"],
+  [8192 + 40, "rsp-qry-product"],
+  [8192 + 41, "rsp-qry-instrument"],
+  [8192 + 42, "rsp-qry-depth-market-data"],
+  [8192 + 43, "rsp-qry-trader-offer"],
+  [8192 + 44, "rsp-qry-settlement-info"],
+  [8192 + 45, "rsp-qry-transfer-bank"],
+  [8192 + 46, "rsp-qry-investor-position-detail"],
+  [8192 + 47, "rsp-qry-notice"],
+  [8192 + 48, "rsp-qry-settlement-info-confirm"],
+  [8192 + 49, "rsp-qry-investor-position-combine-detail"],
+  [8192 + 50, "rsp-qry-cfmmc-trading-account-key"],
+  [8192 + 51, "rsp-qry-e-warrant-offset"],
+  [8192 + 52, "rsp-qry-investor-product-group-margin"],
+  [8192 + 53, "rsp-qry-exchange-margin-rate"],
+  [8192 + 54, "rsp-qry-exchange-margin-rate-adjust"],
+  [8192 + 55, "rsp-qry-exchange-rate"],
+  [8192 + 56, "rsp-qry-sec-agent-acid-map"],
+  [8192 + 57, "rsp-qry-product-exch-rate"],
+  [8192 + 58, "rsp-qry-product-group"],
+  [8192 + 59, "rsp-qry-mm-instrument-commission-rate"],
+  [8192 + 60, "rsp-qry-mm-option-instr-comm-rate"],
+  [8192 + 61, "rsp-qry-instrument-order-comm-rate"],
+  [8192 + 62, "rsp-qry-sec-agent-trading-account"],
+  [8192 + 63, "rsp-qry-sec-agent-check-mode"],
+  [8192 + 64, "rsp-qry-sec-agent-trade-info"],
+  [8192 + 65, "rsp-qry-option-instr-trade-cost"],
+  [8192 + 66, "rsp-qry-option-instr-comm-rate"],
+  [8192 + 67, "rsp-qry-exec-order"],
+  [8192 + 68, "rsp-qry-for-quote"],
+  [8192 + 69, "rsp-qry-quote"],
+  [8192 + 70, "rsp-qry-option-self-close"],
+  [8192 + 71, "rsp-qry-invest-unit"],
+  [8192 + 72, "rsp-qry-comb-instrument-guard"],
+  [8192 + 73, "rsp-qry-comb-action"],
+  [8192 + 74, "rsp-qry-transfer-serial"],
+  [8192 + 75, "rsp-qry-accountregister"],
+  [8192 + 76, "rsp-error"],
+  [8192 + 77, "rtn-order"],
+  [8192 + 78, "rtn-trade"],
+  [8192 + 79, "err-rtn-order-insert"],
+  [8192 + 80, "err-rtn-order-action"],
+  [8192 + 81, "rtn-instrument-status"],
+  [8192 + 82, "rtn-bulletin"],
+  [8192 + 83, "rtn-trading-notice"],
+  [8192 + 84, "rtn-error-conditional-order"],
+  [8192 + 85, "rtn-exec-order"],
+  [8192 + 86, "err-rtn-exec-order-insert"],
+  [8192 + 87, "err-rtn-exec-order-action"],
+  [8192 + 88, "err-rtn-for-quote-insert"],
+  [8192 + 89, "rtn-quote"],
+  [8192 + 90, "err-rtn-quote-insert"],
+  [8192 + 91, "err-rtn-quote-action"],
+  [8192 + 92, "rtn-for-quote-rsp"],
+  [8192 + 93, "rtn-cfmmc-trading-account-token"],
+  [8192 + 94, "err-rtn-batch-order-action"],
+  [8192 + 95, "rtn-option-self-close"],
+  [8192 + 96, "err-rtn-option-self-close-insert"],
+  [8192 + 97, "err-rtn-option-self-close-action"],
+  [8192 + 98, "rtn-comb-action"],
+  [8192 + 99, "err-rtn-comb-action-insert"],
+  [8192 + 100, "rsp-qry-contract-bank"],
+  [8192 + 101, "rsp-qry-parked-order"],
+  [8192 + 102, "rsp-qry-parked-order-action"],
+  [8192 + 103, "rsp-qry-trading-notice"],
+  [8192 + 104, "rsp-qry-broker-trading-params"],
+  [8192 + 105, "rsp-qry-broker-trading-algos"],
+  [8192 + 106, "rsp-query-cfmmc-trading-account-token"],
+  [8192 + 107, "rtn-from-bank-to-future-by-bank"],
+  [8192 + 108, "rtn-from-future-to-bank-by-bank"],
+  [8192 + 109, "rtn-repeal-from-bank-to-future-by-bank"],
+  [8192 + 110, "rtn-repeal-from-future-to-bank-by-bank"],
+  [8192 + 111, "rtn-from-bank-to-future-by-future"],
+  [8192 + 112, "rtn-from-future-to-bank-by-future"],
+  [8192 + 113, "rtn-repeal-from-bank-to-future-by-future-manual"],
+  [8192 + 114, "rtn-repeal-from-future-to-bank-by-future-manual"],
+  [8192 + 115, "rtn-query-bank-balance-by-future"],
+  [8192 + 116, "err-rtn-bank-to-future-by-future"],
+  [8192 + 117, "err-rtn-future-to-bank-by-future"],
+  [8192 + 118, "err-rtn-repeal-bank-to-future-by-future-manual"],
+  [8192 + 119, "err-rtn-repeal-future-to-bank-by-future-manual"],
+  [8192 + 120, "err-rtn-query-bank-balance-by-future"],
+  [8192 + 121, "rtn-repeal-from-bank-to-future-by-future"],
+  [8192 + 122, "rtn-repeal-from-future-to-bank-by-future"],
+  [8192 + 123, "rsp-from-bank-to-future-by-future"],
+  [8192 + 124, "rsp-from-future-to-bank-by-future"],
+  [8192 + 125, "rsp-query-bank-account-money-by-future"],
+  [8192 + 126, "rtn-open-account-by-bank"],
+  [8192 + 127, "rtn-cancel-account-by-bank"],
+  [8192 + 128, "rtn-change-account-by-bank"],
+  [8192 + 129, "rsp-qry-classified-instrument"],
+  [8192 + 130, "rsp-qry-comb-promotion-param"],
+  [8192 + 131, "rsp-qry-risk-settle-invst-position"],
+  [8192 + 132, "rsp-qry-risk-settle-product-status"],
+  [8192 + 133, "rsp-qry-spbm-future-parameter"],
+  [8192 + 134, "rsp-qry-spbm-option-parameter"],
+  [8192 + 135, "rsp-qry-spbm-intra-parameter"],
+  [8192 + 136, "rsp-qry-spbm-inter-parameter"],
+  [8192 + 137, "rsp-qry-spbm-portf-definition"],
+  [8192 + 138, "rsp-qry-spbm-investor-portf-def"],
+  [8192 + 139, "rsp-qry-investor-portf-margin-ratio"],
+  [8192 + 140, "rsp-qry-investor-prod-spbm-detail"],
+  [8192 + 141, "rsp-qry-investor-commodity-spmm-margin"],
+  [8192 + 142, "rsp-qry-investor-commodity-group-spmm-margin"],
+  [8192 + 143, "rsp-qry-spmm-inst-param"],
+  [8192 + 144, "rsp-qry-spmm-product-param"],
+  [8192 + 145, "rsp-qry-spbm-add-on-inter-parameter"],
+  [8192 + 146, "rsp-qry-rcams-comb-product-info"],
+  [8192 + 147, "rsp-qry-rcams-instr-parameter"],
+  [8192 + 148, "rsp-qry-rcams-intra-parameter"],
+  [8192 + 149, "rsp-qry-rcams-inter-parameter"],
+  [8192 + 150, "rsp-qry-rcams-short-opt-adjust-param"],
+  [8192 + 151, "rsp-qry-rcams-investor-comb-position"],
+  [8192 + 152, "rsp-qry-investor-prod-rcams-margin"],
+  [8192 + 153, "rsp-qry-rule-instr-parameter"],
+  [8192 + 154, "rsp-qry-rule-intra-parameter"],
+  [8192 + 155, "rsp-qry-rule-inter-parameter"],
+  [8192 + 156, "rsp-qry-investor-prod-rule-margin"],
+  [8192 + 157, "rsp-qry-investor-portf-setting"],
+  [8192 + 158, "rsp-qry-investor-info-comm-rec"],
+  [8192 + 159, "rsp-qry-comb-leg"],
+  [8192 + 160, "rsp-offset-setting"],
+  [8192 + 161, "rsp-cancel-offset-setting"],
+  [8192 + 162, "rtn-offset-setting"],
+  [8192 + 163, "err-rtn-offset-setting"],
+  [8192 + 164, "err-rtn-cancel-offset-setting"],
+  [8192 + 165, "rsp-qry-offset-setting"],
+  [8192 + 166, "rsp-gen-sms-code"],
+  [8192 + 167, "rsp-spd-apply"],
+  [8192 + 168, "rsp-spd-apply-action"],
+  [8192 + 169, "rsp-qry-spd-apply"],
+  [8192 + 170, "rtn-spd-apply"],
+  [8192 + 171, "err-rtn-spd-apply"],
+  [8192 + 172, "err-rtn-spd-apply-action"],
+  [8192 + 173, "rsp-hedge-cfm"],
+  [8192 + 174, "rsp-hedge-cfm-action"],
+  [8192 + 175, "rsp-qry-hedge-cfm"],
+  [8192 + 176, "rtn-hedge-cfm"],
+  [8192 + 177, "err-rtn-hedge-cfm"],
+  [8192 + 178, "err-rtn-hedge-cfm-action"],
 ]);
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -428,229 +476,271 @@ export abstract class TraderBase extends CtpClient {
   reqQryInstrumentCommissionRate(req: Partial<S.QryInstrumentCommissionRate> = {}): Promise<unknown[]> {
     return this.request((id) => this.native._req(36, this.encode(STRUCT_ID.QryInstrumentCommissionRate, req as Record<string, unknown>), id), false);
   }
+  reqQryUserSession(req: Partial<S.QryUserSession> = {}): Promise<unknown[]> {
+    return this.request((id) => this.native._req(37, this.encode(STRUCT_ID.QryUserSession, req as Record<string, unknown>), id), false);
+  }
   reqQryExchange(req: Partial<S.QryExchange> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(37, this.encode(STRUCT_ID.QryExchange, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(38, this.encode(STRUCT_ID.QryExchange, req as Record<string, unknown>), id), false);
   }
   reqQryProduct(req: Partial<S.QryProduct> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(38, this.encode(STRUCT_ID.QryProduct, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(39, this.encode(STRUCT_ID.QryProduct, req as Record<string, unknown>), id), false);
   }
   reqQryInstrument(req: Partial<S.QryInstrument> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(39, this.encode(STRUCT_ID.QryInstrument, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(40, this.encode(STRUCT_ID.QryInstrument, req as Record<string, unknown>), id), false);
   }
   reqQryDepthMarketData(req: Partial<S.QryDepthMarketData> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(40, this.encode(STRUCT_ID.QryDepthMarketData, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(41, this.encode(STRUCT_ID.QryDepthMarketData, req as Record<string, unknown>), id), false);
   }
   reqQryTraderOffer(req: Partial<S.QryTraderOffer> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(41, this.encode(STRUCT_ID.QryTraderOffer, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(42, this.encode(STRUCT_ID.QryTraderOffer, req as Record<string, unknown>), id), false);
   }
   reqQrySettlementInfo(req: Partial<S.QrySettlementInfo> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(42, this.encode(STRUCT_ID.QrySettlementInfo, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(43, this.encode(STRUCT_ID.QrySettlementInfo, req as Record<string, unknown>), id), false);
   }
   reqQryTransferBank(req: Partial<S.QryTransferBank> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(43, this.encode(STRUCT_ID.QryTransferBank, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(44, this.encode(STRUCT_ID.QryTransferBank, req as Record<string, unknown>), id), false);
   }
   reqQryInvestorPositionDetail(req: Partial<S.QryInvestorPositionDetail> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(44, this.encode(STRUCT_ID.QryInvestorPositionDetail, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(45, this.encode(STRUCT_ID.QryInvestorPositionDetail, req as Record<string, unknown>), id), false);
   }
   reqQryNotice(req: Partial<S.QryNotice> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(45, this.encode(STRUCT_ID.QryNotice, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(46, this.encode(STRUCT_ID.QryNotice, req as Record<string, unknown>), id), false);
   }
   reqQrySettlementInfoConfirm(req: Partial<S.QrySettlementInfoConfirm> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(46, this.encode(STRUCT_ID.QrySettlementInfoConfirm, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(47, this.encode(STRUCT_ID.QrySettlementInfoConfirm, req as Record<string, unknown>), id), false);
   }
   reqQryInvestorPositionCombineDetail(req: Partial<S.QryInvestorPositionCombineDetail> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(47, this.encode(STRUCT_ID.QryInvestorPositionCombineDetail, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(48, this.encode(STRUCT_ID.QryInvestorPositionCombineDetail, req as Record<string, unknown>), id), false);
   }
   reqQryCfmmcTradingAccountKey(req: Partial<S.QryCFMMCTradingAccountKey> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(48, this.encode(STRUCT_ID.QryCFMMCTradingAccountKey, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(49, this.encode(STRUCT_ID.QryCFMMCTradingAccountKey, req as Record<string, unknown>), id), false);
   }
   reqQryEWarrantOffset(req: Partial<S.QryEWarrantOffset> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(49, this.encode(STRUCT_ID.QryEWarrantOffset, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(50, this.encode(STRUCT_ID.QryEWarrantOffset, req as Record<string, unknown>), id), false);
   }
   reqQryInvestorProductGroupMargin(req: Partial<S.QryInvestorProductGroupMargin> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(50, this.encode(STRUCT_ID.QryInvestorProductGroupMargin, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(51, this.encode(STRUCT_ID.QryInvestorProductGroupMargin, req as Record<string, unknown>), id), false);
   }
   reqQryExchangeMarginRate(req: Partial<S.QryExchangeMarginRate> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(51, this.encode(STRUCT_ID.QryExchangeMarginRate, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(52, this.encode(STRUCT_ID.QryExchangeMarginRate, req as Record<string, unknown>), id), false);
   }
   reqQryExchangeMarginRateAdjust(req: Partial<S.QryExchangeMarginRateAdjust> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(52, this.encode(STRUCT_ID.QryExchangeMarginRateAdjust, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(53, this.encode(STRUCT_ID.QryExchangeMarginRateAdjust, req as Record<string, unknown>), id), false);
   }
   reqQryExchangeRate(req: Partial<S.QryExchangeRate> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(53, this.encode(STRUCT_ID.QryExchangeRate, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(54, this.encode(STRUCT_ID.QryExchangeRate, req as Record<string, unknown>), id), false);
   }
   reqQrySecAgentAcidMap(req: Partial<S.QrySecAgentACIDMap> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(54, this.encode(STRUCT_ID.QrySecAgentACIDMap, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(55, this.encode(STRUCT_ID.QrySecAgentACIDMap, req as Record<string, unknown>), id), false);
   }
   reqQryProductExchRate(req: Partial<S.QryProductExchRate> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(55, this.encode(STRUCT_ID.QryProductExchRate, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(56, this.encode(STRUCT_ID.QryProductExchRate, req as Record<string, unknown>), id), false);
   }
   reqQryProductGroup(req: Partial<S.QryProductGroup> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(56, this.encode(STRUCT_ID.QryProductGroup, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(57, this.encode(STRUCT_ID.QryProductGroup, req as Record<string, unknown>), id), false);
   }
   reqQryMmInstrumentCommissionRate(req: Partial<S.QryMMInstrumentCommissionRate> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(57, this.encode(STRUCT_ID.QryMMInstrumentCommissionRate, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(58, this.encode(STRUCT_ID.QryMMInstrumentCommissionRate, req as Record<string, unknown>), id), false);
   }
   reqQryMmOptionInstrCommRate(req: Partial<S.QryMMOptionInstrCommRate> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(58, this.encode(STRUCT_ID.QryMMOptionInstrCommRate, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(59, this.encode(STRUCT_ID.QryMMOptionInstrCommRate, req as Record<string, unknown>), id), false);
   }
   reqQryInstrumentOrderCommRate(req: Partial<S.QryInstrumentOrderCommRate> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(59, this.encode(STRUCT_ID.QryInstrumentOrderCommRate, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(60, this.encode(STRUCT_ID.QryInstrumentOrderCommRate, req as Record<string, unknown>), id), false);
   }
   reqQrySecAgentTradingAccount(req: Partial<S.QryTradingAccount> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(60, this.encode(STRUCT_ID.QryTradingAccount, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(61, this.encode(STRUCT_ID.QryTradingAccount, req as Record<string, unknown>), id), false);
   }
   reqQrySecAgentCheckMode(req: Partial<S.QrySecAgentCheckMode> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(61, this.encode(STRUCT_ID.QrySecAgentCheckMode, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(62, this.encode(STRUCT_ID.QrySecAgentCheckMode, req as Record<string, unknown>), id), false);
   }
   reqQrySecAgentTradeInfo(req: Partial<S.QrySecAgentTradeInfo> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(62, this.encode(STRUCT_ID.QrySecAgentTradeInfo, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(63, this.encode(STRUCT_ID.QrySecAgentTradeInfo, req as Record<string, unknown>), id), false);
   }
   reqQryOptionInstrTradeCost(req: Partial<S.QryOptionInstrTradeCost> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(63, this.encode(STRUCT_ID.QryOptionInstrTradeCost, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(64, this.encode(STRUCT_ID.QryOptionInstrTradeCost, req as Record<string, unknown>), id), false);
   }
   reqQryOptionInstrCommRate(req: Partial<S.QryOptionInstrCommRate> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(64, this.encode(STRUCT_ID.QryOptionInstrCommRate, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(65, this.encode(STRUCT_ID.QryOptionInstrCommRate, req as Record<string, unknown>), id), false);
   }
   reqQryExecOrder(req: Partial<S.QryExecOrder> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(65, this.encode(STRUCT_ID.QryExecOrder, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(66, this.encode(STRUCT_ID.QryExecOrder, req as Record<string, unknown>), id), false);
   }
   reqQryForQuote(req: Partial<S.QryForQuote> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(66, this.encode(STRUCT_ID.QryForQuote, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(67, this.encode(STRUCT_ID.QryForQuote, req as Record<string, unknown>), id), false);
   }
   reqQryQuote(req: Partial<S.QryQuote> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(67, this.encode(STRUCT_ID.QryQuote, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(68, this.encode(STRUCT_ID.QryQuote, req as Record<string, unknown>), id), false);
   }
   reqQryOptionSelfClose(req: Partial<S.QryOptionSelfClose> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(68, this.encode(STRUCT_ID.QryOptionSelfClose, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(69, this.encode(STRUCT_ID.QryOptionSelfClose, req as Record<string, unknown>), id), false);
   }
   reqQryInvestUnit(req: Partial<S.QryInvestUnit> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(69, this.encode(STRUCT_ID.QryInvestUnit, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(70, this.encode(STRUCT_ID.QryInvestUnit, req as Record<string, unknown>), id), false);
   }
   reqQryCombInstrumentGuard(req: Partial<S.QryCombInstrumentGuard> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(70, this.encode(STRUCT_ID.QryCombInstrumentGuard, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(71, this.encode(STRUCT_ID.QryCombInstrumentGuard, req as Record<string, unknown>), id), false);
   }
   reqQryCombAction(req: Partial<S.QryCombAction> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(71, this.encode(STRUCT_ID.QryCombAction, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(72, this.encode(STRUCT_ID.QryCombAction, req as Record<string, unknown>), id), false);
   }
   reqQryTransferSerial(req: Partial<S.QryTransferSerial> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(72, this.encode(STRUCT_ID.QryTransferSerial, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(73, this.encode(STRUCT_ID.QryTransferSerial, req as Record<string, unknown>), id), false);
   }
   reqQryAccountregister(req: Partial<S.QryAccountregister> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(73, this.encode(STRUCT_ID.QryAccountregister, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(74, this.encode(STRUCT_ID.QryAccountregister, req as Record<string, unknown>), id), false);
   }
   reqQryContractBank(req: Partial<S.QryContractBank> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(74, this.encode(STRUCT_ID.QryContractBank, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(75, this.encode(STRUCT_ID.QryContractBank, req as Record<string, unknown>), id), false);
   }
   reqQryParkedOrder(req: Partial<S.QryParkedOrder> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(75, this.encode(STRUCT_ID.QryParkedOrder, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(76, this.encode(STRUCT_ID.QryParkedOrder, req as Record<string, unknown>), id), false);
   }
   reqQryParkedOrderAction(req: Partial<S.QryParkedOrderAction> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(76, this.encode(STRUCT_ID.QryParkedOrderAction, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(77, this.encode(STRUCT_ID.QryParkedOrderAction, req as Record<string, unknown>), id), false);
   }
   reqQryTradingNotice(req: Partial<S.QryTradingNotice> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(77, this.encode(STRUCT_ID.QryTradingNotice, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(78, this.encode(STRUCT_ID.QryTradingNotice, req as Record<string, unknown>), id), false);
   }
   reqQryBrokerTradingParams(req: Partial<S.QryBrokerTradingParams> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(78, this.encode(STRUCT_ID.QryBrokerTradingParams, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(79, this.encode(STRUCT_ID.QryBrokerTradingParams, req as Record<string, unknown>), id), false);
   }
   reqQryBrokerTradingAlgos(req: Partial<S.QryBrokerTradingAlgos> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(79, this.encode(STRUCT_ID.QryBrokerTradingAlgos, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(80, this.encode(STRUCT_ID.QryBrokerTradingAlgos, req as Record<string, unknown>), id), false);
   }
   reqQueryCfmmcTradingAccountToken(req: Partial<S.QueryCFMMCTradingAccountToken> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(80, this.encode(STRUCT_ID.QueryCFMMCTradingAccountToken, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(81, this.encode(STRUCT_ID.QueryCFMMCTradingAccountToken, req as Record<string, unknown>), id), true);
   }
   reqFromBankToFutureByFuture(req: Partial<S.ReqTransfer> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(81, this.encode(STRUCT_ID.ReqTransfer, req as Record<string, unknown>), id), true);
-  }
-  reqFromFutureToBankByFuture(req: Partial<S.ReqTransfer> = {}): Promise<unknown> {
     return this.request((id) => this.native._req(82, this.encode(STRUCT_ID.ReqTransfer, req as Record<string, unknown>), id), true);
   }
+  reqFromFutureToBankByFuture(req: Partial<S.ReqTransfer> = {}): Promise<unknown> {
+    return this.request((id) => this.native._req(83, this.encode(STRUCT_ID.ReqTransfer, req as Record<string, unknown>), id), true);
+  }
   reqQueryBankAccountMoneyByFuture(req: Partial<S.ReqQueryAccount> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(83, this.encode(STRUCT_ID.ReqQueryAccount, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(84, this.encode(STRUCT_ID.ReqQueryAccount, req as Record<string, unknown>), id), true);
   }
   reqQryClassifiedInstrument(req: Partial<S.QryClassifiedInstrument> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(84, this.encode(STRUCT_ID.QryClassifiedInstrument, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(85, this.encode(STRUCT_ID.QryClassifiedInstrument, req as Record<string, unknown>), id), false);
   }
   reqQryCombPromotionParam(req: Partial<S.QryCombPromotionParam> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(85, this.encode(STRUCT_ID.QryCombPromotionParam, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(86, this.encode(STRUCT_ID.QryCombPromotionParam, req as Record<string, unknown>), id), false);
   }
   reqQryRiskSettleInvstPosition(req: Partial<S.QryRiskSettleInvstPosition> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(86, this.encode(STRUCT_ID.QryRiskSettleInvstPosition, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(87, this.encode(STRUCT_ID.QryRiskSettleInvstPosition, req as Record<string, unknown>), id), false);
   }
   reqQryRiskSettleProductStatus(req: Partial<S.QryRiskSettleProductStatus> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(87, this.encode(STRUCT_ID.QryRiskSettleProductStatus, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(88, this.encode(STRUCT_ID.QryRiskSettleProductStatus, req as Record<string, unknown>), id), false);
   }
   reqQrySpbmFutureParameter(req: Partial<S.QrySPBMFutureParameter> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(88, this.encode(STRUCT_ID.QrySPBMFutureParameter, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(89, this.encode(STRUCT_ID.QrySPBMFutureParameter, req as Record<string, unknown>), id), false);
   }
   reqQrySpbmOptionParameter(req: Partial<S.QrySPBMOptionParameter> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(89, this.encode(STRUCT_ID.QrySPBMOptionParameter, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(90, this.encode(STRUCT_ID.QrySPBMOptionParameter, req as Record<string, unknown>), id), false);
   }
   reqQrySpbmIntraParameter(req: Partial<S.QrySPBMIntraParameter> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(90, this.encode(STRUCT_ID.QrySPBMIntraParameter, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(91, this.encode(STRUCT_ID.QrySPBMIntraParameter, req as Record<string, unknown>), id), false);
   }
   reqQrySpbmInterParameter(req: Partial<S.QrySPBMInterParameter> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(91, this.encode(STRUCT_ID.QrySPBMInterParameter, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(92, this.encode(STRUCT_ID.QrySPBMInterParameter, req as Record<string, unknown>), id), false);
   }
   reqQrySpbmPortfDefinition(req: Partial<S.QrySPBMPortfDefinition> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(92, this.encode(STRUCT_ID.QrySPBMPortfDefinition, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(93, this.encode(STRUCT_ID.QrySPBMPortfDefinition, req as Record<string, unknown>), id), false);
   }
   reqQrySpbmInvestorPortfDef(req: Partial<S.QrySPBMInvestorPortfDef> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(93, this.encode(STRUCT_ID.QrySPBMInvestorPortfDef, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(94, this.encode(STRUCT_ID.QrySPBMInvestorPortfDef, req as Record<string, unknown>), id), false);
   }
   reqQryInvestorPortfMarginRatio(req: Partial<S.QryInvestorPortfMarginRatio> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(94, this.encode(STRUCT_ID.QryInvestorPortfMarginRatio, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(95, this.encode(STRUCT_ID.QryInvestorPortfMarginRatio, req as Record<string, unknown>), id), false);
   }
   reqQryInvestorProdSpbmDetail(req: Partial<S.QryInvestorProdSPBMDetail> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(95, this.encode(STRUCT_ID.QryInvestorProdSPBMDetail, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(96, this.encode(STRUCT_ID.QryInvestorProdSPBMDetail, req as Record<string, unknown>), id), false);
   }
   reqQryInvestorCommoditySpmmMargin(req: Partial<S.QryInvestorCommoditySPMMMargin> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(96, this.encode(STRUCT_ID.QryInvestorCommoditySPMMMargin, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(97, this.encode(STRUCT_ID.QryInvestorCommoditySPMMMargin, req as Record<string, unknown>), id), false);
   }
   reqQryInvestorCommodityGroupSpmmMargin(req: Partial<S.QryInvestorCommodityGroupSPMMMargin> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(97, this.encode(STRUCT_ID.QryInvestorCommodityGroupSPMMMargin, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(98, this.encode(STRUCT_ID.QryInvestorCommodityGroupSPMMMargin, req as Record<string, unknown>), id), false);
   }
   reqQrySpmmInstParam(req: Partial<S.QrySPMMInstParam> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(98, this.encode(STRUCT_ID.QrySPMMInstParam, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(99, this.encode(STRUCT_ID.QrySPMMInstParam, req as Record<string, unknown>), id), false);
   }
   reqQrySpmmProductParam(req: Partial<S.QrySPMMProductParam> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(99, this.encode(STRUCT_ID.QrySPMMProductParam, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(100, this.encode(STRUCT_ID.QrySPMMProductParam, req as Record<string, unknown>), id), false);
   }
   reqQrySpbmAddOnInterParameter(req: Partial<S.QrySPBMAddOnInterParameter> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(100, this.encode(STRUCT_ID.QrySPBMAddOnInterParameter, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(101, this.encode(STRUCT_ID.QrySPBMAddOnInterParameter, req as Record<string, unknown>), id), false);
   }
   reqQryRcamsCombProductInfo(req: Partial<S.QryRCAMSCombProductInfo> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(101, this.encode(STRUCT_ID.QryRCAMSCombProductInfo, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(102, this.encode(STRUCT_ID.QryRCAMSCombProductInfo, req as Record<string, unknown>), id), false);
   }
   reqQryRcamsInstrParameter(req: Partial<S.QryRCAMSInstrParameter> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(102, this.encode(STRUCT_ID.QryRCAMSInstrParameter, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(103, this.encode(STRUCT_ID.QryRCAMSInstrParameter, req as Record<string, unknown>), id), false);
   }
   reqQryRcamsIntraParameter(req: Partial<S.QryRCAMSIntraParameter> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(103, this.encode(STRUCT_ID.QryRCAMSIntraParameter, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(104, this.encode(STRUCT_ID.QryRCAMSIntraParameter, req as Record<string, unknown>), id), false);
   }
   reqQryRcamsInterParameter(req: Partial<S.QryRCAMSInterParameter> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(104, this.encode(STRUCT_ID.QryRCAMSInterParameter, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(105, this.encode(STRUCT_ID.QryRCAMSInterParameter, req as Record<string, unknown>), id), false);
   }
   reqQryRcamsShortOptAdjustParam(req: Partial<S.QryRCAMSShortOptAdjustParam> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(105, this.encode(STRUCT_ID.QryRCAMSShortOptAdjustParam, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(106, this.encode(STRUCT_ID.QryRCAMSShortOptAdjustParam, req as Record<string, unknown>), id), false);
   }
   reqQryRcamsInvestorCombPosition(req: Partial<S.QryRCAMSInvestorCombPosition> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(106, this.encode(STRUCT_ID.QryRCAMSInvestorCombPosition, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(107, this.encode(STRUCT_ID.QryRCAMSInvestorCombPosition, req as Record<string, unknown>), id), false);
   }
   reqQryInvestorProdRcamsMargin(req: Partial<S.QryInvestorProdRCAMSMargin> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(107, this.encode(STRUCT_ID.QryInvestorProdRCAMSMargin, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(108, this.encode(STRUCT_ID.QryInvestorProdRCAMSMargin, req as Record<string, unknown>), id), false);
   }
   reqQryRuleInstrParameter(req: Partial<S.QryRULEInstrParameter> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(108, this.encode(STRUCT_ID.QryRULEInstrParameter, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(109, this.encode(STRUCT_ID.QryRULEInstrParameter, req as Record<string, unknown>), id), false);
   }
   reqQryRuleIntraParameter(req: Partial<S.QryRULEIntraParameter> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(109, this.encode(STRUCT_ID.QryRULEIntraParameter, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(110, this.encode(STRUCT_ID.QryRULEIntraParameter, req as Record<string, unknown>), id), false);
   }
   reqQryRuleInterParameter(req: Partial<S.QryRULEInterParameter> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(110, this.encode(STRUCT_ID.QryRULEInterParameter, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(111, this.encode(STRUCT_ID.QryRULEInterParameter, req as Record<string, unknown>), id), false);
   }
   reqQryInvestorProdRuleMargin(req: Partial<S.QryInvestorProdRULEMargin> = {}): Promise<unknown[]> {
-    return this.request((id) => this.native._req(111, this.encode(STRUCT_ID.QryInvestorProdRULEMargin, req as Record<string, unknown>), id), false);
+    return this.request((id) => this.native._req(112, this.encode(STRUCT_ID.QryInvestorProdRULEMargin, req as Record<string, unknown>), id), false);
+  }
+  reqQryInvestorPortfSetting(req: Partial<S.QryInvestorPortfSetting> = {}): Promise<unknown[]> {
+    return this.request((id) => this.native._req(113, this.encode(STRUCT_ID.QryInvestorPortfSetting, req as Record<string, unknown>), id), false);
+  }
+  reqQryInvestorInfoCommRec(req: Partial<S.QryInvestorInfoCommRec> = {}): Promise<unknown[]> {
+    return this.request((id) => this.native._req(114, this.encode(STRUCT_ID.QryInvestorInfoCommRec, req as Record<string, unknown>), id), false);
+  }
+  reqQryCombLeg(req: Partial<S.QryCombLeg> = {}): Promise<unknown[]> {
+    return this.request((id) => this.native._req(115, this.encode(STRUCT_ID.QryCombLeg, req as Record<string, unknown>), id), false);
+  }
+  reqOffsetSetting(req: Partial<S.InputOffsetSetting> = {}): Promise<unknown> {
+    return this.request((id) => this.native._req(116, this.encode(STRUCT_ID.InputOffsetSetting, req as Record<string, unknown>), id), true);
+  }
+  reqCancelOffsetSetting(req: Partial<S.InputOffsetSetting> = {}): Promise<unknown> {
+    return this.request((id) => this.native._req(117, this.encode(STRUCT_ID.InputOffsetSetting, req as Record<string, unknown>), id), true);
+  }
+  reqQryOffsetSetting(req: Partial<S.QryOffsetSetting> = {}): Promise<unknown[]> {
+    return this.request((id) => this.native._req(118, this.encode(STRUCT_ID.QryOffsetSetting, req as Record<string, unknown>), id), false);
+  }
+  reqGenSmsCode(req: Partial<S.ReqGenSMSCode> = {}): Promise<unknown> {
+    return this.request((id) => this.native._req(119, this.encode(STRUCT_ID.ReqGenSMSCode, req as Record<string, unknown>), id), true);
+  }
+  reqSpdApply(req: Partial<S.InputSpdApply> = {}): Promise<unknown> {
+    return this.request((id) => this.native._req(120, this.encode(STRUCT_ID.InputSpdApply, req as Record<string, unknown>), id), true);
+  }
+  reqSpdApplyAction(req: Partial<S.InputSpdApplyAction> = {}): Promise<unknown> {
+    return this.request((id) => this.native._req(121, this.encode(STRUCT_ID.InputSpdApplyAction, req as Record<string, unknown>), id), true);
+  }
+  reqQrySpdApply(req: Partial<S.QrySpdApply> = {}): Promise<unknown[]> {
+    return this.request((id) => this.native._req(122, this.encode(STRUCT_ID.QrySpdApply, req as Record<string, unknown>), id), false);
+  }
+  reqHedgeCfm(req: Partial<S.InputHedgeCfm> = {}): Promise<unknown> {
+    return this.request((id) => this.native._req(123, this.encode(STRUCT_ID.InputHedgeCfm, req as Record<string, unknown>), id), true);
+  }
+  reqHedgeCfmAction(req: Partial<S.InputHedgeCfmAction> = {}): Promise<unknown> {
+    return this.request((id) => this.native._req(124, this.encode(STRUCT_ID.InputHedgeCfmAction, req as Record<string, unknown>), id), true);
+  }
+  reqQryHedgeCfm(req: Partial<S.QryHedgeCfm> = {}): Promise<unknown[]> {
+    return this.request((id) => this.native._req(125, this.encode(STRUCT_ID.QryHedgeCfm, req as Record<string, unknown>), id), false);
   }
 }

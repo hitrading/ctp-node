@@ -94,6 +94,7 @@ export enum FunctionCode {
   ParkedOrderAction = "D",
   SyncOTP = "E",
   DeleteOrder = "F",
+  ExitEmergency = "G",
 }
 
 /** TThostFtdcBrokerFunctionCodeType */
@@ -153,6 +154,7 @@ export enum BrokerFunctionCode {
   QryPosiLimit = "V",
   FBSign = "W",
   FBAccount = "X",
+  RcvSMSCode = "Y",
 }
 
 /** TThostFtdcOrderActionStatusType */
@@ -338,6 +340,9 @@ export enum ForceCloseReason {
   Other = "6",
   PersonDeliv = "7",
   Notverifycapital = "8",
+  LocalLackDeposit = "9",
+  LocalViolationNocheck = "a",
+  LocalViolation = "b",
 }
 
 /** TThostFtdcOrderTypeType */
@@ -442,6 +447,7 @@ export enum InstrumentStatusType {
   AuctionBalance = "4",
   AuctionMatch = "5",
   Closed = "6",
+  TransactionProcessing = "7",
 }
 
 /** TThostFtdcInstStatusEnterReasonType */
@@ -567,6 +573,13 @@ export enum TradeParamID {
   MinPwdLen = "O",
   LoginFailMaxNumForIP = "U",
   PasswordPeriod = "V",
+  PwdHistoryCmp = "X",
+  TranferChkProperty = "i",
+  TradeChkPhase = "j",
+  TradeChkPriceVol = "k",
+  NewBESMarginAlgo = "l",
+  IsDceFutCloseFrozen = "m",
+  UseSMSVerify = "n",
 }
 
 /** TThostFtdcFileIDType */
@@ -913,6 +926,7 @@ export enum UserEventType {
   SubmitSysInfo = "7",
   Transfer = "8",
   Other = "9",
+  UpdateTradingAccountPassword = "a",
 }
 
 /** TThostFtdcCloseStyleType */
@@ -2572,5 +2586,69 @@ export enum ProdChangeFlag {
   None = "0",
   OnlyFrozen = "1",
   PositionChange = "2",
+}
+
+/** TThostFtdcPwdRcdSrcType */
+export enum PwdRcdSrc {
+  Init = "0",
+  Sync = "1",
+  UserUpd = "2",
+  SuperUserUpd = "3",
+  SecUpd = "4",
+}
+
+/** TThostFtdcAddrSrvModeType */
+export enum AddrSrvMode {
+  Trade = "0",
+  MarketData = "1",
+  Other = "2",
+}
+
+/** TThostFtdcAddrVerType */
+export enum AddrVer {
+  V4 = "0",
+  V6 = "1",
+}
+
+/** TThostFtdcTGSessionQryStatusType */
+export enum TGSessionQryStatusType {
+  QryIdle = "1",
+  QryBusy = "2",
+}
+
+/** TThostFtdcOffsetTypeType */
+export enum OffsetType {
+  OPT_OFFSET = "0",
+  FUT_OFFSET = "1",
+  EXEC_OFFSET = "2",
+  PERFORM_OFFSET = "3",
+}
+
+/** TThostFtdcApplySrcType */
+export enum ApplySrc {
+  Trade = "0",
+  Member = "1",
+}
+
+/** TThostFtdcApplyStatusType */
+export enum ApplyStatus {
+  Unknown = "a",
+  Canceled = "0",
+  Suspended = "1",
+  Accepted = "3",
+}
+
+/** TThostFtdcCmbTypeType */
+export enum CmbType {
+  SPZ = "0",
+  SPD = "1",
+  IPS = "2",
+  BUL = "3",
+  BER = "4",
+  BLT = "5",
+  BRT = "6",
+  STD = "7",
+  STG = "8",
+  PRT = "9",
 }
 
