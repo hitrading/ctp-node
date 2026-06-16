@@ -190,6 +190,24 @@ int main() {
     CHECK(r.currentPositionCost() == 0.0, "onTrade rejects a fill whose cost product is non-finite");
   }
   {
+    // RESERVATION-path sentinel guard (costPrice): a working open order with a
+    // DBL_MAX limit price must reserve 0 cost (not Inf) so that when it goes
+    // terminal the reconcile can't yield NaN and silently void every cost cap
+    // book-wide. This is the round-17 hole; costPrice() closes it.
+    RiskEngine r;
+    RiskConfig c;
+    c.maxPositionCost = 100000;
+    r.configure(c);
+    r.setSession(1, 7);
+    r.setMultiplier("rb", 10);
+    CHECK(r.tryReserveOpen("o1", "rb", true, DMAX, 1) == OpenGate::Ok,
+          "reservation: a DBL_MAX limit price reserves 0 cost (not Inf), so it passes the cap");
+    r.onOrderUpdate(1, 7, "o1", "rb", true, true, '0', DMAX, 1, 1); // terminal: reconcile must stay finite
+    r.onTrade("rb", true, true, 9000, 2); // held 9000*2*10 = 180000, over the 100000 cap
+    CHECK(r.tryReserveOpen("o2", "rb", true, 9000, 1) == OpenGate::CostLimit,
+          "reservation: the cost cap STILL blocks after a DBL_MAX order (no NaN-void)");
+  }
+  {
     RiskEngine r;
     RiskConfig c;
     c.maxPositionCost = 100000;
