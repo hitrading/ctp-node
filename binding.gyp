@@ -17,7 +17,7 @@
       ],
       "include_dirs": [
         "<!(node -p \"require('node-addon-api').include_dir\")",
-        "tradeapi"
+        "ctpapi"
       ],
       "defines": [
         "NAPI_VERSION=8",
@@ -27,7 +27,7 @@
       "cflags_cc!": [ "-fno-exceptions" ],
       "conditions": [
         ["OS=='win'", {
-          "library_dirs": [ "<(module_root_dir)/tradeapi/windows" ],
+          "library_dirs": [ "<(module_root_dir)/ctpapi/windows" ],
           "libraries": [
             "thostmduserapi_se.lib",
             "thosttraderapi_se.lib"
@@ -41,42 +41,42 @@
             {
               "destination": "<(PRODUCT_DIR)",
               "files": [
-                "<(module_root_dir)/tradeapi/windows/thostmduserapi_se.dll",
-                "<(module_root_dir)/tradeapi/windows/thosttraderapi_se.dll"
+                "<(module_root_dir)/ctpapi/windows/thostmduserapi_se.dll",
+                "<(module_root_dir)/ctpapi/windows/thosttraderapi_se.dll"
               ]
             }
           ]
         }],
         ["OS=='linux'", {
           "libraries": [
-            "<(module_root_dir)/tradeapi/linux/thostmduserapi_se.so",
-            "<(module_root_dir)/tradeapi/linux/thosttraderapi_se.so",
+            "<(module_root_dir)/ctpapi/linux/thostmduserapi_se.so",
+            "<(module_root_dir)/ctpapi/linux/thosttraderapi_se.so",
             "-Wl,-rpath,'$$ORIGIN'",
-            "-Wl,-rpath,<(module_root_dir)/tradeapi/linux"
+            "-Wl,-rpath,<(module_root_dir)/ctpapi/linux"
           ],
           "cflags_cc": [ "-std=c++17", "-fexceptions" ],
           "copies": [
             {
               "destination": "<(PRODUCT_DIR)",
               "files": [
-                "<(module_root_dir)/tradeapi/linux/thostmduserapi_se.so",
-                "<(module_root_dir)/tradeapi/linux/thosttraderapi_se.so"
+                "<(module_root_dir)/ctpapi/linux/thostmduserapi_se.so",
+                "<(module_root_dir)/ctpapi/linux/thosttraderapi_se.so"
               ]
             }
           ]
         }],
         ["OS=='mac'", {
           "include_dirs": [
-            "<(module_root_dir)/tradeapi/macos/thostmduserapi_se.framework/Versions/A/Headers",
-            "<(module_root_dir)/tradeapi/macos/thosttraderapi_se.framework/Versions/A/Headers"
+            "<(module_root_dir)/ctpapi/macos/thostmduserapi_se.framework/Versions/A/Headers",
+            "<(module_root_dir)/ctpapi/macos/thosttraderapi_se.framework/Versions/A/Headers"
           ],
           "libraries": [
-            "-F<(module_root_dir)/tradeapi/macos",
+            "-F<(module_root_dir)/ctpapi/macos",
             "-framework thostmduserapi_se",
             "-framework thosttraderapi_se",
             "-liconv",
             "-Wl,-rpath,@loader_path",
-            "-Wl,-rpath,<(module_root_dir)/tradeapi/macos"
+            "-Wl,-rpath,<(module_root_dir)/ctpapi/macos"
           ],
           "xcode_settings": {
             "GCC_ENABLE_CPP_EXCEPTIONS": "YES",

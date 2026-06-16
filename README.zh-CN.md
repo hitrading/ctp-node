@@ -179,7 +179,7 @@ CTP 回调线程 (C++)                          Node 事件循环 (JS)
    交易端丢最新/可靠)
 ```
 
-公开 API 之下的一切都由 CTP 头文件（`tradeapi/ThostFtdc*.h`）经 `scripts/codegen/` 生成—— 466 个结构体接口、318 个枚举、字段布局表（经 `offsetof`），以及完整的 trader SPI + 请求分发。更新头文件后运行 `npm run gen`。
+公开 API 之下的一切都由 CTP 头文件（`ctpapi/ThostFtdc*.h`）经 `scripts/codegen/` 生成—— 466 个结构体接口、318 个枚举、字段布局表（经 `offsetof`），以及完整的 trader SPI + 请求分发。更新头文件后运行 `npm run gen`。
 
 ## 从源码构建
 

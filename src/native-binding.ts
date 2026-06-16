@@ -15,7 +15,7 @@ const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 // so it is found regardless of where the .node lives (build/ or prebuilds/).
 // Linux/macOS resolve their .so/.framework via the rpath baked at build time.
 if (process.platform === "win32") {
-  process.env.PATH = `${join(pkgRoot, "tradeapi", "windows")};${process.env.PATH ?? ""}`;
+  process.env.PATH = `${join(pkgRoot, "ctpapi", "windows")};${process.env.PATH ?? ""}`;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

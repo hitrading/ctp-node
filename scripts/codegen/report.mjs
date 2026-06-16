@@ -6,8 +6,8 @@
 import { parseDataTypes, parseStructs } from "./parse.mjs";
 import { camelCase, structTypeName } from "./naming.mjs";
 
-const DT = new URL("../../tradeapi/ThostFtdcUserApiDataType.h", import.meta.url);
-const ST = new URL("../../tradeapi/ThostFtdcUserApiStruct.h", import.meta.url);
+const DT = new URL("../../ctpapi/ThostFtdcUserApiDataType.h", import.meta.url);
+const ST = new URL("../../ctpapi/ThostFtdcUserApiStruct.h", import.meta.url);
 
 const { types, enums } = await parseDataTypes(DT);
 const structs = await parseStructs(ST);
