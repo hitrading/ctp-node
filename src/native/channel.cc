@@ -121,10 +121,21 @@ uint32_t EventChannel::validate(uint32_t claimed) {
   // batch claim() handed us, overwriting the oldest records mid-read. Compare the
   // current write index against the batch start (readIdx_, unchanged since claim()
   // because only the consumer advances it, and we have not released yet): any
-  // record now below w - numSlots was torn during decode and must be discarded.
+  // record at or below the in-flight write slot was (or is being) torn and must
+  // be discarded.
+  //
+  // floor = w - numSlots + 1, NOT w - numSlots. push() writes physical slot
+  // (idx % numSlots) BEFORE publishing writeIdx_ = idx+1, so when we observe
+  // writeIdx_ == w the producer may be mid-overwriting the slot for index w —
+  // which is the SAME physical slot that holds index (w - numSlots). We cannot
+  // tell "finished w-1, idle" from "mid-writing w", so we conservatively treat
+  // index (w - numSlots) as torn too. Using w - numSlots here would deliver that
+  // boundary record while its slot is being overwritten — a torn quote reaching
+  // a handler (silent corruption under sustained overflow). Costs at most one
+  // extra (still-fresh) drop per fully-lapped batch; correct for drop-oldest.
   const uint64_t w = writeIdx_.load(std::memory_order_acquire);
   const uint64_t r = readIdx_.load(std::memory_order_relaxed);
-  const uint64_t floor = (w > numSlots_) ? (w - numSlots_) : 0;
+  const uint64_t floor = (w >= numSlots_) ? (w - numSlots_ + 1) : 0;
   if (floor <= r)
     return 0; // producer never reached our batch; every decoded record is clean
   uint64_t torn = floor - r;

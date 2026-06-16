@@ -105,9 +105,15 @@ interface DecodedRecord {
 // for any sane app (a few long-lived clients) and for the test suite. See
 // docs/native-hooks.md ("Process lifecycle").
 function recreateWarnThreshold(raw: string | undefined): number {
-  if (raw === undefined) return 8;
+  // Default 3: the vendor DLL deadlocks inside Release() after only ~4
+  // Init()/Release() cycles, so a higher threshold would never fire before the
+  // very hang it warns about. 3 lets the warning print on the close() that
+  // precedes the typical wedge, while a create-once app (one or two long-lived
+  // clients closed at shutdown) stays under it. 0 disables.
+  const DEFAULT = 3;
+  if (raw === undefined) return DEFAULT;
   const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 8;
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : DEFAULT;
 }
 const RECREATE_WARN_THRESHOLD = recreateWarnThreshold(process.env.CTP_RECREATE_WARN);
 let startedThenClosed = 0;

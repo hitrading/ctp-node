@@ -82,5 +82,41 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   md.close();
 }
 
+// ----- slow consumer widens the torn window (validate() floor regression) -----
+// The fast handler above rarely overlaps a producer overwrite with a decode, so
+// it under-exercises validate(). A handler that busy-waits per record makes the
+// consumer fall far behind a tight producer, so the producer laps the ring
+// *while records are being decoded* — the exact condition that exposed the
+// off-by-one floor (delivering the boundary record whose slot was mid-overwrite).
+// Every delivered record must still have header requestId == payload Volume.
+{
+  const md = new MarketData("./flow-md/", "tcp://127.0.0.1:1");
+  let torn = 0;
+  const seen = new Set();
+  let dup = 0, maxSeq = -1, recv = 0;
+  const busy = (us) => {
+    const end = process.hrtime.bigint() + BigInt(us) * 1000n;
+    while (process.hrtime.bigint() < end) { /* spin */ }
+  };
+  md.on("rtn-depth-market-data", (d, opts) => {
+    recv++;
+    if (opts.requestId !== undefined && opts.requestId !== d.volume) torn++; // torn slipped through
+    if (seen.has(d.volume)) dup++; else seen.add(d.volume);
+    if (d.volume > maxSeq) maxSeq = d.volume;
+    busy(40); // ~40us/record -> consumer lags, producer laps mid-decode
+  });
+  const N = 200000;
+  const dropBefore = md.droppedRecords;
+  md._burstTicks(N, 0);
+  const deadline = Date.now() + 20000;
+  while (recv + (md.droppedRecords - dropBefore) < N && Date.now() < deadline) await sleep(5);
+  for (let i = 0; i < 5; i++) await sleep(5);
+  const dropped = md.droppedRecords - dropBefore;
+  check(recv + dropped === N, `slow-consumer conservation: received(${recv}) + dropped(${dropped}) == ${N}`);
+  check(torn === 0, `slow-consumer: no torn record delivered under heavy lapping (${torn} mismatches over ${recv} delivered)`);
+  check(dup === 0, `slow-consumer: no double-delivery (${dup} dups)`);
+  md.close();
+}
+
 console.log(`BACKPRESSURE TEST: ${pass} pass, ${fail} fail`);
 process.exitCode = fail ? 1 : 0;
