@@ -88,7 +88,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: https://registry.npmjs.org/
+          # NOTE: deliberately NO registry-url here. setup-node's registry-url
+          # writes an .npmrc with _authToken=${NODE_AUTH_TOKEN}, which collides
+          # with @semantic-release/npm's own NPM_TOKEN auth and yields a 401
+          # ("EINVALIDNPMTOKEN"). semantic-release configures the registry itself.
       - uses: actions/download-artifact@v4
         with:
           pattern: prebuilds-*
