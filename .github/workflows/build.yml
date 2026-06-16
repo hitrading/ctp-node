@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-13]
+        os: [windows-2022, ubuntu-latest, macos-13]   # windows-2022 (not -latest=Server2025): node-gyp finds VS 2022 reliably
     runs-on: ${{ matrix.os }}
     # macOS is best-effort: the CTP vendor framework can't be validated from the
     # dev host, so don't let it fail the workflow (or redden the badge). Windows
@@ -30,7 +30,7 @@ jobs:
         run: |
           dir=$(ls -d prebuilds/*/ | head -n1)
           case "${{ matrix.os }}" in
-            windows-latest) cp tradeapi/windows/*.dll "$dir" || true ;;
+            windows-2022)  cp tradeapi/windows/*.dll "$dir" || true ;;
             ubuntu-latest)  cp tradeapi/linux/*.so "$dir" ;;
             macos-13)       cp -R tradeapi/macos/*.framework "$dir" ;;
           esac
