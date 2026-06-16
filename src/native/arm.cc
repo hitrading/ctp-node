@@ -53,8 +53,15 @@ void ArmRegistry::onTick(const char *instrumentId, double bid, double ask) {
   for (auto &a : armed_) {
     if (a.fired || a.instrumentId != instrumentId)
       continue;
-    const bool hit = (a.side == '0') ? (ask > 0.0 && ask <= a.triggerPrice)
-                                     : (bid > 0.0 && bid >= a.triggerPrice);
+    // The bid/ask must be a real, finite, sub-sentinel price. CTP writes DBL_MAX
+    // (~1.8e308) into BidPrice1/AskPrice1 when a side is empty - e.g. at
+    // limit-down there are no bids, so BidPrice1 == DBL_MAX. Without the
+    // `< 1e300` guard a SELL trigger (bid >= triggerPrice) would fire on that
+    // sentinel: a spurious market sell at the worst possible moment. Mirrors the
+    // sentinel band rejected everywhere in risk.cc (sanePositive).
+    const bool hit = (a.side == '0')
+        ? (ask > 0.0 && ask < 1e300 && ask <= a.triggerPrice)
+        : (bid > 0.0 && bid < 1e300 && bid >= a.triggerPrice);
     if (!hit)
       continue;
     a.fired = true; // one-shot: consumed on the first trigger, sent or blocked

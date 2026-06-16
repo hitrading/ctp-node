@@ -199,6 +199,24 @@ check(/volume/i.test(String(await vOpen2(3))), `dup rows reserved once: 3 + 3 > 
 td.native.rebuildReservations([]); // authoritative clear
 check(!/volume/i.test(String(await vOpen2(5))), `after rebuild([]): reservations cleared, 0 + 5 <= 5 passed`);
 
+// ----- a non-finite/sentinel working-order price must NOT void the cost cap -----
+// onOrderUpdate/rebuild compute reservation cost from the order's limitPrice; a
+// DBL_MAX/Inf price would reserve Inf, then the terminal reconcile (Inf-Inf)=NaN
+// would silently void EVERY cost cap (NaN > cap is false). costPrice() maps a
+// non-usable price to 0 so the ledger never goes non-finite.
+td.resetPositions();
+td.setMultiplier("rb2610", 10);
+td.riskSet({ maxPositionCost: 100000 }); // 100k global cost cap
+td._applyTestOrder(1, 100, "p1", "rb2610", true, true, "3", Number.MAX_VALUE, 1, 0); // working open, DBL_MAX price
+td._applyTestOrder(1, 100, "p1", "rb2610", true, true, "5", Number.MAX_VALUE, 1, 0); // cancelled -> reconcile must not NaN
+check(Number.isFinite(td.positionCost()), `DBL_MAX-price reservation reconcile stays finite (got ${td.positionCost()})`);
+td._applyTestTrade("rb2610", true, true, 3000, 3); // hold 90000
+const stillCapped = await td.reqOrderInsert({ instrumentId: "rb2610", direction: "0", combOffsetFlag: "0", limitPrice: 3000, volumeTotalOriginal: 1 })
+  .then(() => "sent").catch((e) => e.message); // +30000 -> 120000 > 100000
+check(/position/i.test(String(stillCapped)), `cost cap STILL enforces after a DBL_MAX-price order (not voided) -> ${stillCapped}`);
+td.resetPositions();
+td.riskSet({});
+
 // ----- DBL_MAX (CTP unset-price sentinel) must not poison the reference price -----
 // CTP fills unset price fields with DBL_MAX before the first trade prints; a user
 // wiring tick.lastPrice -> setRefPrice would otherwise set ref=DBL_MAX, making

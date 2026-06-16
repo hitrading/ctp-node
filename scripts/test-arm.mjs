@@ -36,13 +36,36 @@ md._injectTestTick();
 const a1 = attempts();
 md._injectTestTick(); // one-shot: must NOT fire again
 const a2 = attempts();
+handle.disarm();
 
-const ok = a1 === 1 && a2 === 1;
+// A SELL trigger fires on bid >= triggerPrice. CTP reports BidPrice1 = DBL_MAX
+// when a side is empty (e.g. at limit-down there are no bids), so without a
+// sentinel guard the sell would fire on that DBL_MAX - dumping a sell at the
+// worst possible moment. Verify the DBL_MAX no-bid is ignored, but a real high
+// bid still fires.
+const sell = td.arm(md, {
+  instrumentId: "rb2510",
+  side: "sell",
+  triggerPrice: 3000,
+  order: {
+    brokerId: "9999", investorId: "test", instrumentId: "rb2510",
+    direction: "1", combOffsetFlag: "0", limitPrice: 3000, volumeTotalOriginal: 1,
+  },
+});
+const sBefore = attempts();
+md._injectTestTick(Number.MAX_VALUE, 9999); // bid = DBL_MAX no-bid sentinel -> must NOT fire
+const sSentinel = attempts();
+md._injectTestTick(3600, 9999); // bid = 3600 (real, >= 3000) -> MUST fire
+const sReal = attempts();
+sell.disarm();
+
+const sellSentinelOk = sSentinel === sBefore;
+const sellRealOk = sReal === sBefore + 1;
+const ok = a1 === 1 && a2 === 1 && sellSentinelOk && sellRealOk;
 console.log(
-  `ARM TEST: matching tick attempts=${a1} (blocked=${td._armBlockedCount()}), second tick (one-shot)=${a2} -> ${ok ? "PASS" : "FAIL"}`
+  `ARM TEST: buy attempts=${a1} (one-shot=${a2}); sell ignores DBL_MAX no-bid=${sellSentinelOk}, sell fires on real bid=${sellRealOk} -> ${ok ? "PASS" : "FAIL"}`
 );
 
-handle.disarm();
 md.close();
 td.close();
 process.exitCode = ok ? 0 : 1;

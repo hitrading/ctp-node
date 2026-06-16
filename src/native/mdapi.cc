@@ -350,15 +350,22 @@ Napi::Value MarketData::AttachArm(const Napi::CallbackInfo &info) {
 }
 
 Napi::Value MarketData::InjectTestTick(const Napi::CallbackInfo &info) {
-  // Drive the real SPI path (so arm triggers are evaluated too).
+  // Drive the real SPI path (so arm triggers are evaluated too). Optional args
+  // override bid/ask, so tests can inject edge prices - e.g. a DBL_MAX "no-bid"
+  // sentinel (BidPrice1 at limit-down) to verify armed triggers ignore it:
+  //   _injectTestTick(bid?, ask?)
   if (spi_ && !closed_) {
     CThostFtdcDepthMarketDataField f;
     std::memset(&f, 0, sizeof(f));
     std::snprintf(f.InstrumentID, sizeof(f.InstrumentID), "%s", "rb2510");
     std::snprintf(f.ExchangeID, sizeof(f.ExchangeID), "%s", "SHFE");
     f.LastPrice = 3500.5;
-    f.BidPrice1 = 3499.0;
-    f.AskPrice1 = 3501.0;
+    f.BidPrice1 = (info.Length() >= 1 && info[0].IsNumber())
+                      ? info[0].As<Napi::Number>().DoubleValue()
+                      : 3499.0;
+    f.AskPrice1 = (info.Length() >= 2 && info[1].IsNumber())
+                      ? info[1].As<Napi::Number>().DoubleValue()
+                      : 3501.0;
     f.BidVolume1 = 10;
     f.Volume = 12345;
     spi_->OnRtnDepthMarketData(&f);

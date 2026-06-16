@@ -36,6 +36,19 @@ static inline void clampFiniteCost(double &cost) {
     cost = std::numeric_limits<double>::max();
 }
 
+// Price for RESERVATION cost math. The held-cost path (onTrade) guards its price
+// via sanePositive, but the in-flight RESERVATION cost (tryReserveOpen /
+// onOrderUpdate / rebuildOpenReservations) is fed limit prices straight from the
+// order / CTP. A non-finite or DBL_MAX-sentinel price would reserve an Inf cost,
+// and when that order goes terminal the reconcile (Inf - Inf) yields NaN, which
+// silently voids EVERY cost cap book-wide (NaN > cap is false). Treat a
+// non-usable price as 0 cost: the order's volume is still capped, the cost
+// reservation is simply skipped, and no Inf/NaN can enter the ledger. A market
+// order's legitimate 0 price already maps to 0 here, unchanged.
+static inline double costPrice(double price) {
+  return sanePositive(price) ? price : 0.0;
+}
+
 void RateLimiter::configure(double ratePerSec, double burst) {
   std::lock_guard<std::mutex> lk(m_);
   rate_ = ratePerSec > 0.0 ? ratePerSec : 0.0;
@@ -221,7 +234,7 @@ OpenGate RiskEngine::tryReserveOpen(const std::string &orderRef,
                                     double price, double volume) {
   const double globalCap = maxPositionCost_.load(std::memory_order_relaxed);
   std::lock_guard<std::mutex> lk(posMutex_);
-  const double addCost = price * volume * multiplierLocked(instrumentId);
+  const double addCost = volume * costPrice(price) * multiplierLocked(instrumentId);
   const Pos *p = nullptr;
   auto pit = positions_.find(instrumentId);
   if (pit != positions_.end())
@@ -306,7 +319,7 @@ void RiskEngine::onOrderUpdate(int frontId, int sessionId,
   if (desiredVol < 0.0)
     desiredVol = 0.0;
   const double mult = multiplierLocked(instrumentId);
-  const double desiredCost = desiredVol * limitPrice * mult;
+  const double desiredCost = desiredVol * costPrice(limitPrice) * mult;
 
   auto rit = reservations_.find(key);
   if (rit == reservations_.end()) {
@@ -385,7 +398,7 @@ void RiskEngine::rebuildOpenReservations(const std::vector<OpenOrderInfo> &order
     // entry to release it - it would over-block opens until the next full resync.
     if (reservations_.count(key))
       continue;
-    const double cost = o.vol * o.price * multiplierLocked(o.instrumentId);
+    const double cost = o.vol * costPrice(o.price) * multiplierLocked(o.instrumentId);
     Pos &pp = positions_[o.instrumentId];
     if (o.isLong) {
       pp.longPendVol += o.vol;

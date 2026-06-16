@@ -115,9 +115,11 @@ export class MarketData extends CtpClient {
     this.native._attachArm(trader._armRegistry());
   }
 
-  /** @internal test-only: inject a synthetic depth tick into the ring. */
-  _injectTestTick(): void {
-    (this.native as { _injectTestTick(): void })._injectTestTick();
+  /** @internal test-only: inject a synthetic depth tick into the ring. Optional
+   *  bid/ask override the defaults (3499/3501) so tests can drive edge prices
+   *  (e.g. a DBL_MAX no-bid sentinel) through the real arm/onTick path. */
+  _injectTestTick(bid?: number, ask?: number): void {
+    (this.native as { _injectTestTick(b?: number, a?: number): void })._injectTestTick(bid, ask);
   }
 
   /** @internal test-only: spawn a background producer thread that pushes `n`
