@@ -1,3 +1,6 @@
+<!-- LANG-SWITCH -->
+**English** · [简体中文](README.zh-CN.md)
+
 # ctp-node
 
 High-performance, type-safe [CTP](http://www.sfit.com.cn/) (上期技术综合交易平台) binding for Node.js — for programmatic / quantitative futures trading.
@@ -24,6 +27,7 @@ npm install ctp-node
 
 - **Full API reference** — every TypeScript/JavaScript interface and method, with each parameter's type and meaning, plus usage examples: [English](docs/API.md) · [简体中文](docs/API.zh-CN.md)
 - Architecture & native internals — the lock-free data plane, the C++ risk engine, backpressure, and the create-once process-lifecycle notes: [English](docs/native-hooks.md) · [简体中文](docs/native-hooks.zh-CN.md)
+- **Troubleshooting & FAQ** — connection/front rotation, login & authentication, query rate limits, order rejections, limit-down, lifecycle, build issues, CTP error codes: [English](docs/troubleshooting.md) · [简体中文](docs/troubleshooting.zh-CN.md)
 
 ## Quick start — market data
 
