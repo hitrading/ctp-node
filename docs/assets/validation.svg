@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 452" font-family="ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, monospace" font-size="15">
+  <rect x="0" y="0" width="860" height="452" rx="10" fill="#0d1117"/>
+  <rect x="0" y="0" width="860" height="34" rx="10" fill="#161b22"/>
+  <rect x="0" y="24" width="860" height="10" fill="#161b22"/>
+  <circle cx="22" cy="17" r="6" fill="#ff5f56"/>
+  <circle cx="42" cy="17" r="6" fill="#ffbd2e"/>
+  <circle cx="62" cy="17" r="6" fill="#27c93f"/>
+  <text x="430" y="22" text-anchor="middle" fill="#8b949e" font-size="13">ctp-node — validation</text>
+
+  <text x="22" y="66"><tspan fill="#58a6ff">$</tspan> <tspan fill="#c9d1d9">npm test</tspan></text>
+  <text x="40" y="92"  fill="#3fb950">CODEC PASS  ·  MD INJECT PASS  ·  TRADER 3/3  ·  ARM PASS</text>
+  <text x="40" y="116" fill="#3fb950">RISK 66/66  ·  GBK 2/2  ·  LIFECYCLE 14/14  ·  BACKPRESSURE 9/9</text>
+  <text x="40" y="140"><tspan fill="#56d364">✓</tspan> <tspan fill="#8b949e">all suites green</tspan></text>
+
+  <text x="22" y="184"><tspan fill="#58a6ff">$</tspan> <tspan fill="#c9d1d9">node scripts/stress-fullmarket.mjs</tspan>   <tspan fill="#6e7681" font-size="13">// live SimNow · trading hours</tspan></text>
+  <text x="40" y="210" fill="#c9d1d9">subscribed <tspan fill="#d2a8ff" font-weight="bold">ALL 18,111</tspan> instruments (full market, incl. options)</text>
+  <text x="40" y="234" fill="#c9d1d9">ticks streaming …  DROPPED <tspan fill="#56d364" font-weight="bold">0</tspan>     RSS <tspan fill="#56d364">124 MB</tspan> (flat, no leak)</text>
+  <text x="40" y="258" fill="#c9d1d9">CPU <tspan fill="#56d364">0–2%</tspan>     strategy <tspan fill="#56d364">~3 µs/tick</tspan>     loop-lag p99 <tspan fill="#56d364">23 ms</tspan></text>
+  <text x="40" y="282" fill="#c9d1d9">orders  placed 19 · rested 16 · cancelled 16 · rejected <tspan fill="#56d364">0</tspan></text>
+
+  <text x="22" y="326" fill="#8b949e" font-size="13.5">full-market subscribe + per-tick strategy (SMA) + order/cancel under load:</text>
+  <text x="22" y="350"><tspan fill="#f0883e">➜</tspan> <tspan fill="#e6edf3" font-weight="bold">0 dropped · no memory blowup · no CPU pressure · no feed squeeze</tspan></text>
+
+  <line x1="22" y1="378" x2="838" y2="378" stroke="#21262d" stroke-width="1"/>
+  <text x="22" y="404" fill="#8b949e" font-size="13">decode throughput <tspan fill="#79c0ff">~8M ticks/s</tspan>  ·  pre-trade risk enforced in C++  ·  drop-oldest MD / drop-newest trader</text>
+  <text x="22" y="428" fill="#8b949e" font-size="13">~37 bugs found &amp; fixed across 17 deep-review rounds  ·  bilingual docs (EN / 简体中文)</text>
+</svg>

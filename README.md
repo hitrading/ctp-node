@@ -1,9 +1,25 @@
 <!-- LANG-SWITCH -->
-**English** · [简体中文](README.zh-CN.md)
+<p align="right"><b>English</b> · <a href="README.zh-CN.md">简体中文</a></p>
 
-# ctp-node
+<h1 align="center">ctp-node</h1>
 
-High-performance, type-safe [CTP](http://www.sfit.com.cn/) (上期技术综合交易平台) binding for Node.js — for programmatic / quantitative futures trading.
+<p align="center">
+  <b>High-performance, type-safe <a href="http://www.sfit.com.cn/">CTP</a> (上期技术) binding for Node.js</b><br/>
+  for programmatic / quantitative Chinese-futures trading.
+</p>
+
+<p align="center">
+  <a href="https://github.com/hitrading/ctp-node/actions/workflows/build.yml"><img alt="CI" src="https://github.com/hitrading/ctp-node/actions/workflows/build.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/hitrading/ctp-node?color=blue"></a>
+  <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A5%2018-brightgreen">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6">
+  <img alt="decode" src="https://img.shields.io/badge/decode-~8M%20ticks%2Fs-ff7f0e">
+</p>
+
+<p align="center">
+  <img src="docs/assets/validation.svg" alt="ctp-node validation — green test suite + live full-market stress (18,111 instruments, 0 dropped)" width="780">
+</p>
 
 - **Plain objects, idiomatic TypeScript.** Every CTP struct is a generated `interface` with camelCase fields (`tick.lastPrice`, `tick.instrumentId`); every CTP enum is a real TS `enum`. No hand-written marshalling.
 - **Fast.** The CTP callback thread only memcpy's bytes into a lock-free ring; JS decodes straight from it into plain objects at **~8M ticks/sec** (166× headroom over a 50k/sec open-auction burst).
