@@ -55,6 +55,13 @@ jobs:
           path: prebuilds/
       - run: npm ci --ignore-scripts
       - run: npm run build:ts
+      - name: sync package version to the release tag
+        # package.json ships a 0.0.0 placeholder; the published version comes from
+        # the release tag (e.g. v0.5.3 -> 0.5.3). Without this every release would
+        # try to publish 0.0.0 and fail after the first.
+        run: npm version "${TAG#v}" --no-git-tag-version --allow-same-version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
       - run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

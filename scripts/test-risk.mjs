@@ -86,6 +86,16 @@ td.setMultiplier("px2610", 10);
 td._applyTestTrade("px2610", true, true, Number.MAX_VALUE, 1); // DBL_MAX price -> ignored
 td._applyTestTrade("px2610", true, true, 100, Number.MAX_VALUE); // DBL_MAX volume -> ignored
 check(td.positionCost() === 0, `onTrade DBL_MAX price/volume ignored -> cost 0 (got ${td.positionCost()})`);
+// accumulation overflow: each fill's cost is finite, but the RUNNING SUM could
+// overflow to +Inf, and a later proportional close (Inf-Inf) -> NaN voids the
+// cap. clampFiniteCost pins an overflowed sum to a finite blocking value.
+td.resetPositions();
+td.setMultiplier("acc2610", 1);
+td._applyTestTrade("acc2610", true, true, 1e154, 1e154); // cost 1e308 (finite, passes per-fill)
+td._applyTestTrade("acc2610", true, true, 1e154, 1e154); // sum would be +Inf -> clamped finite
+check(Number.isFinite(td.positionCost()), `accumulated cost overflow clamped finite (got ${td.positionCost()})`);
+td._applyTestTrade("acc2610", false, false, 1e154, 1e154); // proportional close must NOT be NaN
+check(Number.isFinite(td.positionCost()), `close after accumulation clamp stays finite (got ${td.positionCost()})`);
 td.resetPositions();
 td.setMultiplier("rb2610", 10); // restore for downstream checks
 
@@ -227,6 +237,19 @@ check(!/risk/i.test(String(await callRaw("reqOrderAction", { instrumentId: "au26
 check(!/risk/i.test(String(await callRaw("reqExecOrderAction", { instrumentId: "au2608" }))), `halt does NOT block reqExecOrderAction`);
 td.resume();
 check(!/risk/i.test(String(await callRaw("reqExecOrderInsert", { instrumentId: "au2608", volume: 1 }))), `after resume reqExecOrderInsert no longer blocked`);
+
+// ----- non-finite risk limits are rejected (a NaN cap must NOT silently disable) -----
+// A NaN/Inf limit makes every `value > limit` comparison false in C++, silently
+// turning the control OFF while the caller thinks a cap is active. The setters
+// must throw instead (fail-closed); finite values incl. 0 (= disabled) pass.
+const throwsLimit = (fn) => { try { fn(); return false; } catch (e) { return /finite/i.test(String(e.message)); } };
+check(throwsLimit(() => td.riskSet({ maxPositionCost: NaN })), `riskSet(maxPositionCost: NaN) throws (no silent fail-open)`);
+check(throwsLimit(() => td.riskSet({ maxNotional: Infinity })), `riskSet(maxNotional: Inf) throws`);
+check(throwsLimit(() => td.setMaxPosition("xx2610", NaN)), `setMaxPosition(NaN) throws`);
+check(throwsLimit(() => td.setMaxPosition("xx2610", { long: Infinity })), `setMaxPosition({long: Inf}) throws`);
+check(throwsLimit(() => td.setMaxPositionCost("xx2610", NaN)), `setMaxPositionCost(NaN) throws`);
+check(!throwsLimit(() => td.riskSet({ maxPositionCost: 0 })), `riskSet(maxPositionCost: 0) accepted (0 = disabled)`);
+check(!throwsLimit(() => td.riskSet({})), `riskSet({}) accepted`);
 
 console.log(`RISK TEST: ${pass} pass, ${fail} fail`);
 td.close();

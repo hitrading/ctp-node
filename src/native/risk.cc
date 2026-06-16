@@ -22,6 +22,19 @@ static inline bool sanePositive(double x) {
   return std::isfinite(x) && x > 0.0 && x < 1e300;
 }
 
+// Keep an accumulated open-cost running sum finite. Each fill's cost passes the
+// per-fill backstop, but a long chain of huge (test-hook / absurd-seed) fills can
+// still overflow the SUM to +Inf, and a later proportional close (Inf - Inf)
+// would yield NaN, silently voiding the cost cap (NaN > cap is false). Pin an
+// overflowed sum to 1e300: still far above any real cost cap (so it keeps
+// blocking) yet finite (so the proportional-close arithmetic stays finite).
+// Unreachable from the live feed (real fills are tiny); this is defense-in-depth
+// matching the sanePositive sentinel guards.
+static inline void clampFiniteCost(double &cost) {
+  if (!std::isfinite(cost))
+    cost = 1e300;
+}
+
 void RateLimiter::configure(double ratePerSec, double burst) {
   std::lock_guard<std::mutex> lk(m_);
   rate_ = ratePerSec > 0.0 ? ratePerSec : 0.0;
@@ -136,8 +149,8 @@ void RiskEngine::onTrade(const std::string &instrumentId, bool isBuy,
     return;
   std::lock_guard<std::mutex> lk(posMutex_);
   const double cost = price * volume * multiplierLocked(instrumentId);
-  // Backstop: even with bounded inputs the product/accumulation could in theory
-  // be non-finite; never let a non-finite cost enter the tracker.
+  // Per-fill backstop: even with sanePositive inputs the PRODUCT could be
+  // non-finite (e.g. 1e299 * 1e299); never let a non-finite single-fill cost in.
   if (!std::isfinite(cost))
     return;
   Pos &p = positions_[instrumentId];
@@ -145,9 +158,11 @@ void RiskEngine::onTrade(const std::string &instrumentId, bool isBuy,
     if (isBuy) {
       p.longVol += volume;
       p.longCost += cost;
+      clampFiniteCost(p.longCost);
     } else {
       p.shortVol += volume;
       p.shortCost += cost;
+      clampFiniteCost(p.shortCost);
     }
   } else if (isBuy) { // closing a short: release its open cost proportionally
     const double v = std::min(volume, p.shortVol);

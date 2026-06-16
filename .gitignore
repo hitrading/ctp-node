@@ -10,3 +10,4 @@ flow*/
 con*.dat
 *.con
 probe.txt
+scripts/_tmp_*

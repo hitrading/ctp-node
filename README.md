@@ -164,7 +164,7 @@ CTP callback thread (C++)                 Node event loop (JS)
 ```
 
 Everything below the public API is generated from the CTP headers
-(`tradeapi/ThostFtdc*.h`) by `scripts/codegen/` — 466 struct interfaces, 316
+(`tradeapi/ThostFtdc*.h`) by `scripts/codegen/` — 466 struct interfaces, 318
 enums, field layout tables (via `offsetof`), and the full trader SPI + request
 dispatch. Run `npm run gen` after updating the headers.
 

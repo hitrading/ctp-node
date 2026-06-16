@@ -75,6 +75,16 @@ export interface ArmHandle {
   disarm(): boolean;
 }
 
+/** Reject a non-finite risk/cap limit. A NaN/Inf would make every `value > limit`
+ *  comparison in C++ false, silently DISABLING the control and leaving the caller
+ *  believing a cap is active — a risk control must never fail open by accident.
+ *  Finite values (including 0/negative, which legitimately mean "disabled") pass. */
+function assertFiniteLimit(name: string, v: number | undefined): void {
+  if (v !== undefined && !Number.isFinite(v)) {
+    throw new TypeError(`${name} must be a finite number (got ${v})`);
+  }
+}
+
 export class Trader extends TraderBase {
   private broker?: string;
   private investor?: string;
@@ -162,6 +172,14 @@ export class Trader extends TraderBase {
 
   /** Publish pre-trade risk limits to the C++ enforcer (takes effect at once). */
   riskSet(config: RiskConfig): this {
+    // A non-finite limit would silently disable that control (see
+    // assertFiniteLimit) — reject it rather than run unprotected.
+    assertFiniteLimit("riskSet.maxOrderVolume", config.maxOrderVolume);
+    assertFiniteLimit("riskSet.maxPriceDeviation", config.maxPriceDeviation);
+    assertFiniteLimit("riskSet.maxNotional", config.maxNotional);
+    assertFiniteLimit("riskSet.maxOrdersPerSec", config.maxOrdersPerSec);
+    assertFiniteLimit("riskSet.orderBurst", config.orderBurst);
+    assertFiniteLimit("riskSet.maxPositionCost", config.maxPositionCost);
     this.native.riskSet(config);
     return this;
   }
@@ -219,9 +237,12 @@ export class Trader extends TraderBase {
    */
   setMaxPosition(instrumentId: string, max: LotCap): this {
     if (typeof max === "number") {
+      assertFiniteLimit("setMaxPosition", max);
       this.native.setMaxPositionVolume(instrumentId, true, max);
       this.native.setMaxPositionVolume(instrumentId, false, max);
     } else {
+      assertFiniteLimit("setMaxPosition.long", max.long);
+      assertFiniteLimit("setMaxPosition.short", max.short);
       if (max.long !== undefined) this.native.setMaxPositionVolume(instrumentId, true, max.long);
       if (max.short !== undefined) this.native.setMaxPositionVolume(instrumentId, false, max.short);
     }
@@ -243,6 +264,7 @@ export class Trader extends TraderBase {
    * `maxCost <= 0` to remove it. Fill-based, same caveat as maxPositionCost.
    */
   setMaxPositionCost(instrumentId: string, maxCost: number): this {
+    assertFiniteLimit("setMaxPositionCost", maxCost);
     this.native.setMaxInstrumentCost(instrumentId, maxCost);
     return this;
   }
@@ -251,6 +273,7 @@ export class Trader extends TraderBase {
    *  `{ ag2608: 2_000_000, au2608: 5_000_000 }`. */
   setMaxPositionCosts(limits: Record<string, number>): this {
     for (const id of Object.keys(limits)) {
+      assertFiniteLimit(`setMaxPositionCosts.${id}`, limits[id]);
       this.native.setMaxInstrumentCost(id, limits[id]);
     }
     return this;
