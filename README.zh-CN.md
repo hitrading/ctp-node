@@ -31,7 +31,7 @@
 
 ## 环境要求
 
-Node ≥ 18。Windows/Linux/macOS（x64）提供预编译二进制，多数用户无需编译器。其他平台在安装时从源码构建，需要 C++ 工具链（Windows：VS Build Tools；Linux/macOS：clang/gcc）。CTP 共享库随插件一起打包在旁并自动解析。
+Node ≥ 18。**Windows 与 Linux（x64）提供预编译二进制**，这两个平台多数用户无需编译器。**macOS（及其他平台）在安装时从源码构建**，需要 C++ 工具链（macOS：Xcode Command Line Tools；Windows：VS Build Tools；Linux：clang/gcc）。CTP 共享库随插件一起打包在旁并自动解析。
 
 ## 安装
 

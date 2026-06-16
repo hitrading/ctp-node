@@ -31,7 +31,7 @@
 
 ## Requirements
 
-Node ≥ 18. Prebuilt binaries are shipped for Windows/Linux/macOS (x64), so most users need no compiler. Other platforms build from source on install and need a C++ toolchain (Windows: VS Build Tools; Linux/macOS: clang/gcc). The CTP shared libraries are bundled next to the loaded addon and resolved automatically.
+Node ≥ 18. Prebuilt binaries are shipped for **Windows and Linux (x64)** — most users need no compiler there. **macOS (and any other platform) builds from source on install**, which needs a C++ toolchain (macOS: Xcode Command Line Tools; Windows: VS Build Tools; Linux: clang/gcc). The CTP shared libraries are bundled next to the loaded addon and resolved automatically.
 
 ## Install
 
