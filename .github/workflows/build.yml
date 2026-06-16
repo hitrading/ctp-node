@@ -10,12 +10,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2022, ubuntu-latest, macos-13]   # windows-2022 (not -latest=Server2025): node-gyp finds VS 2022 reliably
+        # The tested, prebuilt-and-shipped platforms; the release job gates on
+        # these. windows-2022 (not -latest=Server2025) so node-gyp finds VS 2022.
+        os: [windows-2022, ubuntu-latest]
     runs-on: ${{ matrix.os }}
-    # macOS is best-effort: the CTP vendor framework can't be validated from the
-    # dev host, so don't let it fail the workflow (or redden the badge). Windows
-    # and Linux are the tested, prebuilt-and-shipped platforms.
-    continue-on-error: ${{ matrix.os == 'macos-13' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,8 +29,7 @@ jobs:
           dir=$(ls -d prebuilds/*/ | head -n1)
           case "${{ matrix.os }}" in
             windows-2022)  cp tradeapi/windows/*.dll "$dir" || true ;;
-            ubuntu-latest)  cp tradeapi/linux/*.so "$dir" ;;
-            macos-13)       cp -R tradeapi/macos/*.framework "$dir" ;;
+            ubuntu-latest) cp tradeapi/linux/*.so "$dir" ;;
           esac
           ls -la "$dir"
       - uses: actions/upload-artifact@v4
@@ -40,14 +37,41 @@ jobs:
           name: prebuilds-${{ matrix.os }}
           path: prebuilds/
 
+  # macOS is best-effort and DECOUPLED from the release gate: it builds a prebuild
+  # when a macOS runner is free, but the release never waits on it. The CTP vendor
+  # framework can't be validated from the dev host, and macOS runners queue
+  # unpredictably — so it must never block (or delay) shipping Windows/Linux.
+  build-macos:
+    runs-on: macos-13
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build:ts
+      - run: npm test
+      - run: npm run prebuild
+      - name: bundle CTP libs alongside the prebuilt addon
+        shell: bash
+        run: |
+          dir=$(ls -d prebuilds/*/ | head -n1)
+          cp -R tradeapi/macos/*.framework "$dir"
+          ls -la "$dir"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prebuilds-macos-13
+          path: prebuilds/
+
   # Fully automatic release: on every push to master, semantic-release reads the
   # Conventional Commits since the last release, decides the next version (feat ->
   # minor, fix -> patch, BREAKING CHANGE -> major), updates CHANGELOG.md + the
-  # package version, cuts a GitHub Release (auto notes + the all-platform
-  # prebuilds attached), and publishes @hitrading/ctp-node to npm. If no
-  # release-worthy commits exist, it does nothing. Requires the NPM_TOKEN secret.
+  # package version, cuts a GitHub Release (auto notes + the available prebuilds
+  # attached), and publishes @hitrading/ctp-node to npm. If no release-worthy
+  # commits exist, it does nothing. Requires the NPM_TOKEN secret.
   release:
-    needs: build
+    needs: build              # Windows + Linux only; macOS (build-macos) never gates the release
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -72,7 +96,7 @@ jobs:
           path: prebuilds/
       - run: npm ci --ignore-scripts
       - run: npm run build:ts
-      - name: bundle the all-platform prebuilds as a release asset
+      - name: bundle the available prebuilds as a release asset
         run: tar -czf ctp-node-prebuilds.tgz prebuilds/
       - name: semantic-release (version + changelog + GitHub Release + npm publish)
         if: ${{ env.NPM_TOKEN != '' }}   # no-op until you add the NPM_TOKEN secret (keeps the badge green)
