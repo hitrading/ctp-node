@@ -8,6 +8,20 @@
 
 namespace ctp {
 
+// A price / multiplier / fill quantity is usable in the cost & notional math only
+// if it is finite, strictly positive, and below the CTP "unset" sentinel band.
+// DBL_MAX (~1.8e308, what CTP puts in untouched price fields before the first
+// trade) IS finite, so it slips past isfinite alone; 1e300 is far above any real
+// value and far below DBL_MAX. Centralized so EVERY double entering the math
+// rejects the sentinel uniformly: a split policy is exactly what let DBL_MAX
+// poison setMultiplier/onTrade after setRefPrice was already guarded (rounds
+// 11/14). A sentinel/Inf multiplier or fill makes cost Inf and a later
+// proportional close-release Inf-Inf = NaN, and NaN > cap is false -> the cost
+// cap is silently voided. Reject at the door instead.
+static inline bool sanePositive(double x) {
+  return std::isfinite(x) && x > 0.0 && x < 1e300;
+}
+
 void RateLimiter::configure(double ratePerSec, double burst) {
   std::lock_guard<std::mutex> lk(m_);
   rate_ = ratePerSec > 0.0 ? ratePerSec : 0.0;
@@ -52,16 +66,12 @@ void RiskEngine::halt() { halted_.store(true, std::memory_order_relaxed); }
 void RiskEngine::resume() { halted_.store(false, std::memory_order_relaxed); }
 
 void RiskEngine::setRefPrice(const std::string &instrumentId, double price) {
-  // Ignore non-finite, non-positive, and the CTP "unset" sentinel: price fields
-  // come back as DBL_MAX (~1.8e308) before the first trade prints - common at
-  // session start and for illiquid contracts. DBL_MAX is finite, so it slips
-  // past the isfinite guards used elsewhere; as a reference it makes
-  // |price - ref| / ref == 1.0 for ANY real limit price, which would falsely
-  // block every deviation-checked order on that instrument. Drop such updates
-  // (1e300 is far above any real price, far below DBL_MAX); the reference simply
-  // stays unset until a real price arrives, and the deviation check skips
-  // (refPrice > 0 guard) meanwhile.
-  if (!std::isfinite(price) || price <= 0.0 || price >= 1e300)
+  // Reject the CTP DBL_MAX "unset" sentinel (and non-finite/non-positive) — see
+  // sanePositive. A sentinel reference would make |price - ref| / ref == 1.0 for
+  // ANY real limit price, falsely blocking every deviation-checked order on the
+  // instrument; instead the reference stays unset until a real price arrives and
+  // the deviation check skips (its refPrice > 0 guard).
+  if (!sanePositive(price))
     return;
   std::lock_guard<std::mutex> lk(refMutex_);
   refPrices_[instrumentId] = price;
@@ -75,12 +85,10 @@ double RiskEngine::refPrice(const std::string &instrumentId) const {
 
 void RiskEngine::setMultiplier(const std::string &instrumentId, double mult) {
   std::lock_guard<std::mutex> lk(posMutex_);
-  // A finite positive multiplier is used as-is; anything else (<=0, NaN, or
-  // +Inf) falls back to 1.0. The isfinite guard is essential: +Inf passes the
-  // ">0" test, and an Inf multiplier turns every fill's cost into Inf and the
-  // proportional close-release into NaN - which silently voids the cost cap
-  // (NaN > cap is false), exactly the poison the onTrade/seed guards prevent.
-  multipliers_[instrumentId] = (std::isfinite(mult) && mult > 0.0) ? mult : 1.0;
+  // A usable (finite, positive, sub-sentinel) multiplier is taken as-is; anything
+  // else (<=0, NaN, +Inf, or a DBL_MAX-class value) falls back to 1.0 — see
+  // sanePositive for why the sentinel band matters.
+  multipliers_[instrumentId] = sanePositive(mult) ? mult : 1.0;
 }
 
 void RiskEngine::setMaxPositionVolume(const std::string &instrumentId,
@@ -120,13 +128,18 @@ void RiskEngine::resetPositions() {
 
 void RiskEngine::onTrade(const std::string &instrumentId, bool isBuy,
                          bool isOpen, double price, double volume) {
-  // Real CTP fills are always positive & finite; ignore malformed data rather
-  // than let a bad price/volume corrupt the tracked cost. isfinite rejects NaN
-  // AND +/-Inf (a NaN would silently void the cost cap; +Inf would jam it).
-  if (!std::isfinite(price) || !std::isfinite(volume) || price <= 0.0 || volume <= 0.0)
+  // Real CTP fills are always positive, finite, and far below the sentinel band;
+  // ignore malformed data rather than let it corrupt the tracked cost (a NaN
+  // would silently void the cost cap, +Inf/DBL_MAX would jam or void it). See
+  // sanePositive — same uniform sentinel rejection as setRefPrice/setMultiplier.
+  if (!sanePositive(price) || !sanePositive(volume))
     return;
   std::lock_guard<std::mutex> lk(posMutex_);
   const double cost = price * volume * multiplierLocked(instrumentId);
+  // Backstop: even with bounded inputs the product/accumulation could in theory
+  // be non-finite; never let a non-finite cost enter the tracker.
+  if (!std::isfinite(cost))
+    return;
   Pos &p = positions_[instrumentId];
   if (isOpen) {
     if (isBuy) {

@@ -72,6 +72,20 @@ td._applyTestTrade("inf2610", true, true, 100, 2);
 check(Number.isFinite(td.positionCost()), `setMultiplier(Inf) -> finite cost (got ${td.positionCost()})`);
 td._applyTestTrade("inf2610", false, false, 100, 1); // proportional release must not be NaN
 check(Number.isFinite(td.positionCost()), `partial close after Inf-mult guard -> finite cost (got ${td.positionCost()})`);
+// DBL_MAX (CTP's "unset" price sentinel) is FINITE, so it slips past isfinite;
+// setMultiplier AND onTrade must reject it too (not just setRefPrice), else
+// cost -> Inf and a proportional close -> NaN silently voids the cost cap.
+td.resetPositions();
+td.setMultiplier("max2610", Number.MAX_VALUE); // DBL_MAX -> must fall back to 1.0
+td._applyTestTrade("max2610", true, true, 100, 2); // cost = 100*2*1 = 200, NOT Inf
+check(td.positionCost() === 200, `setMultiplier(DBL_MAX) -> falls back to 1.0 (cost ${td.positionCost()}, expect 200)`);
+td._applyTestTrade("max2610", false, false, 100, 1); // proportional release must stay finite
+check(Number.isFinite(td.positionCost()) && td.positionCost() === 100, `close after DBL_MAX-mult guard -> finite 100 (got ${td.positionCost()})`);
+td.resetPositions();
+td.setMultiplier("px2610", 10);
+td._applyTestTrade("px2610", true, true, Number.MAX_VALUE, 1); // DBL_MAX price -> ignored
+td._applyTestTrade("px2610", true, true, 100, Number.MAX_VALUE); // DBL_MAX volume -> ignored
+check(td.positionCost() === 0, `onTrade DBL_MAX price/volume ignored -> cost 0 (got ${td.positionCost()})`);
 td.resetPositions();
 td.setMultiplier("rb2610", 10); // restore for downstream checks
 

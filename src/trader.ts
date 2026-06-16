@@ -205,8 +205,10 @@ export class Trader extends TraderBase {
   /**
    * Cap the open position (in lots) for one instrument, enforced in C++ on
    * every opening order. Pass a number to cap both sides at once, or
-   * `{ long, short }` to cap each side separately (omit a side or pass <= 0 to
-   * leave it uncapped). Long and short are always tracked independently.
+   * `{ long, short }` to cap each side separately. Within `{ long, short }`,
+   * **omitting a side leaves that side's current cap unchanged** (on a re-call it
+   * is NOT reset to uncapped), and passing `<= 0` for a side removes its cap.
+   * Long and short are always tracked independently.
    *
    * The check is fill-based (counts confirmed position, like maxPositionCost),
    * so rapid bursts of opens can momentarily overshoot before the fills land —
@@ -265,8 +267,12 @@ export class Trader extends TraderBase {
     return this;
   }
 
-  /** Seed open-position cost from reqQryInvestorPosition() rows (posiDirection
-   *  '2' = long, '3' = short). */
+  /** Seed open-position cost from reqQryInvestorPosition() rows for GROSS-mode
+   *  accounts (posiDirection '2' = long, '3' = short; any other value, incl. net
+   *  '1', is bucketed as short). Cost caps sum both sides so the bucket doesn't
+   *  matter for them, but a per-side *volume* cap on a net-mode instrument would
+   *  track the wrong side — for net-mode accounts, seed those via seedPosition()
+   *  with the side you intend. */
   seedFromPositions(
     positions: ReadonlyArray<{
       instrumentId: string;
