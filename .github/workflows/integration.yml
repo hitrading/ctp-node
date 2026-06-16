@@ -1,0 +1,33 @@
+name: integration (live SimNow)
+
+# Live end-to-end tests against the REAL CTP API (the connect/login handshake,
+# session(), an account query, and the C++ pre-trade risk gate). They need SimNow
+# credentials, so they run only manually or on a schedule - NEVER on push - and
+# the runner itself skips gracefully when the secrets are absent (a fork or an
+# unconfigured repo stays green). The only orders sent are oversized, so the risk
+# gate rejects them before the exchange - nothing rests on the account.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 1 * * 1-5" # 09:30 Beijing (UTC+8), weekdays - inside the morning session
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci            # builds the addon from source (node-gyp)
+      - run: npm run build:ts
+      - name: live SimNow integration
+        env:
+          CTP_USER: ${{ secrets.CTP_USER }}
+          CTP_PASS: ${{ secrets.CTP_PASS }}
+          CTP_BROKER: ${{ secrets.CTP_BROKER }}
+          CTP_APPID: ${{ secrets.CTP_APPID }}
+          CTP_AUTHCODE: ${{ secrets.CTP_AUTHCODE }}
+          CTP_TD_FRONT: ${{ vars.CTP_TD_FRONT }}      # optional: a 7x24 front for off-session runs
+          LD_LIBRARY_PATH: ${{ github.workspace }}/tradeapi/linux  # so the addon finds the CTP .so
+        run: npm run test:integration

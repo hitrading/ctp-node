@@ -53,6 +53,7 @@ const { Trader, MarketData } = require("@hitrading/ctp-node");  // CommonJS
 - **完整 API 参考** —— 每一个 TypeScript/JavaScript 接口和方法，含每个参数的类型与含义，以及用法示例：[English](docs/API.md) · [简体中文](docs/API.zh-CN.md)
 - 架构与原生内部 —— 无锁数据平面、C++ 风控引擎、背压，以及一次创建的进程生命周期说明：[English](docs/native-hooks.md) · [简体中文](docs/native-hooks.zh-CN.md)
 - **故障排查与 FAQ** —— 连接/前置轮换、登录与认证、查询限频、报单被拒、跌停、生命周期、构建问题、CTP 错误码：[English](docs/troubleshooting.md) · [简体中文](docs/troubleshooting.zh-CN.md)
+- **测试与覆盖率** —— 单元测试（JS ≥ 95 %、C++ `risk`/`arm` 独立 ≥ 98 %）+ 凭据门控的实盘 SimNow 集成套件：[集成与测试](docs/integration.md)
 - **发布** —— 全自动 `semantic-release`（Conventional Commits → 版本号 + CHANGELOG + GitHub Release + npm 发布）：[RELEASING.md](RELEASING.md) · [CHANGELOG.md](CHANGELOG.md)
 
 ## 快速开始 —— 行情

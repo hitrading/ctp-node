@@ -53,6 +53,7 @@ const { Trader, MarketData } = require("@hitrading/ctp-node");  // CommonJS
 - **Full API reference** — every TypeScript/JavaScript interface and method, with each parameter's type and meaning, plus usage examples: [English](docs/API.md) · [简体中文](docs/API.zh-CN.md)
 - Architecture & native internals — the lock-free data plane, the C++ risk engine, backpressure, and the create-once process-lifecycle notes: [English](docs/native-hooks.md) · [简体中文](docs/native-hooks.zh-CN.md)
 - **Troubleshooting & FAQ** — connection/front rotation, login & authentication, query rate limits, order rejections, limit-down, lifecycle, build issues, CTP error codes: [English](docs/troubleshooting.md) · [简体中文](docs/troubleshooting.zh-CN.md)
+- **Testing & coverage** — unit tests (JS ≥ 95 %, C++ `risk`/`arm` standalone ≥ 98 %) plus the credential-gated live SimNow integration suite: [integration & testing](docs/integration.md)
 - **Releasing** — fully automatic `semantic-release` (Conventional Commits → version + CHANGELOG + GitHub Release + npm publish): [RELEASING.md](RELEASING.md) · [CHANGELOG.md](CHANGELOG.md)
 
 ## Quick start — market data
