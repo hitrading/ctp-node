@@ -2,8 +2,7 @@ name: build & prebuild
 
 on:
   push:
-    branches: [master, main]
-    tags: ['v*']     # pushing a v* tag builds all platforms, cuts a GitHub Release, and publishes to npm
+    branches: [master, main]   # a push to master runs CI, then semantic-release decides + cuts a release
   pull_request:
 
 jobs:
@@ -41,18 +40,27 @@ jobs:
           name: prebuilds-${{ matrix.os }}
           path: prebuilds/
 
-  # Auto-release + auto-publish, triggered by pushing a v* tag (e.g. `npm version
-  # patch && git push --follow-tags`). Builds on all platforms above, then here:
-  # sync the version from the tag, cut a GitHub Release (auto notes + the
-  # all-platform prebuilds attached), and publish @hitrading/ctp-node to npm.
+  # Fully automatic release: on every push to master, semantic-release reads the
+  # Conventional Commits since the last release, decides the next version (feat ->
+  # minor, fix -> patch, BREAKING CHANGE -> major), updates CHANGELOG.md + the
+  # package version, cuts a GitHub Release (auto notes + the all-platform
+  # prebuilds attached), and publishes @hitrading/ctp-node to npm. If no
+  # release-worthy commits exist, it does nothing. Requires the NPM_TOKEN secret.
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
-      contents: write          # create the GitHub Release
+      contents: write        # commit the changelog/version bump + create the Release + tag
+      issues: write          # semantic-release comments on released issues/PRs
+      pull-requests: write
+      id-token: write         # npm provenance
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}   # surfaced so the step below can skip when it's unset
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0      # semantic-release needs full history + tags
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -64,20 +72,15 @@ jobs:
           path: prebuilds/
       - run: npm ci --ignore-scripts
       - run: npm run build:ts
-      - name: sync the package version to the tag (v1.2.3 -> 1.2.3)
-        # package.json ships a 0.0.0 placeholder; the published version is the tag.
-        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
       - name: bundle the all-platform prebuilds as a release asset
-        run: tar -czf "ctp-node-prebuilds-${GITHUB_REF_NAME}.tgz" prebuilds/
-      - name: create the GitHub Release (auto notes + prebuilds attached)
-        uses: softprops/action-gh-release@v2
+        run: tar -czf ctp-node-prebuilds.tgz prebuilds/
+      - name: semantic-release (version + changelog + GitHub Release + npm publish)
+        if: ${{ env.NPM_TOKEN != '' }}   # no-op until you add the NPM_TOKEN secret (keeps the badge green)
+        uses: cycjimmy/semantic-release-action@v4
         with:
-          generate_release_notes: true
-          files: ctp-node-prebuilds-*.tgz
-      - name: publish @hitrading/ctp-node to npm
-        # scoped package -> --access public makes the first publish public.
-        # Requires the NPM_TOKEN repo secret (an npm "Automation" token whose
-        # account can publish to the @hitrading scope).
-        run: npm publish --access public
+          extra_plugins: |
+            @semantic-release/changelog
+            @semantic-release/git
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
