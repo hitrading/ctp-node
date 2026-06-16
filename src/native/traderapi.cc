@@ -92,7 +92,6 @@ private:
   Napi::Value ResetPositions(const Napi::CallbackInfo &info);
   Napi::Value ApplyTestTrade(const Napi::CallbackInfo &info);
   Napi::Value ApplyTestOrder(const Napi::CallbackInfo &info);
-  Napi::Value InjectTestEvent(const Napi::CallbackInfo &info);
   Napi::Value Start(const Napi::CallbackInfo &info);
   Napi::Value Buffer(const Napi::CallbackInfo &info);
   Napi::Value ClaimBatch(const Napi::CallbackInfo &info);
@@ -138,7 +137,6 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("resetPositions", &Trader::ResetPositions),
           InstanceMethod("_applyTestTrade", &Trader::ApplyTestTrade),
           InstanceMethod("_applyTestOrder", &Trader::ApplyTestOrder),
-          InstanceMethod("_injectTestEvent", &Trader::InjectTestEvent),
           InstanceMethod("_start", &Trader::Start),
           InstanceMethod("_buffer", &Trader::Buffer),
           InstanceMethod("_claim", &Trader::ClaimBatch),
@@ -324,26 +322,6 @@ Napi::Value Trader::Req(const Napi::CallbackInfo &info) {
   int rc = traderReq(api_, methodId, bytes.Data(),
                      static_cast<int>(bytes.ByteLength()), id, &risk_);
   return Napi::Number::New(env, rc);
-}
-
-// test-only: push N synthetic heart-beat-warning records straight into the
-// (drop-newest) trader channel, exercising the JS drain()/dispatch path without a
-// live connection. Uses heart-beat-warning (a raw int payload, like the real SPI)
-// because a never-connected test front never produces one on its own, so the
-// delivered count is deterministic.
-Napi::Value Trader::InjectTestEvent(const Napi::CallbackInfo &info) {
-  Napi::Env env = info.Env();
-  if (closed_ || !ch_)
-    return env.Undefined();
-  int n = (info.Length() >= 1 && info[0].IsNumber())
-              ? info[0].As<Napi::Number>().Int32Value()
-              : 1;
-  for (int i = 0; i < n; ++i) {
-    int32_t lapse = i;
-    ch_->push(ET_HeartBeatWarning, i, -1, 0, "", -2, &lapse,
-              static_cast<int32_t>(sizeof(lapse)));
-  }
-  return env.Undefined();
 }
 
 Napi::Value Trader::RiskSet(const Napi::CallbackInfo &info) {

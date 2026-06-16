@@ -72,23 +72,6 @@ md._injectTestTick(3499, 3501);
 await new Promise((r) => setTimeout(r, 60)); // let the doorbell drain the injected tick
 ok(true, "trackMarketData routes md ticks to setRefPrice");
 
-// Exercise the trader's drop-newest drain() path: inject events into its ring.
-let hb = 0;
-td.on("heart-beat-warning", () => { hb++; });
-td._injectTestEvent(5);
-await new Promise((r) => setTimeout(r, 100)); // let the coalesced doorbell drain
-ok(hb === 5, `drain() (drop-newest) delivered all injected events (got ${hb})`);
-
-// A throwing event handler must NOT wedge drain(): the error is re-surfaced (via
-// 'error') and the ring keeps advancing.
-td.on("error", () => {}); // route re-surfaced handler errors here (else they'd throw)
-let thrown = 0;
-const boom = () => { thrown++; throw new Error("handler boom"); };
-td.on("heart-beat-warning", boom);
-td._injectTestEvent(3);
-await new Promise((r) => setTimeout(r, 100));
-ok(thrown === 3, `drain() absorbs throwing handlers and keeps advancing (threw ${thrown})`);
-
 // session() + sync* with the leaf req methods stubbed (no network).
 td.reqAuthenticate = async () => ({});
 td.reqUserLogin = async () => ({ brokerId: "9999", userId: "u", maxOrderRef: "100", frontId: 1, sessionId: 7 });

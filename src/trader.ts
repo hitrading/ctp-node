@@ -455,12 +455,6 @@ export class Trader extends TraderBase {
     this.native._applyTestOrder(frontId, sessionId, orderRef, instrumentId, isOpen, isLong, status, limitPrice, volTotal, volTraded);
   }
 
-  /** @internal test-only: push `n` synthetic events into the (drop-newest) trader
-   *  ring to exercise the JS drain()/dispatch path without a live connection. */
-  _injectTestEvent(n = 1): void {
-    (this.native as { _injectTestEvent(n: number): void })._injectTestEvent(n);
-  }
-
   /**
    * Arm a latency-critical trigger: when `md` sees the condition, the order is
    * sent from C++ on the callback thread (through this Trader's risk gate),
