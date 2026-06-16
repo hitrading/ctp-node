@@ -1,0 +1,18 @@
+{
+  "all": true,
+  "reporter": ["text", "lcov"],
+  "include": [
+    "dist/index.js",
+    "dist/codec.js",
+    "dist/client.js",
+    "dist/trader.js",
+    "dist/market-data.js",
+    "dist/native-binding.js"
+  ],
+  "exclude": ["dist/generated/**", "dist/index.cjs", "**/*.d.ts"],
+  "check-coverage": true,
+  "lines": 95,
+  "functions": 95,
+  "statements": 95,
+  "branches": 90
+}

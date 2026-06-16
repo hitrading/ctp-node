@@ -11,3 +11,6 @@ con*.dat
 *.con
 probe.txt
 scripts/_tmp_*
+
+# c8 / coverage output
+coverage/

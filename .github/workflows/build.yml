@@ -21,7 +21,7 @@ jobs:
           node-version: 20
       - run: npm ci
       - run: npm run build:ts
-      - run: npm test
+      - run: npm run coverage   # runs the suite under c8 and FAILS if coverage drops below .c8rc.json thresholds
       - run: npm run prebuild
       - name: bundle CTP libs alongside the prebuilt addon
         shell: bash
