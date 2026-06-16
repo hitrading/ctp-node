@@ -7,4 +7,4 @@
 *.exp binary
 
 # CTP SDK: binary libs + GB-encoded headers — never EOL/charset normalize.
-ctpapi/** -text
+ctpsdk/** -text

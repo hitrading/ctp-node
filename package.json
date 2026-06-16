@@ -44,7 +44,7 @@
   "files": [
     "dist/",
     "src/",
-    "ctpapi/",
+    "ctpsdk/",
     "prebuilds/",
     "binding.gyp"
   ],

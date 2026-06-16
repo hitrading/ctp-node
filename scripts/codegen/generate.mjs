@@ -15,8 +15,8 @@ import { parseDataTypes, parseStructs } from "./parse.mjs";
 import { camelCase, structTypeName } from "./naming.mjs";
 
 const ROOT = new URL("../../", import.meta.url);
-const DT = new URL("ctpapi/ThostFtdcUserApiDataType.h", ROOT);
-const ST = new URL("ctpapi/ThostFtdcUserApiStruct.h", ROOT);
+const DT = new URL("ctpsdk/ThostFtdcUserApiDataType.h", ROOT);
+const ST = new URL("ctpsdk/ThostFtdcUserApiStruct.h", ROOT);
 const OUT = new URL("src/generated/", ROOT);
 
 const { types, enums } = await parseDataTypes(DT);

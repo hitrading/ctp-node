@@ -14,7 +14,7 @@ import { parseTraderApi } from "./parse-traderapi.mjs";
 import { splitWords, camelCase } from "./naming.mjs";
 
 const ROOT = new URL("../../", import.meta.url);
-const HEADER = new URL("ctpapi/ThostFtdcTraderApi.h", ROOT);
+const HEADER = new URL("ctpsdk/ThostFtdcTraderApi.h", ROOT);
 const OUT = new URL("src/generated/", ROOT);
 
 const { spi: spiAll, req: reqAll } = await parseTraderApi(HEADER);

@@ -29,5 +29,5 @@ jobs:
           CTP_APPID: ${{ secrets.CTP_APPID }}
           CTP_AUTHCODE: ${{ secrets.CTP_AUTHCODE }}
           CTP_TD_FRONT: ${{ vars.CTP_TD_FRONT }}      # optional: a 7x24 front for off-session runs
-          LD_LIBRARY_PATH: ${{ github.workspace }}/ctpapi/linux  # so the addon finds the CTP .so
+          LD_LIBRARY_PATH: ${{ github.workspace }}/ctpsdk/linux  # so the addon finds the CTP .so
         run: npm run test:integration

@@ -31,8 +31,8 @@ jobs:
         run: |
           dir=$(ls -d prebuilds/*/ | head -n1)
           case "${{ matrix.os }}" in
-            windows-2022)  cp ctpapi/windows/*.dll "$dir" || true ;;
-            ubuntu-latest) cp ctpapi/linux/*.so "$dir" ;;
+            windows-2022)  cp ctpsdk/windows/*.dll "$dir" || true ;;
+            ubuntu-latest) cp ctpsdk/linux/*.so "$dir" ;;
           esac
           ls -la "$dir"
       - uses: actions/upload-artifact@v4
@@ -60,7 +60,7 @@ jobs:
         shell: bash
         run: |
           dir=$(ls -d prebuilds/*/ | head -n1)
-          cp -R ctpapi/macos/*.framework "$dir"
+          cp -R ctpsdk/macos/*.framework "$dir"
           ls -la "$dir"
       - uses: actions/upload-artifact@v4
         with:
