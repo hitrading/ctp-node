@@ -39,6 +39,15 @@ Node ≥ 18. Prebuilt binaries are shipped for Windows/Linux/macOS (x64), so mos
 npm install @hitrading/ctp-node
 ```
 
+Works in **TypeScript or JavaScript**, as **ESM (`import`) or CommonJS (`require`)** — the package ships both builds plus `.d.ts` type declarations, so it loads whatever your project's module setting emits:
+
+```ts
+import { Trader, MarketData } from "@hitrading/ctp-node";       // ESM / TypeScript
+```
+```js
+const { Trader, MarketData } = require("@hitrading/ctp-node");  // CommonJS
+```
+
 ## Documentation
 
 - **Full API reference** — every TypeScript/JavaScript interface and method, with each parameter's type and meaning, plus usage examples: [English](docs/API.md) · [简体中文](docs/API.zh-CN.md)
