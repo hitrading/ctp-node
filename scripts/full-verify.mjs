@@ -68,16 +68,45 @@ async function flatten(tag) {
     await sleep(700);
   }
   await sleep(800);
-  // close any open positions, marketable, correct close-today/yesterday offset
-  const pos = await td.reqQryInvestorPosition({ brokerId: cfg.brokerId, investorId: cfg.userId });
-  for (const p of pos.filter((p) => p.position > 0)) {
-    const long = p.posiDirection === "2";
-    const off = p.todayPosition > 0 ? "3" : "4";
-    const price = long ? mkSell(p.instrumentId) : mkBuy(p.instrumentId);
-    await send(p.instrumentId, long ? "1" : "0", off, price, p.position, "");
-    await sleep(2200);
+  // Close any open position on ANY instrument (not just A/G). Resolve each
+  // instrument's tick + a live quote first (the test only pre-subscribes A/G, so a
+  // leftover position elsewhere has neither) — then close marketable, with the
+  // right offset. An instrument with no live quote (off-session) is skipped with a
+  // warning instead of crashing.
+  const pos = (await td.reqQryInvestorPosition({ brokerId: cfg.brokerId, investorId: cfg.userId })).filter((p) => p.position > 0);
+  for (const id of [...new Set(pos.map((p) => p.instrumentId))]) {
+    if (!inst[id]) {
+      const r = (await td.reqQryInstrument({ instrumentId: id }).catch(() => [])).find((x) => x.instrumentId === id);
+      if (r) inst[id] = { mult: r.volumeMultiple, tick: r.priceTick };
+      await sleep(1100); // query flow control
+    }
+    if (!px[id]) md.subscribe([id]);
   }
-  if (tag) log(`  [${tag}] flattened`);
+  if (pos.length) await sleep(2500); // let quotes arrive for newly-subscribed instruments
+  for (const p of pos) {
+    const id = p.instrumentId;
+    if (!inst[id] || !px[id] || !(px[id].bid > 0) || !(px[id].ask > 0)) {
+      log(`  ** cannot close ${id} (${p.position} lot): no live quote — instrument off-session?`);
+      continue;
+    }
+    const long = p.posiDirection === "2";          // 2 = long, 3 = short
+    const dir = long ? "1" : "0";                   // close long -> SELL; close short -> BUY
+    const price = long ? mkSell(id) : mkBuy(id);    // marketable, tick-aligned
+    // SHFE / INE split close-today ('3') vs close-yesterday ('4'); other exchanges
+    // use the generic close ('1'). Handle a mixed today+yesterday position too.
+    const split = p.exchangeId === "SHFE" || p.exchangeId === "INE";
+    const legs = split
+      ? [["3", p.todayPosition], ["4", p.ydPosition]].filter(([, v]) => v > 0)
+      : [["1", p.position]];
+    for (const [off, vol] of legs) {
+      log(`  close ${id} ${long ? "LONG" : "SHORT"} ${vol} @ ${price} offset=${off}`);
+      await send(id, dir, off, price, vol, "");
+      await sleep(2000);
+    }
+  }
+  await sleep(1500);
+  const left = (await td.reqQryInvestorPosition({ brokerId: cfg.brokerId, investorId: cfg.userId })).filter((p) => p.position > 0);
+  log(`  [${tag ?? "flatten"}] ${left.length === 0 ? "account flat" : left.length + " position(s) left: " + left.map((p) => `${p.instrumentId}x${p.position}`).join(", ")}`);
 }
 
 td.on("front-connected", async () => {
