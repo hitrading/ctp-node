@@ -1,3 +1,6 @@
+<!-- LANG-SWITCH -->
+**English** · [简体中文](API.zh-CN.md)
+
 # ctp-node API Reference
 
 Complete usage documentation for every public TypeScript/JavaScript interface in
@@ -61,7 +64,7 @@ md.on("rtn-depth-market-data", (tick) => {
 ### Trading with pre-trade risk
 
 ```ts
-import { Trader } from "ctp-node";
+import { Trader, Direction, OffsetFlag } from "ctp-node";
 
 const td = new Trader("./flow/td/", "tcp://180.168.146.187:10130");
 
@@ -133,8 +136,10 @@ Construction connects asynchronously; wire your handlers, then act in the
 `front-connected` handler.
 
 ```ts
+// single front
 const md = new MarketData("./flow/md/", "tcp://180.168.146.187:10131");
-// or with failover fronts:
+
+// multiple fronts for failover
 const md2 = new MarketData("./flow/md/", [
   "tcp://180.168.146.187:10131",
   "tcp://180.168.146.187:10111",
@@ -158,16 +163,33 @@ with a CTP error (`err.errorId`, `err.errorMsg`).
 > require credentials.
 
 ```ts
+// with credentials
 md.on("front-connected", async () => {
   const rsp = await md.login({ brokerId: "9999", userId: "id", password: "pw" });
   console.log("logged in, trading day", rsp.tradingDay);
   md.subscribe(["rb2510"]);
 });
+
+// anonymous (SimNow MD front)
+await md.login();
+
+// handle a bad login
+try {
+  await md.login({ brokerId: "9999", userId: "id", password: "wrong" });
+} catch (e) {
+  console.error("login failed", e.errorId, e.errorMsg);
+}
 ```
 
 ### `md.logout(req?)` → `Promise<UserLogout>`
 
 Log out. `req` may carry `{ brokerId?, userId? }`.
+
+```ts
+await md.logout();
+// or scoped to a specific account
+await md.logout({ brokerId: "9999", userId: "id" });
+```
 
 ### `md.subscribe(instrumentIds)` → `number`
 
@@ -181,17 +203,34 @@ non-zero / `-1` = failed). Quotes arrive as `rtn-depth-market-data` events.
 ```ts
 md.on("rsp-sub-market-data", (info) => console.log("subscribed", info.instrumentId));
 md.on("rtn-depth-market-data", (t) => console.log(t.instrumentId, t.lastPrice));
-md.subscribe(["rb2510", "au2508"]);
+
+const rc = md.subscribe(["rb2510", "au2508"]);
+if (rc !== 0) console.warn("subscribe send failed:", rc);
+
+// subscribe more later (e.g. after rolling to a new contract)
+md.subscribe(["rb2601"]);
 ```
 
 ### `md.unsubscribe(instrumentIds)` → `number`
 
 Unsubscribe from depth market data. Same shape as `subscribe`.
 
+```ts
+md.unsubscribe(["au2508"]);          // stop one
+md.unsubscribe(["rb2510", "au2508"]); // stop several
+```
+
 ### `md.subscribeForQuote(instrumentIds)` / `md.unsubscribeForQuote(instrumentIds)` → `number`
 
 Subscribe / unsubscribe to quote-request (询价) notifications, delivered as
-`rtn-for-quote` events.
+`rtn-for-quote` events (used by options market makers).
+
+```ts
+md.on("rtn-for-quote", (q) => console.log("quote requested for", q.instrumentId));
+md.subscribeForQuote(["IO2508-C-3900"]);
+// ...later
+md.unsubscribeForQuote(["IO2508-C-3900"]);
+```
 
 ### `md.attachArm(trader)` → `void`
 
@@ -200,20 +239,44 @@ Route this feed's ticks to a `Trader`'s armed triggers (see
 which calls this for you. A `MarketData` feeds exactly one `Trader`'s triggers;
 attaching a second, different `Trader` throws.
 
-### `md.getApiVersion()` / `md.getTradingDay()` → `string`
+```ts
+// explicit (rarely needed — td.arm() does this automatically):
+md.attachArm(td);
+
+// the second, different trader throws:
+md.attachArm(td);        // ok
+md.attachArm(otherTd);   // throws: already feeds another Trader
+```
+
+### `md.getApiVersion()` → `string` / `md.getTradingDay()` → `string`
 
 The CTP API version string, and the current trading day (`YYYYMMDD`), available
 after connect.
 
+```ts
+console.log("CTP MD API", md.getApiVersion()); // e.g. "6.7.2"
+md.on("front-connected", () => console.log("trading day", md.getTradingDay()));
+```
+
 ### `md.droppedRecords` → `number` (getter)
 
 Total ticks dropped under backpressure (oldest-dropped). Monitor it to detect a
-slow consumer. See [`CtpClient`](#ctpclient).
+slow consumer.
+
+```ts
+setInterval(() => {
+  if (md.droppedRecords > 0) console.warn("MD dropped", md.droppedRecords, "ticks");
+}, 5000);
+```
 
 ### `md.close()` → `void`
 
 Release the underlying CTP API and free native resources. Idempotent. Call once,
 at shutdown. See [lifecycle](#core-concepts).
+
+```ts
+process.on("SIGINT", () => { md.close(); process.exit(0); });
+```
 
 ### MarketData events
 
@@ -236,8 +299,15 @@ Subscribe with `md.on(name, handler)`. Handlers receive `(data, options)` where
 
 ```ts
 import { MarketDataEvent } from "ctp-node";
-md.on(MarketDataEvent.RtnDepthMarketData, (t) => { /* ... */ });
-md.on("front-disconnected", (reason) => console.warn("disconnected", reason));
+
+// symbolic name
+md.on(MarketDataEvent.RtnDepthMarketData, (t) => {
+  const mid = (t.bidPrice1 + t.askPrice1) / 2;
+});
+
+// reconnect handling
+md.on("front-connected", async () => { await md.login(); md.subscribe(["rb2510"]); });
+md.on("front-disconnected", (reason) => console.warn("MD disconnected, code", reason));
 ```
 
 ---
@@ -258,6 +328,8 @@ never collide with a prior session.
 
 ```ts
 const td = new Trader("./flow/td/", "tcp://180.168.146.187:10130");
+// failover fronts:
+const td2 = new Trader("./flow/td/", ["tcp://180.168.146.187:10130", "tcp://180.168.146.187:10110"]);
 ```
 
 ### `td.session(opts)` → `Promise<{ multipliers, positions, orders }>`
@@ -281,6 +353,7 @@ hand-roll the flow when you need finer control.
 | `sync` | `object?` | Which risk inputs to fetch after login. `{ multipliers?: boolean \| string[], positions?: boolean, orders?: boolean }`; default fetches all. `multipliers: true` queries every instrument; pass a symbol list to scope it. |
 
 ```ts
+// SimNow full handshake
 td.on("front-connected", async () => {
   const counts = await td.session({
     brokerId: "9999", userId: "id", password: "pw",
@@ -289,11 +362,14 @@ td.on("front-connected", async () => {
   console.log("synced", counts); // { multipliers, positions, orders }
 });
 
-// scope the multiplier sync to the symbols you trade (faster):
+// scope the multiplier sync to the symbols you trade (faster cold start)
 await td.session({
   brokerId: "9999", userId: "id", password: "pw",
   sync: { multipliers: ["rb2510", "au2508"], positions: true, orders: true },
 });
+
+// skip the settlement confirm (environments that don't need it)
+await td.session({ brokerId: "9999", userId: "id", password: "pw", confirmSettlement: false });
 ```
 
 > The hand-rolled equivalent: `await td.reqAuthenticate(...)` →
@@ -322,22 +398,27 @@ a unique numeric value automatically.
 | `orderPriceType` | `OrderPriceType?` | Defaults to limit price; set for market/best-price types. |
 
 ```ts
-// limit buy 1 lot
+import { Direction, OffsetFlag } from "ctp-node";
+
+// 1) limit buy 1 lot to open
 await td.reqOrderInsert({
   instrumentId: "rb2510", direction: Direction.Buy,
   combOffsetFlag: OffsetFlag.Open, limitPrice: 3500, volumeTotalOriginal: 1,
 });
 
-// handle a refusal (risk gate / rate limit / CTP error)
+// 2) handle a refusal (risk gate / rate limit / CTP error)
 try {
   await td.reqOrderInsert({ instrumentId: "rb2510", direction: "0", combOffsetFlag: "0", limitPrice: 9999, volumeTotalOriginal: 1 });
 } catch (e) {
   console.warn("refused:", e.message); // e.g. "blocked by pre-trade risk: order price deviates too far from reference"
 }
 
-// correlate a fill by your own orderRef
+// 3) correlate a fill by your own orderRef
 await td.reqOrderInsert({ orderRef: "my-42", instrumentId: "rb2510", direction: "0", combOffsetFlag: "0", limitPrice: 3500, volumeTotalOriginal: 2 });
 td.on("rtn-trade", (t) => { if (t.orderRef === "my-42") console.log("my order filled", t.volume); });
+
+// 4) close-today a short position (sell -> close)
+await td.reqOrderInsert({ instrumentId: "rb2510", direction: Direction.Sell, combOffsetFlag: OffsetFlag.CloseToday, limitPrice: 3490, volumeTotalOriginal: 1 });
 ```
 
 ### `td.reqOrderAction(req?)` → `Promise<void>` (cancel)
@@ -347,13 +428,23 @@ Cancel / modify a working order. Resolves on submission. Identify the order via
 `exchangeId` + `orderSysId`.
 
 ```ts
+import { ActionFlag } from "ctp-node";
+
 let working;
 td.on("rtn-order", (o) => { if (o.orderStatus === "3") working = o; }); // NoTradeQueueing
-// ...later:
+
+// cancel it
 await td.reqOrderAction({
   instrumentId: working.instrumentId,
   orderRef: working.orderRef, frontId: working.frontId, sessionId: working.sessionId,
-  actionFlag: "0", // delete
+  actionFlag: ActionFlag.Delete, // "0"
+});
+
+// cancel by exchange order id instead
+await td.reqOrderAction({
+  instrumentId: working.instrumentId,
+  exchangeId: working.exchangeId, orderSysId: working.orderSysId,
+  actionFlag: "0",
 });
 ```
 
@@ -365,9 +456,21 @@ one per second — the [`sync*`](#tdsyncmultipliersinstrumentids--promisenumber)
 helpers handle that retry/back-off for you; call raw `reqQry*` sparingly.
 
 ```ts
+// current positions
 const positions = await td.reqQryInvestorPosition({ brokerId: "9999", investorId: "id" });
-const account   = await td.reqQryTradingAccount({ brokerId: "9999", investorId: "id" });
-const rb        = await td.reqQryInstrument({ instrumentId: "rb2510" });
+for (const p of positions) console.log(p.instrumentId, p.posiDirection, p.position);
+
+// account funds
+const [account] = await td.reqQryTradingAccount({ brokerId: "9999", investorId: "id" });
+console.log("available", account?.available);
+
+// instrument details (multiplier, tick size, …)
+const [rb] = await td.reqQryInstrument({ instrumentId: "rb2510" });
+console.log("multiplier", rb?.volumeMultiple, "tick", rb?.priceTick);
+
+// today's orders / trades
+const orders = await td.reqQryOrder({ brokerId: "9999", investorId: "id" });
+const trades = await td.reqQryTrade({ brokerId: "9999", investorId: "id" });
 ```
 
 See [request methods](#generated-request-methods) for the full list.
@@ -380,8 +483,9 @@ instruments in one request; pass a symbol list to scope it. Retries through
 cold-start flow control. Returns the count applied.
 
 ```ts
-await td.syncMultipliers();                  // all instruments
+const n = await td.syncMultipliers();          // all instruments
 await td.syncMultipliers(["rb2510", "au2508"]); // just these
+console.log("applied", n, "multipliers");
 ```
 
 ### `td.syncPositions(opts?)` → `Promise<number>`
@@ -389,6 +493,13 @@ await td.syncMultipliers(["rb2510", "au2508"]); // just these
 Seed open-position cost from CTP (`reqQryInvestorPosition`) into the risk
 engine's position tracker. Uses the logged-in account unless
 `{ brokerId?, investorId? }` is supplied. Returns the number of positions seeded.
+
+```ts
+const held = await td.syncPositions();
+console.log("seeded", held, "positions, cost =", td.positionCost());
+// explicit account
+await td.syncPositions({ brokerId: "9999", investorId: "id" });
+```
 
 ### `td.syncOrders(opts?)` → `Promise<number>`
 
@@ -402,7 +513,8 @@ uses the right multiplier. Returns the number of working open orders re-reserved
 ```ts
 await td.syncMultipliers();
 await td.syncPositions();
-await td.syncOrders(); // now the caps reflect held + working positions
+const working = await td.syncOrders();
+console.log("re-reserved", working, "working open orders");
 ```
 
 ### Risk configuration
@@ -415,14 +527,21 @@ silently disabling the control. `config` is a [`RiskConfig`](#riskconfig); omit 
 field or pass `0`/negative to disable that control.
 
 ```ts
+// full set
 td.riskSet({
-  maxOrderVolume: 10,        // ≤ 10 lots per order
-  maxPriceDeviation: 0.02,   // ≤ 2% from the reference price
-  maxNotional: 5_000_000,    // ≤ 5M notional per order
-  maxOrdersPerSec: 20,       // token-bucket rate limit
-  orderBurst: 40,            // bucket size (default: maxOrdersPerSec)
+  maxOrderVolume: 10,          // ≤ 10 lots per order
+  maxPriceDeviation: 0.02,     // ≤ 2% from the reference price
+  maxNotional: 5_000_000,      // ≤ 5M notional per order
+  maxOrdersPerSec: 20,         // token-bucket rate limit
+  orderBurst: 40,              // bucket size (default: maxOrdersPerSec)
   maxPositionCost: 20_000_000, // ≤ 20M total open-position cost (whole book)
 });
+
+// just a couple of controls (the rest stay disabled)
+td.riskSet({ maxOrderVolume: 5, maxOrdersPerSec: 10 });
+
+// disable a control by passing 0
+td.riskSet({ maxNotional: 0 });
 ```
 
 #### `td.halt()` / `td.resume()` → `this`
@@ -434,9 +553,14 @@ working orders while halted; parked/staged orders are not gated. `resume()`
 releases it.
 
 ```ts
-process.on("SIGINT", () => td.halt()); // stop new orders, keep cancels working
-// ...
+// stop all new orders on a panic signal, but keep cancels working
+process.on("SIGINT", () => td.halt());
+
+// re-enable trading once you've assessed the situation
 td.resume();
+
+// example: halt if PnL breaches a limit
+td.on("rtn-trade", () => { if (computePnl() < -100000) td.halt(); });
 ```
 
 #### `td.setMaxPosition(instrumentId, max)` / `td.setMaxPositions(limits)` → `this`
@@ -445,13 +569,18 @@ Cap the open position (in lots) per instrument, enforced on every opening order.
 `max` is a [`LotCap`](#lotcap): a number caps both sides; `{ long, short }` caps
 each side separately. Within `{ long, short }`, **omitting a side leaves its
 current cap unchanged** (pass `0`/negative to clear). Long and short are tracked
-independently. The check is fill-based, so a rapid burst of opens can momentarily
-overshoot before fills land plus in-flight orders are reserved — size with that
-in mind.
+independently. The check counts committed = held + in-flight (working) volume.
 
 ```ts
 td.setMaxPosition("rb2510", 100);                  // long ≤ 100 and short ≤ 100
-td.setMaxPosition("au2508", { long: 50, short: 10 });
+td.setMaxPosition("au2508", { long: 50, short: 10 }); // asymmetric
+
+// raise only the long cap, leave short as it was
+td.setMaxPosition("au2508", { long: 80 });
+// clear the short cap
+td.setMaxPosition("au2508", { short: 0 });
+
+// many at once
 td.setMaxPositions({ rb2510: 100, ru2510: { long: 100, short: 20 }, au2508: 10 });
 ```
 
@@ -463,8 +592,9 @@ independent of the account-wide `riskSet({ maxPositionCost })`; both apply. Pass
 `maxCost ≤ 0` to remove it.
 
 ```ts
-td.setMaxPositionCost("au2508", 5_000_000);
+td.setMaxPositionCost("au2508", 5_000_000); // ≤ 5M of gold exposure
 td.setMaxPositionCosts({ ag2508: 2_000_000, au2508: 5_000_000 });
+td.setMaxPositionCost("au2508", 0);         // remove the cap
 ```
 
 #### `td.setRefPrice(instrumentId, price)` / `td.trackMarketData(md)` → `this`
@@ -476,8 +606,11 @@ instrument.)
 
 ```ts
 td.riskSet({ maxPriceDeviation: 0.02 });
-td.trackMarketData(md);          // live reference from the feed
-// or, manually:
+
+// option A: live reference from the feed (recommended)
+td.trackMarketData(md);
+
+// option B: set/refresh it yourself
 td.setRefPrice("rb2510", 3500);
 ```
 
@@ -488,8 +621,8 @@ Usually you call [`syncMultipliers()`](#tdsyncmultipliersinstrumentids--promisen
 instead of setting these by hand.
 
 ```ts
-td.setMultiplier("rb2510", 10); // rebar: 10 t/lot
-td.setMultiplier("au2508", 1000);
+td.setMultiplier("rb2510", 10);   // rebar: 10 t/lot
+td.setMultiplier("au2508", 1000); // gold: 1000 g/lot
 ```
 
 ### Position-cost tracking
@@ -506,6 +639,13 @@ reconcile positions yourself rather than via `syncPositions()`.
 | `volume` | `number` | Held lots. |
 | `openCost` | `number` | Total open cost of that position. |
 
+```ts
+// you already hold 3 long lots of rb2510 opened for 90,000 total
+td.seedPosition("rb2510", "long", 3, 90_000);
+// and 2 short lots of au2508 opened for 1,120,000
+td.seedPosition("au2508", "short", 2, 1_120_000);
+```
+
 #### `td.seedFromPositions(positions)` → `this`
 
 Seed from `reqQryInvestorPosition` rows for **gross-mode** accounts
@@ -513,13 +653,29 @@ Seed from `reqQryInvestorPosition` rows for **gross-mode** accounts
 bucket is harmless for them; for a net-mode instrument under a per-side *volume*
 cap, seed via `seedPosition()` with the side you intend.
 
+```ts
+const rows = await td.reqQryInvestorPosition({ brokerId: "9999", investorId: "id" });
+td.resetPositions();
+td.seedFromPositions(rows); // (this is exactly what syncPositions() does)
+```
+
 #### `td.positionCost()` → `number`
 
 Current total open-position cost tracked by the risk engine.
 
+```ts
+console.log("book cost", td.positionCost());
+td.on("rtn-trade", () => console.log("cost now", td.positionCost()));
+```
+
 #### `td.resetPositions()` → `this`
 
 Clear all tracked position cost. (`syncPositions()` calls this before re-seeding.)
+
+```ts
+td.resetPositions();              // wipe the tracker
+td.seedFromPositions(freshRows);  // re-seed from a fresh query
+```
 
 ### Latency-critical armed triggers
 
@@ -534,14 +690,15 @@ the normal `rtn-order` / `rsp-order-insert` events (correlate by `orderRef`).
 A **buy** fires when `ask ≤ triggerPrice`; a **sell** when `bid ≥ triggerPrice`.
 The `order` is a full `Partial<InputOrder>` and is validated up front (it must
 have `instrumentId`, `direction`, `combOffsetFlag` and
-`volumeTotalOriginal > 0`), because a malformed template would otherwise misfire
-silently from C++.
+`volumeTotalOriginal > 0`).
 
 Returns an [`ArmHandle`](#armhandle) — call `handle.disarm()` to remove it.
 
 ```ts
-// stop-style: sell rb2510 the instant the bid reaches 3450
-const handle = td.arm(md, {
+import { Direction, OffsetFlag } from "ctp-node";
+
+// stop-loss: sell rb2510 the instant the bid reaches 3450
+const stop = td.arm(md, {
   instrumentId: "rb2510",
   side: "sell",
   triggerPrice: 3450,
@@ -551,8 +708,14 @@ const handle = td.arm(md, {
   },
 });
 
-// later, cancel the trigger if it hasn't fired
-handle.disarm();
+// breakout entry: buy when the ask reaches 3600
+const entry = td.arm(md, {
+  instrumentId: "rb2510", side: "buy", triggerPrice: 3600,
+  order: { instrumentId: "rb2510", direction: "0", combOffsetFlag: "0", limitPrice: 3605, volumeTotalOriginal: 2 },
+});
+
+// cancel a trigger that hasn't fired
+stop.disarm();
 ```
 
 #### `td.armStats()` → `{ fired: number; blocked: number }`
@@ -564,17 +727,27 @@ order is otherwise invisible.
 
 ```ts
 const { fired, blocked } = td.armStats();
+console.log(`armed: ${fired} sent, ${blocked} refused`);
 if (blocked > 0) console.warn("an armed order was refused by risk");
 ```
 
 ### `td.getApiVersion()` / `td.getTradingDay()` → `string`
 
-As on [`MarketData`](#mdgetapiversion--mdgettradingday--string).
+The CTP trader API version and current trading day.
+
+```ts
+console.log("CTP TD API", td.getApiVersion(), "day", td.getTradingDay());
+```
 
 ### `td.close()` / `td.droppedRecords`
 
 As on [`CtpClient`](#ctpclient). The trader's ring is drop-**newest** (reliable),
 so order/trade returns are never silently discarded under backpressure.
+
+```ts
+console.log("trader dropped (should stay 0):", td.droppedRecords);
+process.on("SIGINT", () => td.close());
+```
 
 ### Trader events
 
@@ -595,6 +768,7 @@ though you'll usually consume those via the request Promise.
 td.on("rtn-order", (o, opts) => {
   console.log(o.instrumentId, "status", o.orderStatus, "ref", o.orderRef);
 });
+td.on("rtn-trade", (t) => console.log("FILL", t.instrumentId, t.price, "x", t.volume));
 td.on("err-rtn-order-insert", (input, opts) => {
   console.error("exchange rejected", input.orderRef, opts.rspInfo?.errorMsg);
 });
@@ -614,17 +788,36 @@ Register an event handler (standard `EventEmitter`). Handlers receive
 names are plain strings (the typed overloads on each subclass list the common
 ones); unknown native events surface as `event:<id>`.
 
+```ts
+md.on("rtn-depth-market-data", (tick, options) => {
+  if (options.rspInfo) console.error("error record", options.rspInfo.errorMsg);
+  else console.log(tick.lastPrice);
+});
+
+// one-shot with .once, remove with .off — it's a normal EventEmitter
+td.once("front-connected", () => console.log("connected for the first time"));
+```
+
 ### `client.droppedRecords` → `number` (getter)
 
 Total records dropped under backpressure since construction. A steadily climbing
 value means the consumer can't keep up. Market data drops oldest; the trader
 drops newest.
 
+```ts
+setInterval(() => console.log("dropped:", md.droppedRecords, td.droppedRecords), 10_000);
+```
+
 ### `client.close()` → `void`
 
 Release the underlying CTP API and free native resources (the decode ring, SPI,
 background threads). Idempotent. In-flight request Promises reject with
 `"client closed"`. Call once, at shutdown.
+
+```ts
+async function shutdown() { td.close(); md.close(); }
+process.on("SIGTERM", shutdown);
+```
 
 ### The `error` event
 
@@ -640,7 +833,8 @@ Either way the ring keeps advancing — a buggy handler never re-delivers or sta
 records.
 
 ```ts
-md.on("error", (err) => console.error("handler threw:", err));
+md.on("error", (err) => console.error("a market-data handler threw:", err));
+td.on("error", (err) => console.error("a trader handler threw:", err));
 ```
 
 ### Generated request methods
@@ -658,6 +852,16 @@ Every CTP request maps to a camelCase method on `Trader` taking a
 - **All other requests** → `Promise<...>` resolving with the single `OnRsp*`
   response row.
 
+```ts
+// authenticate / login / confirm manually (what session() automates)
+await td.reqAuthenticate({ brokerId: "9999", userId: "id", appId: "simnow_client_test", authCode: "0000000000000000" });
+await td.reqUserLogin({ brokerId: "9999", userId: "id", password: "pw" });
+await td.reqSettlementInfoConfirm({ brokerId: "9999", investorId: "id" });
+
+// the settlement statement text
+const [info] = await td.reqQrySettlementInfo({ brokerId: "9999", investorId: "id" });
+```
+
 Common ones: `reqAuthenticate`, `reqUserLogin`, `reqUserLogout`,
 `reqSettlementInfoConfirm`, `reqQrySettlementInfo`, `reqQryInstrument`,
 `reqQryInvestorPosition`, `reqQryInvestorPositionDetail`, `reqQryTradingAccount`,
@@ -670,7 +874,7 @@ is generated from the CTP headers — 111 request methods.)
 
 ### `RiskConfig`
 
-Pre-trade risk limits for [`riskSet`](#tdriskSetconfig--this). All fields
+Pre-trade risk limits for [`riskSet`](#tdrisksetconfig--this). All fields
 optional; **omit or `0` = disabled**; `NaN`/`Infinity` throws.
 
 | Field | Type | Meaning |
@@ -682,6 +886,11 @@ optional; **omit or `0` = disabled**; `NaN`/`Infinity` throws.
 | `orderBurst` | `number` | Token-bucket burst size. Default: `maxOrdersPerSec`. |
 | `maxPositionCost` | `number` | Cap on total open-position cost across the whole book. |
 
+```ts
+const conservative: RiskConfig = { maxOrderVolume: 5, maxOrdersPerSec: 10, maxNotional: 2_000_000 };
+td.riskSet(conservative);
+```
+
 ### `LotCap`
 
 `number | { long?: number; short?: number }` — the cap argument to
@@ -689,11 +898,24 @@ optional; **omit or `0` = disabled**; `NaN`/`Infinity` throws.
 A number caps both sides; `{ long, short }` caps each (omit a side = unchanged,
 `≤ 0` = clear).
 
+```ts
+const a: LotCap = 100;                  // both sides ≤ 100
+const b: LotCap = { long: 50, short: 5 }; // long ≤ 50, short ≤ 5
+```
+
 ### `SessionOptions`
 
 Options for [`session`](#tdsessionopts--promise-multipliers-positions-orders-).
-See the table there. `{ brokerId, userId, password, appId?, authCode?,
-confirmSettlement?, sync? }`.
+See the table there.
+
+```ts
+const opts: SessionOptions = {
+  brokerId: "9999", userId: "id", password: "pw",
+  appId: "simnow_client_test", authCode: "0000000000000000",
+  confirmSettlement: true,
+  sync: { multipliers: ["rb2510"], positions: true, orders: true },
+};
+```
 
 ### `ArmSpec`
 
@@ -707,6 +929,14 @@ interface ArmSpec {
 }
 ```
 
+```ts
+const spec: ArmSpec = {
+  instrumentId: "rb2510", side: "sell", triggerPrice: 3450,
+  order: { instrumentId: "rb2510", direction: "1", combOffsetFlag: "3", limitPrice: 3445, volumeTotalOriginal: 1 },
+};
+const handle = td.arm(md, spec);
+```
+
 ### `ArmHandle`
 
 ```ts
@@ -714,6 +944,12 @@ interface ArmHandle {
   readonly id: number;
   disarm(): boolean; // remove the trigger; false if it was already gone/fired
 }
+```
+
+```ts
+const handle = td.arm(md, spec);
+console.log("armed id", handle.id);
+if (!handle.disarm()) console.log("it had already fired");
 ```
 
 ### `CallbackOptions`
@@ -728,6 +964,14 @@ interface CallbackOptions {
 }
 ```
 
+```ts
+td.on("rsp-qry-investor-position", (row, options) => {
+  if (options.rspInfo) return console.error(options.rspInfo.errorMsg);
+  collect(row);
+  if (options.isLast) finish(); // final row of the multi-row response
+});
+```
+
 ### `RspInfo`
 
 ```ts
@@ -737,8 +981,13 @@ interface RspInfo {
 }
 ```
 
-A rejected request Promise's error carries these fields too:
-`err.errorId` / `err.errorMsg`.
+A rejected request Promise's error carries these fields too
+(`err.errorId` / `err.errorMsg`):
+
+```ts
+try { await td.reqUserLogin({ brokerId: "9999", userId: "id", password: "bad" }); }
+catch (e) { console.error(`CTP ${e.errorId}: ${e.errorMsg}`); }
+```
 
 ### `MdLoginReq`
 
@@ -747,6 +996,11 @@ interface MdLoginReq {
   brokerId?: string; userId?: string; password?: string;
   tradingDay?: string; userProductInfo?: string;
 }
+```
+
+```ts
+const req: MdLoginReq = { brokerId: "9999", userId: "id", password: "pw" };
+await md.login(req);
 ```
 
 ---
@@ -759,13 +1013,14 @@ headers and re-exported from the package root.
 **Enums** are string-valued and usable both as the enum member and the raw code:
 
 ```ts
-import { Direction, OffsetFlag, OrderStatus, OrderPriceType } from "ctp-node";
+import { Direction, OffsetFlag, OrderStatus, OrderPriceType, ActionFlag } from "ctp-node";
 
 Direction.Buy;          // "0"
 Direction.Sell;         // "1"
 OffsetFlag.Open;        // "0"
 OffsetFlag.CloseToday;  // "3"
 OrderStatus.AllTraded;  // "0"
+ActionFlag.Delete;      // "0"
 
 // both forms type-check on a struct field:
 const a = { direction: Direction.Buy };
@@ -782,6 +1037,10 @@ import type { DepthMarketData, Order, Trade, InputOrder } from "ctp-node";
 md.on("rtn-depth-market-data", (tick: DepthMarketData) => {
   const mid = (tick.bidPrice1 + tick.askPrice1) / 2;
 });
+
+function buildOrder(): Partial<InputOrder> {
+  return { instrumentId: "rb2510", direction: "0", combOffsetFlag: "0", limitPrice: 3500, volumeTotalOriginal: 1 };
+}
 ```
 
 > Field names are camelCase versions of the CTP fields (`LastPrice` →
