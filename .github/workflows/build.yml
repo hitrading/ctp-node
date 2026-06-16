@@ -74,6 +74,9 @@ jobs:
     needs: build              # Windows + Linux only; macOS (build-macos) never gates the release
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.semrel.outputs.new_release_published }}   # 'true' when a version was released
+      tag: ${{ steps.semrel.outputs.new_release_git_tag }}           # e.g. v1.1.0
     permissions:
       contents: write        # commit the changelog/version bump + create the Release + tag
       issues: write          # semantic-release comments on released issues/PRs
@@ -102,6 +105,7 @@ jobs:
       - name: bundle the available prebuilds as a release asset
         run: tar -czf ctp-node-prebuilds.tgz prebuilds/
       - name: semantic-release (version + changelog + GitHub Release + npm publish)
+        id: semrel
         if: ${{ env.NPM_TOKEN != '' }}   # no-op until you add the NPM_TOKEN secret (keeps the badge green)
         uses: cycjimmy/semantic-release-action@v4
         with:
@@ -111,3 +115,35 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Attach the macOS prebuild to the release ONCE build-macos finishes. macOS
+  # runners queue unpredictably, so this runs after BOTH the release and the macOS
+  # build — it never delays the npm publish or the release itself. It only acts
+  # when a release was actually published, and no-ops gracefully if the macOS build
+  # failed/timed out (no artifact). The npm tarball ships Windows/Linux prebuilds;
+  # macOS installed from npm builds from source — this enriches the GitHub Release
+  # asset for anyone grabbing the prebuild bundle directly.
+  attach-macos:
+    needs: [build-macos, release]
+    if: ${{ always() && needs.release.outputs.published == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # upload the asset to the release
+      actions: read     # download the build-macos artifact
+    steps:
+      - uses: actions/download-artifact@v4
+        continue-on-error: true   # build-macos may have failed/timed out -> no artifact
+        with:
+          name: prebuilds-macos-13
+          path: prebuilds/
+      - name: package + attach the macOS prebuild to ${{ needs.release.outputs.tag }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -d prebuilds ] && [ -n "$(ls -A prebuilds 2>/dev/null)" ]; then
+            tar -czf ctp-node-macos-prebuild.tgz prebuilds/
+            gh release upload "${{ needs.release.outputs.tag }}" ctp-node-macos-prebuild.tgz --clobber --repo "$GITHUB_REPOSITORY"
+            echo "attached ctp-node-macos-prebuild.tgz to ${{ needs.release.outputs.tag }}"
+          else
+            echo "no macOS prebuild artifact (build-macos failed or timed out); nothing to attach"
+          fi
