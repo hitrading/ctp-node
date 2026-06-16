@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/hitrading/ctp-node/compare/v1.1.0...v1.2.0) (2026-06-16)
+
+
+### Features
+
+* upgrade CTP SDK 6.7.2 -> 6.7.13 ([bc6812a](https://github.com/hitrading/ctp-node/commit/bc6812a9d37d86b6f34cabd0dd9bf399f7fb9d45))
+
 # [1.1.0](https://github.com/hitrading/ctp-node/compare/v1.0.0...v1.1.0) (2026-06-16)
 
 
