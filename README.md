@@ -23,7 +23,7 @@ npm install ctp-node
 ## Documentation
 
 - **Full API reference** — every TypeScript/JavaScript interface and method, with each parameter's type and meaning, plus usage examples: [English](docs/API.md) · [简体中文](docs/API.zh-CN.md)
-- [Architecture & native internals](docs/native-hooks.md) — the lock-free data plane, the C++ risk engine, backpressure, and the create-once process-lifecycle notes.
+- Architecture & native internals — the lock-free data plane, the C++ risk engine, backpressure, and the create-once process-lifecycle notes: [English](docs/native-hooks.md) · [简体中文](docs/native-hooks.zh-CN.md)
 
 ## Quick start — market data
 

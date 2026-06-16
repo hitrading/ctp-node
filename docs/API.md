@@ -17,6 +17,7 @@ Complete usage documentation for every public TypeScript/JavaScript interface in
 - [Types](#types) — `RiskConfig`, `LotCap`, `SessionOptions`, `ArmSpec`, `ArmHandle`, `CallbackOptions`, `RspInfo`, `MdLoginReq`
 - [Enums & struct types](#enums--struct-types)
 - [Risk controls at a glance](#risk-controls-at-a-glance)
+- [Recipes](#recipes) — strategy skeleton · reconnect handling · combination orders
 
 ```ts
 import {
@@ -1069,3 +1070,164 @@ before the fills report. Feed held positions via `syncPositions()` /
 `seedPosition()` and working orders via `syncOrders()` (especially after a
 reconnect). All caps are enforced in C++ on the send path; a breach makes
 `reqOrderInsert()` reject with the reason in the message.
+
+---
+
+## Recipes
+
+End-to-end patterns that stitch the individual calls above into something
+runnable.
+
+### A complete strategy skeleton
+
+A minimal but production-shaped skeleton: risk first, handshake on connect,
+positions tracked from fills (the source of truth), graceful shutdown. Drop your
+own logic into `signal()`.
+
+```ts
+import {
+  MarketData, Trader, Direction, OffsetFlag, type DepthMarketData, type Trade,
+} from "ctp-node";
+
+const CREDS = {
+  brokerId: "9999", userId: "your-id", password: "your-pw",
+  appId: "simnow_client_test", authCode: "0000000000000000",
+};
+const SYMBOL = "rb2510";
+
+const md = new MarketData("./flow/md/", "tcp://180.168.146.187:10131");
+const td = new Trader("./flow/td/", "tcp://180.168.146.187:10130");
+
+// 1) Configure risk BEFORE any order can be sent (enforced in C++).
+td.riskSet({ maxOrderVolume: 5, maxNotional: 2_000_000, maxOrdersPerSec: 10, maxPriceDeviation: 0.02, maxPositionCost: 5_000_000 });
+td.setMaxPosition(SYMBOL, { long: 10, short: 10 });
+td.trackMarketData(md);              // live reference price for the deviation check
+
+// 2) Never let a buggy handler wedge the feed — log handler throws.
+md.on("error", (e) => console.error("[md handler]", e));
+td.on("error", (e) => console.error("[td handler]", e));
+
+// 3) Handshake on connect AND every reconnect (CTP reconnects on its own).
+td.on("front-connected", async () => {
+  try { await td.session({ ...CREDS }); console.log("trader ready"); }
+  catch (e: any) { console.error("session failed", e.errorId, e.errorMsg); }
+});
+md.on("front-connected", async () => {
+  await md.login();                  // SimNow MD front accepts anonymous login
+  md.subscribe([SYMBOL]);
+});
+
+// 4) Position is derived from FILLS, never assumed from sends.
+let position = 0; // net lots (+long / -short)
+td.on("rtn-trade", (t: Trade) => {
+  position += t.direction === Direction.Buy ? t.volume : -t.volume;
+  console.log("fill", t.price, "x", t.volume, "-> net position", position);
+});
+
+// 5) The strategy: turn each tick into a target and trade the difference.
+md.on("rtn-depth-market-data", async (tick: DepthMarketData) => {
+  if (tick.instrumentId !== SYMBOL) return;
+  const want = signal(tick);         // your logic: target net lots, e.g. -1 / 0 / +1
+  const delta = want - position;
+  if (delta === 0) return;
+  const buy = delta > 0;
+  await td.reqOrderInsert({
+    instrumentId: SYMBOL,
+    direction: buy ? Direction.Buy : Direction.Sell,
+    // open if we're growing the position, close if we're shrinking it
+    combOffsetFlag: Math.sign(want) === Math.sign(position) || position === 0 ? OffsetFlag.Open : OffsetFlag.CloseToday,
+    limitPrice: buy ? tick.askPrice1 : tick.bidPrice1, // cross the spread to fill
+    volumeTotalOriginal: Math.abs(delta),
+  }).catch((e) => console.warn("order refused:", e.message));
+});
+
+function signal(_tick: DepthMarketData): number { return 0; /* TODO your alpha */ }
+
+// 6) Graceful shutdown — halt, then close ONCE.
+for (const sig of ["SIGINT", "SIGTERM"] as const) {
+  process.on(sig, () => { td.halt(); td.close(); md.close(); process.exit(0); });
+}
+```
+
+### Robust reconnect handling
+
+CTP reconnects on its own; you re-run the handshake **in place** on every
+`front-connected` — never `new Trader()` to reconnect (the vendor DLL deadlocks;
+see [native-hooks.md](native-hooks.md#process-lifecycle-create-once-reuse)).
+
+```ts
+td.on("front-connected", async () => {
+  // session() re-authenticates, re-logs-in, re-confirms, and crucially re-syncs
+  // multipliers/positions/orders — so the risk engine's position caps are rebuilt
+  // to include orders that were working before the drop (and any from another
+  // terminal on the same account). Then re-arm whatever you need.
+  await td.session({ ...CREDS });
+  rearmTriggers();
+});
+
+td.on("front-disconnected", (reason) => {
+  console.warn("trader link down (code", reason, ") — CTP will auto-reconnect");
+  // pending request Promises have already rejected; pause new signals until
+  // the next front-connected if your strategy needs a confirmed session.
+});
+
+function rearmTriggers() { /* re-create any td.arm(...) triggers here */ }
+```
+
+If you prefer to hand-roll instead of `session()`, the key is to **re-sync orders
+after a reconnect** so in-flight reservations are rebuilt:
+
+```ts
+td.on("front-connected", async () => {
+  await td.reqUserLogin({ ...CREDS });
+  await td.syncMultipliers();   // before syncOrders, so reserved cost uses the right multiplier
+  await td.syncPositions();     // rebuild held-position cost
+  await td.syncOrders();        // rebuild in-flight reservations from working orders
+});
+```
+
+### Combination & multi-leg orders
+
+**Close-today vs close-yesterday.** SHFE/INE distinguish them, so `"close"` isn't
+enough — pick `CloseToday` (`"3"`) or `CloseYesterday` (`"4"`). To flatten 5 long
+lots that are 2 opened today + 3 from prior days, send two orders:
+
+```ts
+import { Direction, OffsetFlag } from "ctp-node";
+
+await td.reqOrderInsert({ instrumentId: "rb2510", direction: Direction.Sell, combOffsetFlag: OffsetFlag.CloseToday,     limitPrice: px, volumeTotalOriginal: 2 });
+await td.reqOrderInsert({ instrumentId: "rb2510", direction: Direction.Sell, combOffsetFlag: OffsetFlag.CloseYesterday, limitPrice: px, volumeTotalOriginal: 3 });
+```
+
+**Spread / combination instruments (multi-leg `combOffsetFlag`).**
+`combOffsetFlag` is **one offset char per leg**. For an exchange-listed
+combination instrument (e.g. a SHFE calendar spread `SP rb2510&rb2601`, two
+legs), pass a 2-char flag — here open both legs (`"0"` + `"0"` → `"00"`):
+
+```ts
+await td.reqOrderInsert({
+  instrumentId: "SP rb2510&rb2601", // exchange-specific combo id format
+  direction: Direction.Buy,
+  combOffsetFlag: "00",             // leg1 open, leg2 open
+  limitPrice: spreadPrice,
+  volumeTotalOriginal: 1,
+});
+// close-today the near leg, open the far leg of a 2-leg combo: "30"
+```
+
+**Building/dissolving a combined position** (where the exchange supports it) goes
+through `reqCombActionInsert` with an `InputCombAction`:
+
+```ts
+await td.reqCombActionInsert({
+  brokerId: "9999", investorId: "your-id",
+  instrumentId: "SPC m2509&m2601",  // the combination instrument
+  combDirection: "0",               // 0 = build the combination, 1 = split it
+  volume: 1,
+  // ...remaining InputCombAction fields per your exchange
+});
+```
+
+> Multi-leg flags and combination instruments are **exchange-specific** — the id
+> format and which combos exist vary by exchange. The pre-trade risk gate's
+> per-instrument caps key on the combo instrument id, not the underlying legs.

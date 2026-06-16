@@ -4,7 +4,7 @@
 # ctp-node API 参考
 
 `ctp-node` 全部公开 TypeScript/JavaScript 接口的完整使用文档。架构与原生钩子内部细节见
-[native-hooks.md](native-hooks.md)；设计总览见 [README](../README.md)。
+[native-hooks.zh-CN.md](native-hooks.zh-CN.md)；设计总览见 [README](../README.md)。
 
 - [安装](#安装)
 - [快速开始](#快速开始)
@@ -15,6 +15,7 @@
 - [类型](#类型) — `RiskConfig`、`LotCap`、`SessionOptions`、`ArmSpec`、`ArmHandle`、`CallbackOptions`、`RspInfo`、`MdLoginReq`
 - [枚举与结构体类型](#枚举与结构体类型)
 - [风控一览](#风控一览)
+- [实战示例](#实战示例) — 策略骨架 · 重连处理 · 组合下单
 
 ```ts
 import {
@@ -99,7 +100,7 @@ td.on("rtn-trade", (t) => console.log("已成交", t.instrumentId, t.price, t.vo
 后应**原地**处理：在 `front-connected` 再次触发时（首次连接 *以及* 每次自动重连都会触发）重新
 跑一遍握手。**不要**销毁再重建客户端：厂商 DLL 在一个进程内做几次 create/close 循环后会在
 `Release()` 内部死锁。关闭时调用一次 `close()`（或干脆不调用——进程退出会清理）。详见
-[native-hooks.md → 进程生命周期](native-hooks.md#process-lifecycle-create-once-reuse)。
+[native-hooks.zh-CN.md → 进程生命周期](native-hooks.zh-CN.md#进程生命周期-一次创建并复用)。
 
 **背压。** 每个客户端从无锁环形缓冲解码行情/回报。`droppedRecords` 统计 JS 循环跟不上时丢弃的
 记录数。行情丢弃**最旧**的记录（你总能看到最新报价）；交易端丢弃**最新**的，因此报单/成交回报
@@ -108,6 +109,8 @@ td.on("rtn-trade", (t) => console.log("已成交", t.instrumentId, t.price, t.vo
 **盘前风控在 C++ 中执行。** 所有风控限制（`riskSet`、`setMaxPosition`、`halt` 等）都在原生
 插件内、报单发送路径上、抵达 CTP 之前就执行——没有 JS 往返。被拦截的报单会让
 `reqOrderInsert()` reject，原因在错误消息里。
+
+> 完整的实战示例（策略骨架、重连处理、组合下单）见文末的[实战示例](#实战示例)。
 
 ---
 
@@ -998,3 +1001,154 @@ function buildOrder(): Partial<InputOrder> {
 不会在成交回报到达前溜过上限。用 `syncPositions()` / `seedPosition()` 喂入已持仓，用
 `syncOrders()` 喂入挂单（尤其是重连后）。所有上限都在 C++ 发送路径上执行；突破会让
 `reqOrderInsert()` reject，原因在消息里。
+
+---
+
+## 实战示例
+
+把上面那些单独的调用串成可运行整体的端到端模式。
+
+### 一个完整的策略骨架
+
+一个最小但具备生产形态的骨架：风控先行、连接时握手、持仓以成交为准（唯一真相来源）、优雅关闭。
+把你自己的逻辑放进 `signal()` 里。
+
+```ts
+import {
+  MarketData, Trader, Direction, OffsetFlag, type DepthMarketData, type Trade,
+} from "ctp-node";
+
+const CREDS = {
+  brokerId: "9999", userId: "your-id", password: "your-pw",
+  appId: "simnow_client_test", authCode: "0000000000000000",
+};
+const SYMBOL = "rb2510";
+
+const md = new MarketData("./flow/md/", "tcp://180.168.146.187:10131");
+const td = new Trader("./flow/td/", "tcp://180.168.146.187:10130");
+
+// 1) 在任何报单能发出之前先配置风控（在 C++ 中执行）。
+td.riskSet({ maxOrderVolume: 5, maxNotional: 2_000_000, maxOrdersPerSec: 10, maxPriceDeviation: 0.02, maxPositionCost: 5_000_000 });
+td.setMaxPosition(SYMBOL, { long: 10, short: 10 });
+td.trackMarketData(md);              // 偏离校验用的实时参考价
+
+// 2) 绝不让一个有 bug 的处理函数拖垮数据面——记录处理函数抛出的异常。
+md.on("error", (e) => console.error("[md handler]", e));
+td.on("error", (e) => console.error("[td handler]", e));
+
+// 3) 连接时及每次重连时握手（CTP 会自行重连）。
+td.on("front-connected", async () => {
+  try { await td.session({ ...CREDS }); console.log("交易就绪"); }
+  catch (e: any) { console.error("session 失败", e.errorId, e.errorMsg); }
+});
+md.on("front-connected", async () => {
+  await md.login();                  // SimNow 行情前置接受匿名登录
+  md.subscribe([SYMBOL]);
+});
+
+// 4) 持仓由「成交」推导，绝不凭发送臆测。
+let position = 0; // 净手数（+多 / -空）
+td.on("rtn-trade", (t: Trade) => {
+  position += t.direction === Direction.Buy ? t.volume : -t.volume;
+  console.log("成交", t.price, "x", t.volume, "-> 净持仓", position);
+});
+
+// 5) 策略：把每个 tick 转成目标，并交易差额。
+md.on("rtn-depth-market-data", async (tick: DepthMarketData) => {
+  if (tick.instrumentId !== SYMBOL) return;
+  const want = signal(tick);         // 你的逻辑：目标净手数，如 -1 / 0 / +1
+  const delta = want - position;
+  if (delta === 0) return;
+  const buy = delta > 0;
+  await td.reqOrderInsert({
+    instrumentId: SYMBOL,
+    direction: buy ? Direction.Buy : Direction.Sell,
+    // 在扩大持仓时开仓，在缩小持仓时平仓
+    combOffsetFlag: Math.sign(want) === Math.sign(position) || position === 0 ? OffsetFlag.Open : OffsetFlag.CloseToday,
+    limitPrice: buy ? tick.askPrice1 : tick.bidPrice1, // 越过价差以求成交
+    volumeTotalOriginal: Math.abs(delta),
+  }).catch((e) => console.warn("报单被拒:", e.message));
+});
+
+function signal(_tick: DepthMarketData): number { return 0; /* TODO 你的 alpha */ }
+
+// 6) 优雅关闭——先熔断，再 close 一次。
+for (const sig of ["SIGINT", "SIGTERM"] as const) {
+  process.on(sig, () => { td.halt(); td.close(); md.close(); process.exit(0); });
+}
+```
+
+### 健壮的重连处理
+
+CTP 会自行重连；你在每次 `front-connected` **原地**重新跑握手——绝不要用 `new Trader()` 来重连
+（厂商 DLL 会死锁；见 [native-hooks.zh-CN.md](native-hooks.zh-CN.md#进程生命周期-一次创建并复用)）。
+
+```ts
+td.on("front-connected", async () => {
+  // session() 会重新认证、重新登录、重新确认，并且关键地重新同步乘数/持仓/报单——使风控引擎的
+  // 持仓上限重建到包含断线前就在挂着的报单（以及同账户另一终端下的）。然后重新预埋你需要的触发器。
+  await td.session({ ...CREDS });
+  rearmTriggers();
+});
+
+td.on("front-disconnected", (reason) => {
+  console.warn("交易链路断开（码", reason, "）—— CTP 会自动重连");
+  // 在途请求 Promise 已经 reject；若你的策略需要已确认的会话，
+  // 就暂停发新信号，直到下一次 front-connected。
+});
+
+function rearmTriggers() { /* 在这里重新创建任何 td.arm(...) 触发器 */ }
+```
+
+如果你倾向于手写而非用 `session()`，关键是**重连后重新同步报单**，以便重建在途预约：
+
+```ts
+td.on("front-connected", async () => {
+  await td.reqUserLogin({ ...CREDS });
+  await td.syncMultipliers();   // 在 syncOrders 之前，使预约成本用对乘数
+  await td.syncPositions();     // 重建已持仓成本
+  await td.syncOrders();        // 从挂单重建在途预约
+});
+```
+
+### 组合与多腿下单
+
+**平今 vs 平昨。** SHFE/INE 区分两者，所以光用 `"平仓"` 不够——要选 `CloseToday`（`"3"`）或
+`CloseYesterday`（`"4"`）。要平掉 5 手多头（其中 2 手是今仓、3 手是历史仓），发两笔：
+
+```ts
+import { Direction, OffsetFlag } from "ctp-node";
+
+await td.reqOrderInsert({ instrumentId: "rb2510", direction: Direction.Sell, combOffsetFlag: OffsetFlag.CloseToday,     limitPrice: px, volumeTotalOriginal: 2 });
+await td.reqOrderInsert({ instrumentId: "rb2510", direction: Direction.Sell, combOffsetFlag: OffsetFlag.CloseYesterday, limitPrice: px, volumeTotalOriginal: 3 });
+```
+
+**价差 / 组合合约（多腿 `combOffsetFlag`）。** `combOffsetFlag` 是**每条腿一个开平字符**。对于
+交易所挂牌的组合合约（如 SHFE 跨期价差 `SP rb2510&rb2601`，两条腿），传一个 2 字符的 flag——这里
+两条腿都开仓（`"0"` + `"0"` → `"00"`）：
+
+```ts
+await td.reqOrderInsert({
+  instrumentId: "SP rb2510&rb2601", // 交易所专有的组合 id 格式
+  direction: Direction.Buy,
+  combOffsetFlag: "00",             // 腿1 开、腿2 开
+  limitPrice: spreadPrice,
+  volumeTotalOriginal: 1,
+});
+// 平今近腿、开远腿的两腿组合："30"
+```
+
+**建立/拆解组合持仓**（在交易所支持时）走 `reqCombActionInsert`，用 `InputCombAction`：
+
+```ts
+await td.reqCombActionInsert({
+  brokerId: "9999", investorId: "your-id",
+  instrumentId: "SPC m2509&m2601",  // 组合合约
+  combDirection: "0",               // 0 = 建立组合，1 = 拆分
+  volume: 1,
+  // ……其余 InputCombAction 字段按你的交易所
+});
+```
+
+> 多腿 flag 和组合合约都是**交易所专有**——id 格式以及存在哪些组合因交易所而异。盘前风控网关的
+> 按合约上限以组合合约 id（而非底层各腿）为键。

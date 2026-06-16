@@ -1,3 +1,6 @@
+<!-- LANG-SWITCH -->
+**English** · [简体中文](native-hooks.zh-CN.md)
+
 # Native-sinkable hooks (risk / rate-limit / arm)
 
 Goal: keep ~95% of strategy work in JS/TS (fast iteration, good ecosystem) while
