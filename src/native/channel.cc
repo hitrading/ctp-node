@@ -131,8 +131,19 @@ uint32_t EventChannel::validate(uint32_t claimed) {
   // tell "finished w-1, idle" from "mid-writing w", so we conservatively treat
   // index (w - numSlots) as torn too. Using w - numSlots here would deliver that
   // boundary record while its slot is being overwritten — a torn quote reaching
-  // a handler (silent corruption under sustained overflow). Costs at most one
-  // extra (still-fresh) drop per fully-lapped batch; correct for drop-oldest.
+  // a handler (silent corruption under sustained overflow).
+  //
+  // Cost of being conservative: whenever the ring is observed EXACTLY full
+  // (w - r == numSlots) — including the producer simply being idle at a full ring,
+  // not mid-writing — this drops the single oldest record in the batch even if its
+  // slot was intact. That is one unnecessary drop of the *stalest* queued quote,
+  // and only once the consumer has already fallen a full ring (numSlots) behind,
+  // i.e. exactly the overload regime where drop-oldest is meant to shed the
+  // stalest quotes. So it is never data corruption and never more than one drop
+  // per drain, always the least-valuable record. The exact alternative (no
+  // over-drop AND no torn delivery) is a per-slot seqlock generation stamp;
+  // deemed not worth an extra producer atomic on the hot path to save one
+  // already-stale quote at the full-ring boundary.
   const uint64_t w = writeIdx_.load(std::memory_order_acquire);
   const uint64_t r = readIdx_.load(std::memory_order_relaxed);
   const uint64_t floor = (w >= numSlots_) ? (w - numSlots_ + 1) : 0;

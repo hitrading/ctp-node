@@ -180,8 +180,30 @@ a build suddenly can't write the addon, look for a stray `node` zombie and
 **Dev tripwire.** As a backstop against a reconnect-by-recreate bug slipping
 into production, `CtpClient` keeps a process-wide count of clients that were
 started (`Init`) and then closed (`Release`) and emits a one-time
-`console.warn` once that count crosses a threshold (default 8). It runs only on
-`close()` — never on the hot data path — so it costs nothing where latency
-matters, and a normal app (a few long-lived clients) never trips it. Tune or
-disable it with the `CTP_RECREATE_WARN` env var: `CTP_RECREATE_WARN=0` disables
-it; any positive integer sets the threshold.
+`console.warn` once that count crosses a threshold (default 3 — deliberately
+below the ~4-cycle deadlock point so the warning prints on the `close()`
+preceding the typical wedge; a higher value would never fire in time). It runs
+only on `close()` — never on the hot data path — so it costs nothing where
+latency matters, and a create-once app (one or two long-lived clients closed at
+shutdown) never trips it. Tune or disable it with the `CTP_RECREATE_WARN` env
+var: `CTP_RECREATE_WARN=0` disables it; any positive integer sets the threshold.
+
+## Backpressure and market-data responses
+
+The market-data ring is `DropPolicy::Oldest`: when the JS consumer falls a full
+ring (8192 records) behind a tick flood, the producer overwrites the oldest
+unread slots. Request **responses** (`OnRspUserLogin` / `OnRspUserLogout` /
+`OnRspQryMulticastInstrument`) share this ring with the streaming ticks, so a
+response can in principle be dropped if ≥ 8192 ticks pile up after it before the
+event loop drains — the awaiting Promise would then reject on the idle timeout
+(`requestTimeoutMs`, default 30 s) rather than resolve.
+
+In practice this is benign: `login()` runs at startup before any subscription, so
+no ticks are flowing; the only responses that *could* be caught behind a live
+full-market flood are `logout()` (issued at shutdown) and the rarely-used
+`reqQryMulticastInstrument()`. The failure is bounded (a timeout rejection, never
+a silent hang or corruption) and recoverable (retry). If you must query market
+data mid-session under heavy load, expect a possible timeout and retry. The
+**trader** ring is `DropPolicy::Newest` (reliable): order/trade returns and all
+trader responses are never dropped under backpressure, so order-flow correctness
+is unaffected regardless of market-data load.
