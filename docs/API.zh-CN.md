@@ -22,7 +22,7 @@ import {
   MarketData, Trader,
   Direction, OffsetFlag, OrderPriceType, // 生成的枚举
   type RiskConfig, type SessionOptions, type DepthMarketData,
-} from "ctp-node";
+} from "@hitrading/ctp-node";
 ```
 
 ---
@@ -30,7 +30,7 @@ import {
 ## 安装
 
 ```bash
-npm install ctp-node
+npm install @hitrading/ctp-node
 ```
 
 win32-x64、linux-x64、darwin-x64 提供预编译二进制；其他平台在安装时从源码编译（与任何
@@ -43,7 +43,7 @@ node-gyp 包一样，需要 C++ 工具链 + Python）。
 ### 行情
 
 ```ts
-import { MarketData } from "ctp-node";
+import { MarketData } from "@hitrading/ctp-node";
 
 const md = new MarketData("./flow/md/", "tcp://180.168.146.187:10131");
 
@@ -62,7 +62,7 @@ md.on("rtn-depth-market-data", (tick) => {
 ### 带盘前风控的交易
 
 ```ts
-import { Trader, Direction, OffsetFlag } from "ctp-node";
+import { Trader, Direction, OffsetFlag } from "@hitrading/ctp-node";
 
 const td = new Trader("./flow/td/", "tcp://180.168.146.187:10130");
 
@@ -282,7 +282,7 @@ process.on("SIGINT", () => { md.close(); process.exit(0); });
 | `error` | `unknown` | 你注册的某个*处理函数*抛了异常——见[错误处理](#error-事件)。 |
 
 ```ts
-import { MarketDataEvent } from "ctp-node";
+import { MarketDataEvent } from "@hitrading/ctp-node";
 
 // 符号名
 md.on(MarketDataEvent.RtnDepthMarketData, (t) => {
@@ -375,7 +375,7 @@ await td.session({ brokerId: "9999", userId: "id", password: "pw", confirmSettle
 | `orderPriceType` | `OrderPriceType?` | 默认限价；市价/最优价类型需设置。 |
 
 ```ts
-import { Direction, OffsetFlag } from "ctp-node";
+import { Direction, OffsetFlag } from "@hitrading/ctp-node";
 
 // 1）限价买开 1 手
 await td.reqOrderInsert({
@@ -404,7 +404,7 @@ await td.reqOrderInsert({ instrumentId: "rb2510", direction: Direction.Sell, com
 或用 `exchangeId` + `orderSysId` 来定位报单。
 
 ```ts
-import { ActionFlag } from "ctp-node";
+import { ActionFlag } from "@hitrading/ctp-node";
 
 let working;
 td.on("rtn-order", (o) => { if (o.orderStatus === "3") working = o; }); // NoTradeQueueing（未成交挂单）
@@ -650,7 +650,7 @@ td.seedFromPositions(freshRows);  // 用新一次查询重新播种
 返回一个 [`ArmHandle`](#armhandle)——调用 `handle.disarm()` 移除。
 
 ```ts
-import { Direction, OffsetFlag } from "ctp-node";
+import { Direction, OffsetFlag } from "@hitrading/ctp-node";
 
 // 止损：bid 一触及 3450 就卖出 rb2510
 const stop = td.arm(md, {
@@ -949,7 +949,7 @@ await md.login(req);
 **枚举**是字符串值，既可用枚举成员也可用原始码：
 
 ```ts
-import { Direction, OffsetFlag, OrderStatus, OrderPriceType, ActionFlag } from "ctp-node";
+import { Direction, OffsetFlag, OrderStatus, OrderPriceType, ActionFlag } from "@hitrading/ctp-node";
 
 Direction.Buy;          // "0"
 Direction.Sell;         // "1"
@@ -967,7 +967,7 @@ const b = { direction: "0" } as const;
 `Trade`、`InputOrder`、`InvestorPosition`、`RspUserLogin`。作为类型导入：
 
 ```ts
-import type { DepthMarketData, Order, Trade, InputOrder } from "ctp-node";
+import type { DepthMarketData, Order, Trade, InputOrder } from "@hitrading/ctp-node";
 
 md.on("rtn-depth-market-data", (tick: DepthMarketData) => {
   const mid = (tick.bidPrice1 + tick.askPrice1) / 2;
@@ -1016,7 +1016,7 @@ function buildOrder(): Partial<InputOrder> {
 ```ts
 import {
   MarketData, Trader, Direction, OffsetFlag, type DepthMarketData, type Trade,
-} from "ctp-node";
+} from "@hitrading/ctp-node";
 
 const CREDS = {
   brokerId: "9999", userId: "your-id", password: "your-pw",
@@ -1117,7 +1117,7 @@ td.on("front-connected", async () => {
 `CloseYesterday`（`"4"`）。要平掉 5 手多头（其中 2 手是今仓、3 手是历史仓），发两笔：
 
 ```ts
-import { Direction, OffsetFlag } from "ctp-node";
+import { Direction, OffsetFlag } from "@hitrading/ctp-node";
 
 await td.reqOrderInsert({ instrumentId: "rb2510", direction: Direction.Sell, combOffsetFlag: OffsetFlag.CloseToday,     limitPrice: px, volumeTotalOriginal: 2 });
 await td.reqOrderInsert({ instrumentId: "rb2510", direction: Direction.Sell, combOffsetFlag: OffsetFlag.CloseYesterday, limitPrice: px, volumeTotalOriginal: 3 });

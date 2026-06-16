@@ -3,9 +3,8 @@ name: build & prebuild
 on:
   push:
     branches: [master, main]
+    tags: ['v*']     # pushing a v* tag builds all platforms, cuts a GitHub Release, and publishes to npm
   pull_request:
-  release:
-    types: [created]
 
 jobs:
   build:
@@ -42,10 +41,16 @@ jobs:
           name: prebuilds-${{ matrix.os }}
           path: prebuilds/
 
-  publish:
+  # Auto-release + auto-publish, triggered by pushing a v* tag (e.g. `npm version
+  # patch && git push --follow-tags`). Builds on all platforms above, then here:
+  # sync the version from the tag, cut a GitHub Release (auto notes + the
+  # all-platform prebuilds attached), and publish @hitrading/ctp-node to npm.
+  release:
     needs: build
-    if: github.event_name == 'release'
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write          # create the GitHub Release
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -59,13 +64,20 @@ jobs:
           path: prebuilds/
       - run: npm ci --ignore-scripts
       - run: npm run build:ts
-      - name: sync package version to the release tag
-        # package.json ships a 0.0.0 placeholder; the published version comes from
-        # the release tag (e.g. v0.5.3 -> 0.5.3). Without this every release would
-        # try to publish 0.0.0 and fail after the first.
-        run: npm version "${TAG#v}" --no-git-tag-version --allow-same-version
-        env:
-          TAG: ${{ github.event.release.tag_name }}
-      - run: npm publish --access public
+      - name: sync the package version to the tag (v1.2.3 -> 1.2.3)
+        # package.json ships a 0.0.0 placeholder; the published version is the tag.
+        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+      - name: bundle the all-platform prebuilds as a release asset
+        run: tar -czf "ctp-node-prebuilds-${GITHUB_REF_NAME}.tgz" prebuilds/
+      - name: create the GitHub Release (auto notes + prebuilds attached)
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: ctp-node-prebuilds-*.tgz
+      - name: publish @hitrading/ctp-node to npm
+        # scoped package -> --access public makes the first publish public.
+        # Requires the NPM_TOKEN repo secret (an npm "Automation" token whose
+        # account can publish to the @hitrading scope).
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -36,7 +36,7 @@ Node ≥ 18. Prebuilt binaries are shipped for Windows/Linux/macOS (x64), so mos
 ## Install
 
 ```sh
-npm install ctp-node
+npm install @hitrading/ctp-node
 ```
 
 ## Documentation
@@ -48,7 +48,7 @@ npm install ctp-node
 ## Quick start — market data
 
 ```ts
-import { MarketData } from "ctp-node";
+import { MarketData } from "@hitrading/ctp-node";
 
 const md = new MarketData("./flow/md/", "tcp://180.168.146.187:10212");
 
@@ -66,7 +66,7 @@ md.on("rtn-depth-market-data", (tick) => {
 ## Quick start — trading
 
 ```ts
-import { Trader } from "ctp-node";
+import { Trader } from "@hitrading/ctp-node";
 
 const td = new Trader("./flow/td/", "tcp://180.168.146.187:10202");
 
@@ -131,7 +131,7 @@ const armed = trader.arm(md, {
 Enums are exported and typed:
 
 ```ts
-import { Direction, OffsetFlag } from "ctp-node";
+import { Direction, OffsetFlag } from "@hitrading/ctp-node";
 Direction.Buy;   // "0"
 Direction.Sell;  // "1"
 ```

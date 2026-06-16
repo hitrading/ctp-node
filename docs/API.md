@@ -24,7 +24,7 @@ import {
   MarketData, Trader,
   Direction, OffsetFlag, OrderPriceType, // generated enums
   type RiskConfig, type SessionOptions, type DepthMarketData,
-} from "ctp-node";
+} from "@hitrading/ctp-node";
 ```
 
 ---
@@ -32,7 +32,7 @@ import {
 ## Install
 
 ```bash
-npm install ctp-node
+npm install @hitrading/ctp-node
 ```
 
 Prebuilt binaries ship for win32-x64, linux-x64 and darwin-x64; other platforms
@@ -46,7 +46,7 @@ node-gyp package).
 ### Market data
 
 ```ts
-import { MarketData } from "ctp-node";
+import { MarketData } from "@hitrading/ctp-node";
 
 const md = new MarketData("./flow/md/", "tcp://180.168.146.187:10131");
 
@@ -65,7 +65,7 @@ md.on("rtn-depth-market-data", (tick) => {
 ### Trading with pre-trade risk
 
 ```ts
-import { Trader, Direction, OffsetFlag } from "ctp-node";
+import { Trader, Direction, OffsetFlag } from "@hitrading/ctp-node";
 
 const td = new Trader("./flow/td/", "tcp://180.168.146.187:10130");
 
@@ -299,7 +299,7 @@ Subscribe with `md.on(name, handler)`. Handlers receive `(data, options)` where
 | `error` | `unknown` | A *handler* you registered threw — see [error handling](#the-error-event). |
 
 ```ts
-import { MarketDataEvent } from "ctp-node";
+import { MarketDataEvent } from "@hitrading/ctp-node";
 
 // symbolic name
 md.on(MarketDataEvent.RtnDepthMarketData, (t) => {
@@ -399,7 +399,7 @@ a unique numeric value automatically.
 | `orderPriceType` | `OrderPriceType?` | Defaults to limit price; set for market/best-price types. |
 
 ```ts
-import { Direction, OffsetFlag } from "ctp-node";
+import { Direction, OffsetFlag } from "@hitrading/ctp-node";
 
 // 1) limit buy 1 lot to open
 await td.reqOrderInsert({
@@ -429,7 +429,7 @@ Cancel / modify a working order. Resolves on submission. Identify the order via
 `exchangeId` + `orderSysId`.
 
 ```ts
-import { ActionFlag } from "ctp-node";
+import { ActionFlag } from "@hitrading/ctp-node";
 
 let working;
 td.on("rtn-order", (o) => { if (o.orderStatus === "3") working = o; }); // NoTradeQueueing
@@ -696,7 +696,7 @@ have `instrumentId`, `direction`, `combOffsetFlag` and
 Returns an [`ArmHandle`](#armhandle) — call `handle.disarm()` to remove it.
 
 ```ts
-import { Direction, OffsetFlag } from "ctp-node";
+import { Direction, OffsetFlag } from "@hitrading/ctp-node";
 
 // stop-loss: sell rb2510 the instant the bid reaches 3450
 const stop = td.arm(md, {
@@ -1014,7 +1014,7 @@ headers and re-exported from the package root.
 **Enums** are string-valued and usable both as the enum member and the raw code:
 
 ```ts
-import { Direction, OffsetFlag, OrderStatus, OrderPriceType, ActionFlag } from "ctp-node";
+import { Direction, OffsetFlag, OrderStatus, OrderPriceType, ActionFlag } from "@hitrading/ctp-node";
 
 Direction.Buy;          // "0"
 Direction.Sell;         // "1"
@@ -1033,7 +1033,7 @@ const b = { direction: "0" } as const;
 `InvestorPosition`, `RspUserLogin`. Import them as types:
 
 ```ts
-import type { DepthMarketData, Order, Trade, InputOrder } from "ctp-node";
+import type { DepthMarketData, Order, Trade, InputOrder } from "@hitrading/ctp-node";
 
 md.on("rtn-depth-market-data", (tick: DepthMarketData) => {
   const mid = (tick.bidPrice1 + tick.askPrice1) / 2;
@@ -1087,7 +1087,7 @@ own logic into `signal()`.
 ```ts
 import {
   MarketData, Trader, Direction, OffsetFlag, type DepthMarketData, type Trade,
-} from "ctp-node";
+} from "@hitrading/ctp-node";
 
 const CREDS = {
   brokerId: "9999", userId: "your-id", password: "your-pw",
@@ -1193,7 +1193,7 @@ enough — pick `CloseToday` (`"3"`) or `CloseYesterday` (`"4"`). To flatten 5 l
 lots that are 2 opened today + 3 from prior days, send two orders:
 
 ```ts
-import { Direction, OffsetFlag } from "ctp-node";
+import { Direction, OffsetFlag } from "@hitrading/ctp-node";
 
 await td.reqOrderInsert({ instrumentId: "rb2510", direction: Direction.Sell, combOffsetFlag: OffsetFlag.CloseToday,     limitPrice: px, volumeTotalOriginal: 2 });
 await td.reqOrderInsert({ instrumentId: "rb2510", direction: Direction.Sell, combOffsetFlag: OffsetFlag.CloseYesterday, limitPrice: px, volumeTotalOriginal: 3 });

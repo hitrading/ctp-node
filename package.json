@@ -1,5 +1,5 @@
 {
-  "name": "ctp-node",
+  "name": "@hitrading/ctp-node",
   "version": "0.0.0",
   "description": "High-performance, type-safe CTP (Chinese futures) binding for Node.js",
   "keywords": ["ctp", "futures", "trading", "quant", "上期技术", "期货", "napi", "addon", "market-data"],
