@@ -252,4 +252,4 @@ setTimeout(async () => {
   process.exit(0);
 }, cfg.runMs);
 
-log("connecting... MD", cfg.mdFront, "| TD", cfg.tdFront, "| user", cfg.userId, "| run", cfg.runMs + "ms");
+log("connecting... MD", cfg.mdFront, "| TD", cfg.tdFront, "| run", cfg.runMs + "ms"); // never log the userId
