@@ -24,23 +24,41 @@ notified afterward.
 ## What is sunk down
 
 1. **Risk (pre-trade)** — `src/native/risk.h` `RiskEngine`
-   Hard checks run before every send: kill-switch, max order volume, price
-   deviation (fat-finger), max notional, open-position cost caps (account-wide
-   and per-instrument), and a per-instrument max position (lots, capped per
-   side). Enforced in C++ so they hold even if the JS process is mid-GC,
-   blocked, or buggy. *Safety win - worth it even for slow strategies.*
-   - Status: **all real**. Price deviation uses a per-instrument reference fed
-     from market data (`setRefPrice` / `trackMarketData`). Notional and
-     position-cost both apply the contract multiplier (price × volume ×
-     multiplier). Position-cost tracks Σ(open cost) per instrument (long/short,
-     with proportional release on close), updated from `OnRtnTrade` on the
-     trader callback thread.
-   - Multipliers and pre-existing positions are fetched from CTP automatically:
-     `syncMultipliers()` (via `reqQryInstrument`) and `syncPositions()` (via
-     `reqQryInvestorPosition`) — no manual `setMultiplier` / `seedPosition`
-     needed (those remain for tests / offline use). Multipliers are stored
-     separately from position state, so `syncPositions()` (which resets and
-     re-seeds positions) never wipes them.
+   Hard checks run before every send: kill-switch, max order volume, max
+   single-order notional (fat-finger guard), price-deviation guard, open-MARGIN
+   caps (account-wide and per-instrument), and a per-instrument max position
+   (lots, capped per side). Enforced in C++ so they hold even if the JS process
+   is mid-GC, blocked, or buggy. *Safety win - worth it even for slow
+   strategies.*
+   - Status: **all real**. The price-deviation guard reads its reference from
+     the C++ MD snapshot cache (the LVC; see §4 below) via `trackMarketData(md)`
+     — no `setRefPrice`, no JS round-trip, and it covers armed orders too. The
+     single-order notional check is still notional (price × volume × multiplier
+     — a fat-finger guard). The open-position cap is REAL MARGIN: Σ(price ×
+     volume × multiplier × marginRate) per instrument (long/short, with
+     proportional release on close), updated from `OnRtnTrade` on the trader
+     callback thread.
+   - **Architecture principle: the C++ risk engine sources all CTP-derived data
+     directly from the SPI callbacks — it never relies on JS to relay data that
+     C++ already receives.** Special-cased in `scripts/codegen/generate-trader.mjs`
+     (emitted into `traderspi.gen.cc`):
+     - contract multipliers ← `OnRspQryInstrument` (`setMultiplier`)
+     - per-contract margin rates ← `OnRspQryInstrumentMarginRate`
+       (`setMarginRate`; larger of long/short by-money = a conservative single
+       rate). Until a rate arrives, a conservative default (full notional)
+       applies, so the cap can only over-count — it never under-blocks.
+     - login session (FrontID/SessionID, for reservation keys) ← `OnRspUserLogin`
+       (`setSession`), published synchronously so reservation keys are correct
+       before any order can be sent
+     - fills ← `OnRtnTrade` (`onTrade`)
+     - order updates ← `OnRtnOrder` (`onOrderUpdate`)
+
+     So any `reqQryInstrument` keeps multipliers current and querying
+     `reqQryInstrumentMarginRate` for the contracts you trade keeps the margin
+     cap exact — there is no `setMultiplier` / `setMarginRate` to call from JS
+     (those C++ entry points exist only for tests / offline use). Multipliers
+     and margin rates are static metadata stored separately from position state,
+     so `resetPositions()` / a `syncPositions()` resync never wipes them.
    - In-flight reservation: the position caps count `held + working` (orders
      sent but not yet filled), so a burst of opens can't slip past before fills
      report. Reservations are tracked per `(FrontID, SessionID, OrderRef)` and
@@ -48,9 +66,14 @@ notified afterward.
      reject and on a failed send). Because CTP delivers an investor's order/
      trade returns to *all* their sessions, this also accounts for orders placed
      from **another terminal on the same account** (their fills update the
-     position by instrument; their working orders consume the cap). `syncOrders()`
-     (via `reqQryOrder`) rebuilds the reservation from the broker's working
-     orders — call it after login and after any reconnect.
+     position by instrument; their working orders consume the cap).
+   - What stays JS-driven (NOT auto-sourced): `seedPosition` / `syncPositions`
+     (open-position seeding) and `rebuildReservations` / `syncOrders` (rebuild
+     the reservation from the broker's working orders, via `reqQryOrder`). These
+     are deliberate resync operations with RESET semantics — they clear and
+     re-seed their book — so they stay explicit, JS-orchestrated calls; auto-
+     running them on every query would be a dangerous side-effect. Call
+     `syncOrders()` after login and after any reconnect.
 
 2. **Rate limit** — `src/native/risk.h` `RateLimiter`
    Token bucket guaranteeing the seat never exceeds the exchange/CTP order rate,
@@ -67,6 +90,26 @@ notified afterward.
      `ReqOrderInsert` on the MD callback thread (no JS). One-shot; ack via normal
      trader events. Teardown-safe: the sink is cleared under the registry lock
      before the API is released.
+
+4. **Market-data snapshot (last-value cache)** — `src/native/snapshot.h`
+   `SnapshotCache`
+   A C++ last-value cache (LVC) holding the latest full `DepthMarketDataField`
+   per instrument. It's updated on **every** tick — in `mdspi.cc`'s
+   `OnRtnDepthMarketData`, before the record is published to the ring — so the
+   freshest quote is always available without waiting for the event loop to
+   drain. Cleared per-instrument on unsubscribe (`erase`) and entirely on close
+   (`clear`).
+   - **JS reads it synchronously**: `md.snapshot(id)` returns the full latest
+     tick (or `null` if none seen / unsubscribed), `md.last(id)` returns just
+     the last price — no waiting for a tick, no per-tick bookkeeping in your
+     strategy.
+   - **The deviation reference flows MD→risk entirely in C++.** The Trader's
+     price-deviation check reads the cache in C++ via `trackMarketData(md)`: the
+     MarketData shares the cache as a `shared_ptr` (mirroring how the armed-order
+     registry is shared), so the risk engine reads live prices straight from the
+     MD feed with no JS round-trip — and the check therefore also covers armed
+     orders that fire from C++ with no JS in the loop. (The `SnapshotCache`
+     implements `RefPriceSource`; the risk engine holds it via `setMdSnapshot`.)
 
 ## Threading / safety model
 
@@ -105,15 +148,24 @@ All of this is exposed on `Trader` (`src/trader.ts`):
 
 ```ts
 // Pre-trade risk (published to the C++ enforcer; takes effect immediately):
-td.riskSet({ maxOrderVolume: 5, maxPriceDeviation: 0.02, maxOrdersPerSec: 20, maxPositionCost: 5_000_000 });
-td.trackMarketData(md);                   // feed the deviation/notional reference
+td.riskSet({ maxOrderVolume: 5, maxPriceDeviation: 0.02, maxOrdersPerSec: 20, maxMargin: 5_000_000 });
+td.trackMarketData(md);                   // wire the C++ MD snapshot in as the deviation reference
 td.setMaxPositions({ rb2610: 100, ru2610: { long: 100, short: 20 } }); // per-instrument lot caps
-td.setMaxPositionCosts({ ag2608: 2_000_000, au2608: 5_000_000 });      // per-instrument cost caps
+td.setMaxPositionCosts({ ag2608: 2_000_000, au2608: 5_000_000 });      // per-instrument open-margin caps
 td.halt(); td.resume();                   // kill-switch (C++ blocks all sends instantly)
 
-// Risk inputs auto-fetched from CTP after login:
-await td.syncMultipliers();               // contract multipliers (reqQryInstrument)
-await td.syncPositions();                 // existing open-position cost (reqQryInvestorPosition)
+// Synchronous market-data snapshot from the C++ last-value cache (no event wait):
+const tick = md.snapshot("rb2510");       // latest full DepthMarketDataField, or null
+const px = md.last("rb2510");             // just the last price (0 if none)
+
+// Multipliers and margin rates are sourced in C++ from the SPI callbacks (no JS
+// feed). A plain query keeps them current — there is nothing to relay back:
+await td.reqQryInstrument({});            // multipliers <- OnRspQryInstrument
+await td.reqQryInstrumentMarginRate({ instrumentId: "rb2510" }); // rate <- OnRspQryInstrumentMarginRate
+
+// Deliberate JS-driven resyncs (RESET semantics — call explicitly, not per query):
+await td.syncPositions();                 // reset + seed open-position margin (reqQryInvestorPosition)
+await td.syncOrders();                    // rebuild in-flight reservations (reqQryOrder) — after every reconnect
 
 // Latency-critical armed trigger (fires from C++ on the MD thread):
 const armed = td.arm(md, {
@@ -126,11 +178,12 @@ armed.disarm();                           // remove the trigger
 
 ## Status
 
-Fully wired and live-verified against SimNow: risk gate (volume / deviation /
-notional / position-cost / kill-switch) and rate limiter on the order send
-path, `ArmRegistry::onTick` fed from the MD callback firing `ReqOrderInsert`
-through the risk gate with no JS hop, per-instrument position state, and
-multiplier-accurate notional + position cost.
+Fully wired and live-verified against SimNow: risk gate (volume / single-order
+notional / deviation / open-margin / kill-switch) and rate limiter on the order
+send path, `ArmRegistry::onTick` fed from the MD callback firing `ReqOrderInsert`
+through the risk gate with no JS hop, per-instrument position state, the C++ MD
+snapshot cache feeding the deviation reference, and a real-margin open-position
+cap (multiplier × margin-rate, both sourced in C++ from the SPI callbacks).
 
 ## Process lifecycle: create once, reuse
 

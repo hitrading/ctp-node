@@ -24,7 +24,7 @@
 - **纯对象、地道的 TypeScript。** 每个 CTP 结构体都是生成的 `interface`，字段为 camelCase（`tick.lastPrice`、`tick.instrumentId`）；每个 CTP 枚举都是真正的 TS `enum`。无手写编解码。
 - **快。** CTP 回调线程只把字节 memcpy 进无锁环；JS 直接从环里解码成纯对象，**约 800 万 tick/秒**（相对 5 万/秒的开盘集合竞价突发有 166 倍余量）。
 - **混合 API。** 流式推送用 `EventEmitter`（`rtn-depth-market-data`、`rtn-order` 等）+ 请求/响应用 `Promise`（登录、查询、报单），按 request id 关联并支持多行累积。
-- **盘前风控在 C++ 中。** 一键熔断、单笔最大手数、最大名义价值、价格偏离（防胖手指）、账户级与按合约的开仓持仓成本上限、按合约的最大持仓（手数、分边）、以及令牌桶限频器，都在原生代码里、报单路径上执行——JS 的 GC 停顿打不垮它们。
+- **盘前风控在 C++ 中。** 一键熔断、单笔最大手数、最大名义价值、价格偏离（防胖手指）、账户级与按合约的开仓持仓保证金上限、按合约的最大持仓（手数、分边）、以及令牌桶限频器，都在原生代码里、报单路径上执行——JS 的 GC 停顿打不垮它们。
 - **构造即稳定。** 无手写编解码、threadsafe-function 正确释放、`Init()` 延后以保证 `front-connected` 不丢失、编译器真值（`offsetof`）的二进制布局、GB18030 在 JS 解码（无 Windows 代码页 bug）。
 
 > 面向 CTP 实际支持的范畴（快照驱动、容忍毫秒级的策略：CTA、套利、做市）。真正的微秒级 HFT 在任何语言下都无法通过 CTP 实现。
@@ -72,6 +72,11 @@ md.on("rtn-depth-market-data", (tick) => {
   // tick 是带 camelCase 字段的纯对象
   console.log(tick.instrumentId, tick.lastPrice, tick.bidPrice1, tick.askPrice1);
 });
+
+// 最新行情缓存在 C++ 中（一个 last-value 缓存，每个 tick 到达 JS 前都会更新），
+// 因此无需在 JS 里记账即可同步取到快照：
+//   md.snapshot("rb2510");  // 最新完整深度行情（DepthMarketData）或 null
+//   md.last("rb2510");      // 最新价，尚无则为 0
 ```
 
 ## 快速开始 —— 交易
@@ -82,8 +87,8 @@ import { Trader } from "@hitrading/ctp-node";
 const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
 // 盘前风控，在 C++ 中对每笔报单执行：
-td.riskSet({ maxOrderVolume: 10, maxOrdersPerSec: 20, maxPriceDeviation: 0.02, maxPositionCost: 5_000_000 });
-td.trackMarketData(md); // 为价格偏离校验喂入实时价
+td.riskSet({ maxOrderVolume: 10, maxOrdersPerSec: 20, maxPriceDeviation: 0.02, maxMargin: 2_000_000 }); // maxMargin = 开仓持仓的真实保证金上限
+td.trackMarketData(md); // 用实时行情价（在 C++ 中读取）做价格偏离校验
 td.setMaxPositions({ rb2610: 100, au2610: 10, ru2610: { long: 100, short: 20 } }); // 按合约手数上限
 td.setMaxPositionCosts({ ag2608: 2_000_000, au2608: 5_000_000 });                   // 按合约成本上限
 
@@ -149,6 +154,7 @@ Direction.Sell;  // "1"
 - 请求是 camelCase 方法，接受 CTP 字段对象的 `Partial<...>` 并返回 `Promise`。`reqQry*` 以行数组 resolve；多数请求以单条响应行 resolve。
 - 发往交易所的 insert/action（`reqOrderInsert`、`reqOrderAction` 等）**提交成功即** resolve —— CTP 对已接受的报单不返回成功响应，只有 `rtn-order` / `rtn-trade`（用 `orderRef` 关联）。只有发送被拒（风控网关、限频、或 CTP API 错误码）才 reject。
 - 流式事件用 kebab-case 名称（`rtn-depth-market-data`、`rtn-order` 等）；处理函数收到 `(data, options)`，`options` 带 `{ requestId?, isLast?, rspInfo? }`。
+- 每个合约的最新 tick 保存在 C++ 的 last-value 缓存里（每个 tick 到达 JS 前都会更新；退订时清除该条目、关闭时全部清除），因此 `md.snapshot(instrumentId)` 返回最新的完整 `DepthMarketData`（或 `null`）、`md.last(instrumentId)` 返回最新价（尚无则为 0）——同步返回，无需在 JS 里逐 tick 记账。价格偏离校验也由同一缓存支撑，因此该校验在 C++ 中读取实时价。
 - `client.droppedRecords` 报告背压下丢弃的记录数。行情丢弃**最旧**的未读记录（使你总能看到最新报价）；交易端则丢弃**最新**的，使排队中的报单/成交回报永不被静默丢弃。两者都应监控。
 - `client.close()` 释放底层 CTP API。在关闭时调用**一次**——CTP 客户端是一次创建/复用的；靠重建来重连会在厂商 DLL 里死锁（见[生命周期](#生命周期-一次创建并复用)）。
 
@@ -179,7 +185,7 @@ CTP 回调线程 (C++)                          Node 事件循环 (JS)
    交易端丢最新/可靠)
 ```
 
-公开 API 之下的一切都由 CTP 头文件（`ctpsdk/ThostFtdc*.h`）经 `scripts/codegen/` 生成—— 466 个结构体接口、318 个枚举、字段布局表（经 `offsetof`），以及完整的 trader SPI + 请求分发。更新头文件后运行 `npm run gen`。
+公开 API 之下的一切都由 CTP 头文件（`ctpsdk/ThostFtdc*.h`）经 `scripts/codegen/` 生成—— 519 个结构体接口、326 个枚举、字段布局表（经 `offsetof`），以及完整的 trader SPI + 请求分发。更新头文件后运行 `npm run gen`。
 
 ## 从源码构建
 

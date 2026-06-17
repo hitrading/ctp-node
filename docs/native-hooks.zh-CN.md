@@ -20,22 +20,38 @@ C++ 级确定性——任何 GC 停顿或事件循环卡顿都打不垮它们。
 ## 下沉了什么
 
 1. **风控（盘前）** — `src/native/risk.h` `RiskEngine`
-   每次发送前都跑硬性检查：一键熔断、单笔最大手数、价格偏离（防胖手指）、最大名义价值、开仓
-   持仓成本上限（账户级与按合约）、以及按合约的最大持仓（手数，按边封顶）。在 C++ 里执行，
+   每次发送前都跑硬性检查：一键熔断、单笔最大手数、单笔最大名义价值（防胖手指）、价格偏离防护、
+   开仓**保证金**上限（账户级与按合约）、以及按合约的最大持仓（手数，按边封顶）。在 C++ 里执行，
    因此即使 JS 进程正在 GC、被阻塞或有 bug，它们依然成立。*安全收益——即便慢策略也值得。*
-   - 状态：**全部为实**。价格偏离用一个按合约的参考价，由行情喂入（`setRefPrice` /
-     `trackMarketData`）。名义价值与持仓成本都套用合约乘数（价 × 量 × 乘数）。持仓成本按合约
-     跟踪 Σ(开仓成本)（多/空，平仓时按比例释放），在交易回调线程上由 `OnRtnTrade` 更新。
-   - 乘数与已有持仓自动从 CTP 拉取：`syncMultipliers()`（经 `reqQryInstrument`）与
-     `syncPositions()`（经 `reqQryInvestorPosition`）——无需手动 `setMultiplier` / `seedPosition`
-     （它们保留供测试/离线使用）。乘数与持仓状态分开存储，因此 `syncPositions()`（会重置并重新
-     播种持仓）绝不会清掉乘数。
+   - 状态：**全部为实**。价格偏离防护的参考价来自 C++ 行情快照缓存（LVC；见下文 §4），经
+     `trackMarketData(md)` 读取——无需 `setRefPrice`、无 JS 往返，且也覆盖预埋单。单笔名义价值
+     检查仍是名义价值（价 × 量 × 乘数——防胖手指）。开仓持仓上限为**真实保证金**：按合约
+     Σ(价 × 量 × 乘数 × 保证金率)（多/空，平仓时按比例释放），在交易回调线程上由 `OnRtnTrade` 更新。
+   - **架构原则：C++ 风控引擎直接从 SPI 回调获取所有源自 CTP 的数据——绝不依赖 JS 转交 C++ 本就
+     已收到的数据。** 在 `scripts/codegen/generate-trader.mjs` 中特判（生成进 `traderspi.gen.cc`）：
+     - 合约乘数 ← `OnRspQryInstrument`（`setMultiplier`）
+     - 按合约的保证金率 ← `OnRspQryInstrumentMarginRate`（`setMarginRate`；取按金额的多/空较大者
+       作为一个保守的单一费率）。在费率到达前，套用一个保守的默认值（全额名义价值），故上限只会
+       高估——绝不会少拦。
+     - 登录会话（FrontID/SessionID，用于预约键）← `OnRspUserLogin`（`setSession`），登录时同步发布，
+       使预约键在任何报单可发出之前就已正确。
+     - 成交 ← `OnRtnTrade`（`onTrade`）
+     - 报单更新 ← `OnRtnOrder`（`onOrderUpdate`）
+
+     因此任何 `reqQryInstrument` 都会保持乘数最新，对你所交易的合约查询
+     `reqQryInstrumentMarginRate` 则保持保证金上限精确——无需从 JS 调用 `setMultiplier` /
+     `setMarginRate`（那些 C++ 入口仅供测试/离线使用）。乘数与保证金率是静态元数据，与持仓状态
+     分开存储，因此 `resetPositions()` / 一次 `syncPositions()` 重同步绝不会清掉它们。
    - 在途预约：持仓上限按 `held + working`（已发但未成交的报单）计算，使一连串开仓不会在成交
      回报到达前溜过。预约按 `(FrontID, SessionID, OrderRef)` 跟踪，并由 `OnRtnOrder` 对账（自我
      纠正；在成交/撤单/拒单及发送失败时释放）。由于 CTP 会把一个投资者的报单/成交回报投递到其
      *所有*会话，这也把**同账户另一终端**下的报单算进去（它们的成交按合约更新持仓；它们的挂单
-     占用上限）。`syncOrders()`（经 `reqQryOrder`）从经纪商的挂单重建预约——登录后和任何重连后
-     都要调用。
+     占用上限）。
+   - 仍由 JS 驱动（**非**自动获取）的部分：`seedPosition` / `syncPositions`（播种已有开仓）与
+     `rebuildReservations` / `syncOrders`（经 `reqQryOrder` 从经纪商的挂单重建预约）。它们是带
+     **重置**语义的、有意的重同步操作——会先清空再重新播种各自的账本——故保持为显式的、由 JS
+     编排的调用；在每次查询时自动跑它们会是危险的副作用。登录后和任何重连后都要调用
+     `syncOrders()`。
 
 2. **限频** — `src/native/risk.h` `RateLimiter`
    令牌桶，保证席位永不超过交易所/CTP 的报单速率，对停顿后的 JS 突发免疫。
@@ -48,6 +64,17 @@ C++ 级确定性——任何 GC 停顿或事件循环卡顿都打不垮它们。
      命中时报单由 JS 编码的模板构建，穿过该 Trader 的 `RiskEngine`，在 MD 回调线程上经
      `ReqOrderInsert` 发出（无 JS）。一次性；回执经普通交易事件到达。拆除安全：在释放 API 之前，
      会在注册表锁内清空 sink。
+
+4. **行情快照（最新值缓存）** — `src/native/snapshot.h` `SnapshotCache`
+   一个 C++ 最新值缓存（LVC），按合约保存最新的完整 `DepthMarketDataField`。它在**每个** tick 上
+   更新——在 `mdspi.cc` 的 `OnRtnDepthMarketData` 中、记录被推入环之前——故无需等待事件循环排空，
+   最新报价始终可用。退订时按合约清除（`erase`），关闭时整体清除（`clear`）。
+   - **JS 同步读取**：`md.snapshot(id)` 返回最新的完整 tick（若从未见过/已退订则为 `null`），
+     `md.last(id)` 只返回最新价——无需等待 tick，策略里也无需逐 tick 记账。
+   - **偏离参考价完全在 C++ 内由 MD→风控流转。** Trader 的价格偏离检查经 `trackMarketData(md)`
+     在 C++ 里读取该缓存：MarketData 以 `shared_ptr` 共享该缓存（与预埋单注册表的共享方式如出一辙），
+     故风控引擎直接从 MD 馈源读取实时价，无 JS 往返——因此该检查也覆盖那些从 C++ 触发、回路中无 JS
+     的预埋单。（`SnapshotCache` 实现了 `RefPriceSource`；风控引擎经 `setMdSnapshot` 持有它。）
 
 ## 线程 / 安全模型
 
@@ -77,15 +104,23 @@ C++ 级确定性——任何 GC 停顿或事件循环卡顿都打不垮它们。
 
 ```ts
 // 盘前风控（发布给 C++ 执行器；立即生效）：
-td.riskSet({ maxOrderVolume: 5, maxPriceDeviation: 0.02, maxOrdersPerSec: 20, maxPositionCost: 5_000_000 });
-td.trackMarketData(md);                   // 喂入偏离/名义价值的参考价
+td.riskSet({ maxOrderVolume: 5, maxPriceDeviation: 0.02, maxOrdersPerSec: 20, maxMargin: 5_000_000 });
+td.trackMarketData(md);                   // 把 C++ 行情快照接为偏离检查的参考价
 td.setMaxPositions({ rb2610: 100, ru2610: { long: 100, short: 20 } }); // 按合约手数上限
-td.setMaxPositionCosts({ ag2608: 2_000_000, au2608: 5_000_000 });      // 按合约成本上限
+td.setMaxPositionCosts({ ag2608: 2_000_000, au2608: 5_000_000 });      // 按合约开仓保证金上限
 td.halt(); td.resume();                   // 一键熔断（C++ 立即拦截所有发送）
 
-// 登录后自动从 CTP 拉取的风控输入：
-await td.syncMultipliers();               // 合约乘数（reqQryInstrument）
-await td.syncPositions();                 // 已有开仓成本（reqQryInvestorPosition）
+// 来自 C++ 最新值缓存的同步行情快照（无需等待事件）：
+const tick = md.snapshot("rb2510");       // 最新的完整 DepthMarketDataField，或 null
+const px = md.last("rb2510");             // 只取最新价（无则为 0）
+
+// 乘数与保证金率在 C++ 内由 SPI 回调获取（无 JS 喂入）。一次普通查询即可保持最新——没有要回传的：
+await td.reqQryInstrument({});            // 乘数 <- OnRspQryInstrument
+await td.reqQryInstrumentMarginRate({ instrumentId: "rb2510" }); // 费率 <- OnRspQryInstrumentMarginRate
+
+// 有意的、由 JS 驱动的重同步（带重置语义——显式调用，而非每次查询时）：
+await td.syncPositions();                 // 重置并播种开仓保证金（reqQryInvestorPosition）
+await td.syncOrders();                    // 重建在途预约（reqQryOrder）——每次重连后调用
 
 // 延迟攸关的预埋触发器（从 C++ 在 MD 线程上触发）：
 const armed = td.arm(md, {
@@ -98,9 +133,10 @@ armed.disarm();                           // 移除触发器
 
 ## 状态
 
-已完全接通并在 SimNow 上实测验证：报单发送路径上的风控网关（手数 / 偏离 / 名义价值 / 持仓成本 /
-熔断）与限频器，由 MD 回调喂入、无 JS 跳转地经风控网关触发 `ReqOrderInsert` 的
-`ArmRegistry::onTick`，按合约的持仓状态，以及按乘数精确的名义价值 + 持仓成本。
+已完全接通并在 SimNow 上实测验证：报单发送路径上的风控网关（手数 / 单笔名义价值 / 偏离 /
+开仓保证金 / 熔断）与限频器，由 MD 回调喂入、无 JS 跳转地经风控网关触发 `ReqOrderInsert` 的
+`ArmRegistry::onTick`，按合约的持仓状态，馈入偏离参考价的 C++ 行情快照缓存，以及真实保证金的
+开仓持仓上限（乘数 × 保证金率，两者都在 C++ 内由 SPI 回调获取）。
 
 ## 进程生命周期 一次创建并复用
 

@@ -188,7 +188,7 @@ methods like `reqOrderInsert` a non-zero one rejects the Promise):
 | `-3` | per-second send rate exceeded (CTP flow control) |
 | `-10001` | blocked by this binding's pre-trade risk (`lastRiskReason()` / message has the cause) |
 | `-10002` | blocked by the rate limiter (`maxOrdersPerSec`) |
-| `-10003` | blocked by a position-**cost** cap (`maxPositionCost` / `setMaxPositionCost`) |
+| `-10003` | blocked by the position **margin** cap (`riskSet({ maxMargin })`, the Σ price×vol×multiplier×marginRate cap — `maxPositionCost` is a deprecated alias; or per-instrument `setMaxPositionCost`) |
 | `-10004` | blocked by a position-**volume** cap (`setMaxPosition`) |
 
 **Exchange/broker errors** arrive as `rspInfo` (`{ errorId, errorMsg }`) on the

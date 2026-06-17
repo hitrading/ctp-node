@@ -35,7 +35,7 @@ If there are no release-worthy commits since the last release, it does nothing.
 
 | Commit type | Example | Release |
 |---|---|---|
-| `fix:` | `fix: guard DBL_MAX in setRefPrice` | **patch** (0.0.x) |
+| `fix:` | `fix: reject a non-finite limit price in the order gate` | **patch** (0.0.x) |
 | `feat:` | `feat: add reqQryDepthMarketData helper` | **minor** (0.x.0) |
 | `feat!:` or a `BREAKING CHANGE:` footer | `feat!: rename arm() to armOrder()` | **major** (x.0.0) |
 | `docs:` `chore:` `refactor:` `test:` `ci:` `perf:` `style:` | `docs: bilingual FAQ` | none (no release) |

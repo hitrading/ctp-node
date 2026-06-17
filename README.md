@@ -24,7 +24,7 @@
 - **Plain objects, idiomatic TypeScript.** Every CTP struct is a generated `interface` with camelCase fields (`tick.lastPrice`, `tick.instrumentId`); every CTP enum is a real TS `enum`. No hand-written marshalling.
 - **Fast.** The CTP callback thread only memcpy's bytes into a lock-free ring; JS decodes straight from it into plain objects at **~8M ticks/sec** (166× headroom over a 50k/sec open-auction burst).
 - **Hybrid API.** `EventEmitter` for streaming pushes (`rtn-depth-market-data`, `rtn-order`…) + `Promise` for request/response (login, queries, orders), correlated by request id with multi-row accumulation.
-- **Pre-trade risk in C++.** Kill-switch, max order volume, max notional, price-deviation (fat-finger) guard, account-wide and per-instrument open-position cost caps, per-instrument max position (lots, per side), and a token-bucket rate limiter are enforced on the order path in native code — a JS GC pause can't defeat them.
+- **Pre-trade risk in C++.** Kill-switch, max order volume, max notional, price-deviation (fat-finger) guard, account-wide and per-instrument open-position margin caps, per-instrument max position (lots, per side), and a token-bucket rate limiter are enforced on the order path in native code — a JS GC pause can't defeat them.
 - **Stable by construction.** No hand-marshalling, threadsafe-functions released properly, `Init()` deferred so `front-connected` is never missed, compiler-truth (`offsetof`) binary layout, gb18030 decoded in JS (no Windows code-page bug).
 
 > Targets the regime CTP actually supports (snapshot-driven, ms-tolerant strategies: CTA, arbitrage, market making). True microsecond HFT is not achievable through CTP in any language.
@@ -72,6 +72,11 @@ md.on("rtn-depth-market-data", (tick) => {
   // tick is a plain object with camelCase fields
   console.log(tick.instrumentId, tick.lastPrice, tick.bidPrice1, tick.askPrice1);
 });
+
+// Latest market data is cached in C++ (a last-value cache, updated on every tick
+// before it reaches JS), so you get a synchronous snapshot with no bookkeeping in JS:
+//   md.snapshot("rb2510");  // latest full depth tick (DepthMarketData) or null
+//   md.last("rb2510");      // latest price, 0 if none seen yet
 ```
 
 ## Quick start — trading
@@ -82,8 +87,8 @@ import { Trader } from "@hitrading/ctp-node";
 const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
 // Pre-trade risk, enforced in C++ on every order:
-td.riskSet({ maxOrderVolume: 10, maxOrdersPerSec: 20, maxPriceDeviation: 0.02, maxPositionCost: 5_000_000 });
-td.trackMarketData(md); // feed live prices for the price-deviation guard
+td.riskSet({ maxOrderVolume: 10, maxOrdersPerSec: 20, maxPriceDeviation: 0.02, maxMargin: 2_000_000 }); // maxMargin = real-margin cap on open positions
+td.trackMarketData(md); // use live MD prices (read in C++) for the price-deviation guard
 td.setMaxPositions({ rb2610: 100, au2610: 10, ru2610: { long: 100, short: 20 } }); // per-instrument lot caps
 td.setMaxPositionCosts({ ag2608: 2_000_000, au2608: 5_000_000 });                   // per-instrument cost caps
 
@@ -153,6 +158,7 @@ Direction.Sell;  // "1"
 - Requests are camelCase methods taking a `Partial<...>` of the CTP field object and returning a `Promise`. `reqQry*` resolve with an array of rows; most requests resolve with the single response row.
 - Exchange-bound inserts/actions (`reqOrderInsert`, `reqOrderAction`, …) resolve on **submission** — CTP returns no success response for an accepted order, only `rtn-order` / `rtn-trade` (correlate by `orderRef`). They reject only if the send is refused (risk gate, rate limit, or a CTP API error code).
 - Streaming events use kebab-case names (`rtn-depth-market-data`, `rtn-order`, …); handlers get `(data, options)` where `options` carries `{ requestId?, isLast?, rspInfo? }`.
+- The latest tick per instrument is kept in a C++ last-value cache (updated on every tick before it reaches JS; an entry is cleared on unsubscribe, all on close), so `md.snapshot(instrumentId)` returns the latest full `DepthMarketData` (or `null`) and `md.last(instrumentId)` the latest price (0 if none) — synchronously, with no per-tick bookkeeping in JS. The same cache backs the price-deviation guard, so that check reads live prices in C++.
 - `client.droppedRecords` reports records dropped under backpressure. Market
   data drops the **oldest** unread record (so you always see the freshest quote);
   the trader drops the **newest** instead, so a queued order/trade return is never
@@ -200,7 +206,7 @@ CTP callback thread (C++)                 Node event loop (JS)
 ```
 
 Everything below the public API is generated from the CTP headers
-(`ctpsdk/ThostFtdc*.h`) by `scripts/codegen/` — 466 struct interfaces, 318
+(`ctpsdk/ThostFtdc*.h`) by `scripts/codegen/` — 519 struct interfaces, 326
 enums, field layout tables (via `offsetof`), and the full trader SPI + request
 dispatch. Run `npm run gen` after updating the headers.
 

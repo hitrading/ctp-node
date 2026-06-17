@@ -170,7 +170,7 @@ Promise reject）：
 | `-3` | 每秒发送速率超限（CTP 限流） |
 | `-10001` | 被本绑定的盘前风控拦截（`lastRiskReason()` / 消息含原因） |
 | `-10002` | 被限频器拦截（`maxOrdersPerSec`） |
-| `-10003` | 被持仓**成本**上限拦截（`maxPositionCost` / `setMaxPositionCost`） |
+| `-10003` | 被持仓**保证金**上限拦截（`riskSet({ maxMargin })`，即 Σ 价×量×乘数×保证金率 上限——`maxPositionCost` 为已弃用的别名；或按合约的 `setMaxPositionCost`） |
 | `-10004` | 被持仓**手数**上限拦截（`setMaxPosition`） |
 
 **交易所/券商错误**以 `rspInfo`（`{ errorId, errorMsg }`）出现在相应事件上，被 reject 的请求

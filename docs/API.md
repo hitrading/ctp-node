@@ -233,6 +233,37 @@ md.subscribeForQuote(["IO2508-C-3900"]);
 md.unsubscribeForQuote(["IO2508-C-3900"]);
 ```
 
+### `md.snapshot(instrumentId)` → `DepthMarketData | null`
+
+The latest full depth tick for an instrument, read **synchronously** from the
+C++ last-value cache. The cache is updated on **every** tick before it reaches
+JS, so there is no waiting for an event and no per-tick bookkeeping in your
+strategy. Returns `null` if no tick has been seen for that instrument (or its
+entry was cleared). The entry is cleared on `unsubscribe`, and all entries on
+`close`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `instrumentId` | `string` | Instrument id, e.g. `"rb2510"`. |
+
+```ts
+md.subscribe(["rb2510"]);
+// ...later, anywhere in your code — no event handler needed
+const tick = md.snapshot("rb2510");
+if (tick) console.log("mid", (tick.bidPrice1 + tick.askPrice1) / 2, "@", tick.updateTime);
+```
+
+### `md.last(instrumentId)` → `number`
+
+The latest price for an instrument from the same C++ cache, read
+**synchronously**. Returns `0` if no tick has been seen (or the entry was
+cleared — see [`snapshot`](#mdsnapshotinstrumentid--depthmarketdata--null)).
+
+```ts
+const px = md.last("rb2510");
+if (px > 0) console.log("last traded", px);
+```
+
 ### `md.attachArm(trader)` → `void`
 
 Route this feed's ticks to a `Trader`'s armed triggers (see
@@ -478,26 +509,29 @@ See [request methods](#generated-request-methods) for the full list.
 
 ### `td.syncMultipliers(instrumentIds?)` → `Promise<number>`
 
-Fetch contract multipliers (合约乘数) from CTP and apply them (needed for
-multiplier-accurate notional and position-cost limits). No argument queries all
-instruments in one request; pass a symbol list to scope it. Retries through
-cold-start flow control. Returns the count applied.
+Trigger the instrument query so the C++ risk engine picks up contract multipliers
+(合约乘数) — it sources them **directly** from CTP's `OnRspQryInstrument` response,
+so this no longer calls a JS setter. Needed for multiplier-accurate notional and
+position-margin limits. No argument queries all instruments in one request; pass a
+symbol list to scope it. Retries through cold-start flow control. Returns the count
+of contracts that came back with a multiplier.
 
 ```ts
 const n = await td.syncMultipliers();          // all instruments
 await td.syncMultipliers(["rb2510", "au2508"]); // just these
-console.log("applied", n, "multipliers");
+console.log(n, "contracts with a multiplier");
 ```
 
 ### `td.syncPositions(opts?)` → `Promise<number>`
 
-Seed open-position cost from CTP (`reqQryInvestorPosition`) into the risk
-engine's position tracker. Uses the logged-in account unless
-`{ brokerId?, investorId? }` is supplied. Returns the number of positions seeded.
+Seed open-position **margin** from CTP (`reqQryInvestorPosition`, each row's
+`UseMargin`) into the risk engine's position tracker. Uses the logged-in account
+unless `{ brokerId?, investorId? }` is supplied. Returns the number of positions
+seeded.
 
 ```ts
 const held = await td.syncPositions();
-console.log("seeded", held, "positions, cost =", td.positionCost());
+console.log("seeded", held, "positions, margin =", td.positionCost());
 // explicit account
 await td.syncPositions({ brokerId: "9999", investorId: "id" });
 ```
@@ -535,7 +569,7 @@ td.riskSet({
   maxNotional: 5_000_000,      // ≤ 5M notional per order
   maxOrdersPerSec: 20,         // token-bucket rate limit
   orderBurst: 40,              // bucket size (default: maxOrdersPerSec)
-  maxPositionCost: 20_000_000, // ≤ 20M total open-position cost (whole book)
+  maxMargin: 20_000_000,       // ≤ 20M total open-position MARGIN (whole book)
 });
 
 // just a couple of controls (the rest stay disabled)
@@ -587,72 +621,72 @@ td.setMaxPositions({ rb2510: 100, ru2510: { long: 100, short: 20 }, au2508: 10 }
 
 #### `td.setMaxPositionCost(instrumentId, maxCost)` / `td.setMaxPositionCosts(limits)` → `this`
 
-Cap one instrument's open-position cost (Σ open price × volume × multiplier, long
-and short summed — a gross capital/concentration limit). Per-instrument and
-independent of the account-wide `riskSet({ maxPositionCost })`; both apply. Pass
-`maxCost ≤ 0` to remove it.
+Cap one instrument's open-position **margin** (Σ price × volume × multiplier ×
+marginRate, long and short summed — a per-contract capital/concentration limit).
+Per-instrument and independent of the account-wide
+`riskSet({ maxMargin })`; both apply. Pass `maxCost ≤ 0` to remove it. Until a
+contract's margin rate is known (fed automatically from CTP — query
+`reqQryInstrumentMarginRate`), it counts at full notional (conservative).
 
 ```ts
-td.setMaxPositionCost("au2508", 5_000_000); // ≤ 5M of gold exposure
+td.setMaxPositionCost("au2508", 5_000_000); // ≤ 5M of gold margin
 td.setMaxPositionCosts({ ag2508: 2_000_000, au2508: 5_000_000 });
 td.setMaxPositionCost("au2508", 0);         // remove the cap
 ```
 
-#### `td.setRefPrice(instrumentId, price)` / `td.trackMarketData(md)` → `this`
+#### `td.trackMarketData(md)` → `this`
 
-Provide the reference price the `maxPriceDeviation` check measures against.
-`setRefPrice` sets one manually; `trackMarketData(md)` auto-feeds last prices from
-a `MarketData` feed. (Without a reference, the deviation check is skipped for that
-instrument.)
+Provide the live reference price the `maxPriceDeviation` check measures against.
+Wires the `MarketData` feed's C++ snapshot cache straight into this Trader's risk
+engine, so the deviation reference is read **in C++ on the order-send path** — no
+JS round-trip, and it covers armed orders that fire from C++ with no JS in the
+loop. **Without it, no reference is set and the deviation check is skipped.**
 
 ```ts
 td.riskSet({ maxPriceDeviation: 0.02 });
 
-// option A: live reference from the feed (recommended)
+// live reference from the feed (read in C++ on every order, incl. armed orders)
 td.trackMarketData(md);
-
-// option B: set/refresh it yourself
-td.setRefPrice("rb2510", 3500);
 ```
 
-#### `td.setMultiplier(instrumentId, multiplier)` → `this`
+> Contract multipliers (for notional / cost accounting) and per-contract margin
+> rates (for the `maxMargin` cap) are **not** fed from JS: the C++ risk engine
+> sources them directly from CTP's `OnRspQryInstrument` /
+> `OnRspQryInstrumentMarginRate` callbacks. So any `reqQryInstrument` keeps
+> multipliers current (see [`syncMultipliers`](#tdsyncmultipliersinstrumentids--promisenumber)),
+> and querying `reqQryInstrumentMarginRate` for the contracts you trade keeps the
+> margin cap exact — no JS setter, and the checks also cover armed orders.
 
-Set a contract's multiplier (合约乘数) for notional / position-cost accounting.
-Usually you call [`syncMultipliers()`](#tdsyncmultipliersinstrumentids--promisenumber)
-instead of setting these by hand.
+### Position-margin tracking
 
-```ts
-td.setMultiplier("rb2510", 10);   // rebar: 10 t/lot
-td.setMultiplier("au2508", 1000); // gold: 1000 g/lot
-```
+#### `td.seedPosition(instrumentId, side, volume, margin)` → `this`
 
-### Position-cost tracking
-
-#### `td.seedPosition(instrumentId, side, volume, openCost)` → `this`
-
-Seed a pre-existing position's open cost (for the `maxPositionCost` cap), when you
-reconcile positions yourself rather than via `syncPositions()`.
+Seed a pre-existing position's real **margin** (for the `maxMargin` /
+`maxPositionCost` cap), when you reconcile positions yourself rather than via
+`syncPositions()`. `margin` is the actual capital occupied — CTP
+`InvestorPosition.UseMargin` — the unit the margin cap tracks.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `instrumentId` | `string` | Contract. |
 | `side` | `"long" \| "short"` | Position side. |
 | `volume` | `number` | Held lots. |
-| `openCost` | `number` | Total open cost of that position. |
+| `margin` | `number` | Real margin occupied by that position (`InvestorPosition.UseMargin`). |
 
 ```ts
-// you already hold 3 long lots of rb2510 opened for 90,000 total
-td.seedPosition("rb2510", "long", 3, 90_000);
-// and 2 short lots of au2508 opened for 1,120,000
-td.seedPosition("au2508", "short", 2, 1_120_000);
+// you already hold 3 long lots of rb2510 using 30,000 margin
+td.seedPosition("rb2510", "long", 3, 30_000);
+// and 2 short lots of au2508 using 112,000 margin
+td.seedPosition("au2508", "short", 2, 112_000);
 ```
 
 #### `td.seedFromPositions(positions)` → `this`
 
-Seed from `reqQryInvestorPosition` rows for **gross-mode** accounts
-(`posiDirection` `"2"` = long, `"3"` = short). Cost caps sum both sides so the
-bucket is harmless for them; for a net-mode instrument under a per-side *volume*
-cap, seed via `seedPosition()` with the side you intend.
+Seed real open-position **margin** from `reqQryInvestorPosition` rows (each row's
+`UseMargin`) for **gross-mode** accounts (`posiDirection` `"2"` = long, `"3"` =
+short). Margin caps sum both sides so the bucket is harmless for them; for a
+net-mode instrument under a per-side *volume* cap, seed via `seedPosition()` with
+the side you intend.
 
 ```ts
 const rows = await td.reqQryInvestorPosition({ brokerId: "9999", investorId: "id" });
@@ -662,16 +696,17 @@ td.seedFromPositions(rows); // (this is exactly what syncPositions() does)
 
 #### `td.positionCost()` → `number`
 
-Current total open-position cost tracked by the risk engine.
+Current total open-position margin tracked by the risk engine (the unit the
+`maxMargin` / `maxPositionCost` cap measures).
 
 ```ts
-console.log("book cost", td.positionCost());
-td.on("rtn-trade", () => console.log("cost now", td.positionCost()));
+console.log("book margin", td.positionCost());
+td.on("rtn-trade", () => console.log("margin now", td.positionCost()));
 ```
 
 #### `td.resetPositions()` → `this`
 
-Clear all tracked position cost. (`syncPositions()` calls this before re-seeding.)
+Clear all tracked position margin. (`syncPositions()` calls this before re-seeding.)
 
 ```ts
 td.resetPositions();              // wipe the tracker
@@ -881,11 +916,12 @@ optional; **omit or `0` = disabled**; `NaN`/`Infinity` throws.
 | Field | Type | Meaning |
 |---|---|---|
 | `maxOrderVolume` | `number` | Max lots per single order. |
-| `maxPriceDeviation` | `number` | Max `\|price − reference\| / reference` ratio (e.g. `0.02` = 2%); needs a reference via [`trackMarketData`/`setRefPrice`](#tdsetrefpriceinstrumentid-price--tdtrackmarketdatamd--this). |
+| `maxPriceDeviation` | `number` | Max `\|price − reference\| / reference` ratio (e.g. `0.02` = 2%); needs a reference via [`trackMarketData`](#tdtrackmarketdatamd--this). |
 | `maxNotional` | `number` | Max notional (price × volume × multiplier) per order. |
 | `maxOrdersPerSec` | `number` | Max order sends per second (token bucket). |
 | `orderBurst` | `number` | Token-bucket burst size. Default: `maxOrdersPerSec`. |
-| `maxPositionCost` | `number` | Cap on total open-position cost across the whole book. |
+| `maxMargin` | `number` | Cap on total open-position **margin** = Σ(price × volume × multiplier × marginRate) across the whole book — the real capital occupied. Enforced in C++ on every opening order (including armed orders). Margin rates are fed automatically from CTP (query `reqQryInstrumentMarginRate` to populate; until a contract's rate is known it counts at full notional = conservative). |
+| `maxPositionCost` | `number` | **Deprecated** alias for `maxMargin` (also margin-based now). `maxMargin` takes precedence when both are set. |
 
 ```ts
 const conservative: RiskConfig = { maxOrderVolume: 5, maxOrdersPerSec: 10, maxNotional: 2_000_000 };
@@ -1061,15 +1097,17 @@ function buildOrder(): Partial<InputOrder> {
 | Max notional | `riskSet({ maxNotional })` | Per order | `0` / omitted |
 | Rate limit | `riskSet({ maxOrdersPerSec, orderBurst })` | Per second | `0` / omitted |
 | Max position lots | `setMaxPosition(id, …)` | Per instrument, per side | `≤ 0` |
-| Max position cost (per instrument) | `setMaxPositionCost(id, …)` | Per instrument | `≤ 0` |
-| Max position cost (book) | `riskSet({ maxPositionCost })` | Whole book | `0` / omitted |
+| Max position margin (per instrument) | `setMaxPositionCost(id, …)` | Per instrument | `≤ 0` |
+| Max position margin (book) | `riskSet({ maxMargin })` | Whole book | `0` / omitted |
 
-Position-lot and position-cost caps count **committed = held (filled) +
+Position-lot and position-margin caps count **committed = held (filled) +
 in-flight (working order) volume**, so a burst of opens can't slip past a cap
 before the fills report. Feed held positions via `syncPositions()` /
 `seedPosition()` and working orders via `syncOrders()` (especially after a
-reconnect). All caps are enforced in C++ on the send path; a breach makes
-`reqOrderInsert()` reject with the reason in the message.
+reconnect). Margin rates are fed automatically from CTP (query
+`reqQryInstrumentMarginRate`); until a contract's rate is known it counts at full
+notional (conservative). All caps are enforced in C++ on the send path; a breach
+makes `reqOrderInsert()` reject with the reason in the message.
 
 ---
 
@@ -1099,7 +1137,7 @@ const md = new MarketData("./flow/md/", "tcp://182.254.243.31:30012");
 const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
 // 1) Configure risk BEFORE any order can be sent (enforced in C++).
-td.riskSet({ maxOrderVolume: 5, maxNotional: 2_000_000, maxOrdersPerSec: 10, maxPriceDeviation: 0.02, maxPositionCost: 5_000_000 });
+td.riskSet({ maxOrderVolume: 5, maxNotional: 2_000_000, maxOrdersPerSec: 10, maxPriceDeviation: 0.02, maxMargin: 5_000_000 });
 td.setMaxPosition(SYMBOL, { long: 10, short: 10 });
 td.trackMarketData(md);              // live reference price for the deviation check
 

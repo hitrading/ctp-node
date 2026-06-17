@@ -221,6 +221,33 @@ md.subscribeForQuote(["IO2508-C-3900"]);
 md.unsubscribeForQuote(["IO2508-C-3900"]);
 ```
 
+### `md.snapshot(instrumentId)` → `DepthMarketData | null`
+
+某合约最新的完整深度 tick，**同步**地从 C++ 末值缓存读取。该缓存在**每个** tick 抵达 JS 之前就
+已更新，因此无需等待事件、也无需在策略里做逐 tick 记账。若该合约还没有任何 tick（或其缓存项已被
+清除）则返回 `null`。缓存项在 `unsubscribe` 时清除，全部缓存项在 `close` 时清除。
+
+| 参数 | 类型 | 含义 |
+|---|---|---|
+| `instrumentId` | `string` | 合约代码，如 `"rb2510"`。 |
+
+```ts
+md.subscribe(["rb2510"]);
+// ……稍后，在代码任意位置——无需事件处理函数
+const tick = md.snapshot("rb2510");
+if (tick) console.log("中间价", (tick.bidPrice1 + tick.askPrice1) / 2, "@", tick.updateTime);
+```
+
+### `md.last(instrumentId)` → `number`
+
+某合约的最新价，**同步**地从同一 C++ 缓存读取。若还没有任何 tick（或缓存项已被清除——见
+[`snapshot`](#mdsnapshotinstrumentid--depthmarketdata--null)）则返回 `0`。
+
+```ts
+const px = md.last("rb2510");
+if (px > 0) console.log("最新成交价", px);
+```
+
 ### `md.attachArm(trader)` → `void`
 
 把这路行情的 tick 路由到某个 `Trader` 的预埋触发器（见
@@ -452,23 +479,24 @@ const trades = await td.reqQryTrade({ brokerId: "9999", investorId: "id" });
 
 ### `td.syncMultipliers(instrumentIds?)` → `Promise<number>`
 
-从 CTP 拉取合约乘数并应用（按乘数精确计算名义价值和持仓成本限制所必需）。不传参则一次请求查询
-全部合约；传符号列表可限定范围。会穿越冷启动限频重试。返回已应用的数量。
+触发合约查询，使 C++ 风控引擎取到合约乘数——它直接从 CTP 的 `OnRspQryInstrument` 响应里取，因此
+本方法不再调用 JS setter。按乘数精确计算名义价值和持仓保证金限制所必需。不传参则一次请求查询全部
+合约；传符号列表可限定范围。会穿越冷启动限频重试。返回带有乘数的合约数量。
 
 ```ts
 const n = await td.syncMultipliers();           // 全部合约
 await td.syncMultipliers(["rb2510", "au2508"]);  // 仅这些
-console.log("已应用", n, "个乘数");
+console.log(n, "个合约带有乘数");
 ```
 
 ### `td.syncPositions(opts?)` → `Promise<number>`
 
-从 CTP（`reqQryInvestorPosition`）拉取持仓开仓成本并播种到风控引擎的持仓跟踪器。除非传入
-`{ brokerId?, investorId? }`，否则用已登录账户。返回播种的持仓数。
+从 CTP（`reqQryInvestorPosition`，取每行的 `UseMargin`）拉取持仓**保证金**并播种到风控引擎的持仓
+跟踪器。除非传入 `{ brokerId?, investorId? }`，否则用已登录账户。返回播种的持仓数。
 
 ```ts
 const held = await td.syncPositions();
-console.log("已播种", held, "个持仓，成本 =", td.positionCost());
+console.log("已播种", held, "个持仓，保证金 =", td.positionCost());
 // 显式账户
 await td.syncPositions({ brokerId: "9999", investorId: "id" });
 ```
@@ -501,7 +529,7 @@ td.riskSet({
   maxNotional: 5_000_000,      // 单笔名义价值 ≤ 5M
   maxOrdersPerSec: 20,         // 令牌桶限频
   orderBurst: 40,              // 桶容量（默认 = maxOrdersPerSec）
-  maxPositionCost: 20_000_000, // 全账户开仓成本 ≤ 20M
+  maxMargin: 20_000_000,       // 全账户开仓保证金 ≤ 20M
 });
 
 // 只设几项（其余保持关闭）
@@ -549,66 +577,65 @@ td.setMaxPositions({ rb2510: 100, ru2510: { long: 100, short: 20 }, au2508: 10 }
 
 #### `td.setMaxPositionCost(instrumentId, maxCost)` / `td.setMaxPositionCosts(limits)` → `this`
 
-限制单个合约的开仓持仓成本（Σ 开仓价 × 量 × 乘数，多空相加——一个毛资金/集中度限制）。按合约计，
-与账户级 `riskSet({ maxPositionCost })` 相互独立；两者同时生效。传 `maxCost ≤ 0` 移除。
+限制单个合约的开仓持仓**保证金**（Σ 价 × 量 × 乘数 × 保证金率，多空相加——一个按合约的资金/
+集中度限制）。按合约计，与账户级 `riskSet({ maxMargin })` 相互独立；两者同时生效。传
+`maxCost ≤ 0` 移除。在某合约的保证金率已知之前（由 CTP 自动喂入——查询
+`reqQryInstrumentMarginRate`），它按全名义价值计（保守）。
 
 ```ts
-td.setMaxPositionCost("au2508", 5_000_000); // 黄金敞口 ≤ 5M
+td.setMaxPositionCost("au2508", 5_000_000); // 黄金保证金 ≤ 5M
 td.setMaxPositionCosts({ ag2508: 2_000_000, au2508: 5_000_000 });
 td.setMaxPositionCost("au2508", 0);         // 移除上限
 ```
 
-#### `td.setRefPrice(instrumentId, price)` / `td.trackMarketData(md)` → `this`
+#### `td.trackMarketData(md)` → `this`
 
-提供 `maxPriceDeviation` 校验所对照的参考价。`setRefPrice` 手动设置；`trackMarketData(md)` 自动
-从一路 `MarketData` 喂入最新价。（没有参考价时，该合约的偏离校验会被跳过。）
+提供 `maxPriceDeviation` 校验所对照的实时参考价。把这路 `MarketData` 的 C++ 快照缓存直接接入本
+Trader 的风控引擎，使偏离参考价**在 C++、于报单发送路径上**读取——无 JS 往返，且覆盖在 C++ 里
+触发、JS 不在回路中的预埋单。**不调用它就没有参考价，偏离校验会被跳过。**
 
 ```ts
 td.riskSet({ maxPriceDeviation: 0.02 });
 
-// 方式 A：从行情实时取参考价（推荐）
+// 从行情实时取参考价（每笔报单都在 C++ 读取，含预埋单）
 td.trackMarketData(md);
-
-// 方式 B：自己设置/刷新
-td.setRefPrice("rb2510", 3500);
 ```
 
-#### `td.setMultiplier(instrumentId, multiplier)` → `this`
+> 合约乘数（用于名义价值 / 成本计算）和按合约的保证金率（用于 `maxMargin` 上限）**不**从 JS
+> 喂入：C++ 风控引擎直接从 CTP 的 `OnRspQryInstrument` / `OnRspQryInstrumentMarginRate` 回调里
+> 取。所以任何 `reqQryInstrument` 都会保持乘数最新（见
+> [`syncMultipliers`](#tdsyncmultipliersinstrumentids--promisenumber)），而对你交易的合约查询
+> `reqQryInstrumentMarginRate` 会让保证金上限精确——没有可从 JS 调用的 setter，且这些校验同样
+> 覆盖预埋单。
 
-设置某合约的乘数（合约乘数），用于名义价值 / 持仓成本计算。通常用
-[`syncMultipliers()`](#tdsyncmultipliersinstrumentids--promisenumber) 而非手工设置。
+### 持仓保证金跟踪
 
-```ts
-td.setMultiplier("rb2510", 10);   // 螺纹：10 吨/手
-td.setMultiplier("au2508", 1000); // 黄金：1000 克/手
-```
+#### `td.seedPosition(instrumentId, side, volume, margin)` → `this`
 
-### 持仓成本跟踪
-
-#### `td.seedPosition(instrumentId, side, volume, openCost)` → `this`
-
-播种一个已有持仓的开仓成本（供 `maxPositionCost` 上限用），适用于你自己对账而非用
-`syncPositions()` 的场景。
+播种一个已有持仓的真实**保证金**（供 `maxMargin` / `maxPositionCost` 上限用），适用于你自己对账
+而非用 `syncPositions()` 的场景。`margin` 是实际占用的资金——CTP `InvestorPosition.UseMargin`——
+即保证金上限所跟踪的单位。
 
 | 参数 | 类型 | 含义 |
 |---|---|---|
 | `instrumentId` | `string` | 合约。 |
 | `side` | `"long" \| "short"` | 持仓方向。 |
 | `volume` | `number` | 持仓手数。 |
-| `openCost` | `number` | 该持仓的总开仓成本。 |
+| `margin` | `number` | 该持仓占用的真实保证金（`InvestorPosition.UseMargin`）。 |
 
 ```ts
-// 你已持有 rb2510 多头 3 手，总开仓成本 90,000
-td.seedPosition("rb2510", "long", 3, 90_000);
-// 以及 au2508 空头 2 手，总开仓成本 1,120,000
-td.seedPosition("au2508", "short", 2, 1_120_000);
+// 你已持有 rb2510 多头 3 手，占用保证金 30,000
+td.seedPosition("rb2510", "long", 3, 30_000);
+// 以及 au2508 空头 2 手，占用保证金 112,000
+td.seedPosition("au2508", "short", 2, 112_000);
 ```
 
 #### `td.seedFromPositions(positions)` → `this`
 
-从 `reqQryInvestorPosition` 的行播种，适用于**净持仓为分边模式（gross）**的账户
-（`posiDirection` `"2"` = 多，`"3"` = 空）。成本上限对两边求和，故分桶对它们无影响；对净持仓
-（net）模式合约下的按边*手数*上限，请用 `seedPosition()` 按你想要的方向播种。
+从 `reqQryInvestorPosition` 的行播种真实开仓**保证金**（取每行的 `UseMargin`），适用于**净持仓为
+分边模式（gross）**的账户（`posiDirection` `"2"` = 多，`"3"` = 空）。保证金上限对两边求和，故分桶
+对它们无影响；对净持仓（net）模式合约下的按边*手数*上限，请用 `seedPosition()` 按你想要的方向
+播种。
 
 ```ts
 const rows = await td.reqQryInvestorPosition({ brokerId: "9999", investorId: "id" });
@@ -618,16 +645,16 @@ td.seedFromPositions(rows); // （这正是 syncPositions() 所做的）
 
 #### `td.positionCost()` → `number`
 
-风控引擎当前跟踪的开仓持仓总成本。
+风控引擎当前跟踪的开仓持仓总保证金（`maxMargin` / `maxPositionCost` 上限所衡量的单位）。
 
 ```ts
-console.log("账户成本", td.positionCost());
-td.on("rtn-trade", () => console.log("当前成本", td.positionCost()));
+console.log("账户保证金", td.positionCost());
+td.on("rtn-trade", () => console.log("当前保证金", td.positionCost()));
 ```
 
 #### `td.resetPositions()` → `this`
 
-清空所有跟踪的持仓成本。（`syncPositions()` 在重新播种前会调用它。）
+清空所有跟踪的持仓保证金。（`syncPositions()` 在重新播种前会调用它。）
 
 ```ts
 td.resetPositions();              // 清空跟踪器
@@ -820,11 +847,12 @@ const [info] = await td.reqQrySettlementInfo({ brokerId: "9999", investorId: "id
 | 字段 | 类型 | 含义 |
 |---|---|---|
 | `maxOrderVolume` | `number` | 单笔最大手数。 |
-| `maxPriceDeviation` | `number` | 最大 `\|价 − 参考价\| / 参考价` 比例（如 `0.02` = 2%）；需经 [`trackMarketData`/`setRefPrice`](#tdsetrefpriceinstrumentid-price--tdtrackmarketdatamd--this) 提供参考价。 |
+| `maxPriceDeviation` | `number` | 最大 `\|价 − 参考价\| / 参考价` 比例（如 `0.02` = 2%）；需经 [`trackMarketData`](#tdtrackmarketdatamd--this) 提供参考价。 |
 | `maxNotional` | `number` | 单笔最大名义价值（价 × 量 × 乘数）。 |
 | `maxOrdersPerSec` | `number` | 每秒最大报单发送数（令牌桶）。 |
 | `orderBurst` | `number` | 令牌桶容量。默认：`maxOrdersPerSec`。 |
-| `maxPositionCost` | `number` | 全账户开仓持仓总成本上限。 |
+| `maxMargin` | `number` | 全账户开仓持仓总**保证金**上限 = Σ(价 × 量 × 乘数 × 保证金率)——实际占用的资金。在每笔开仓单（含预埋单）上于 C++ 执行。保证金率由 CTP 自动喂入（查询 `reqQryInstrumentMarginRate` 以填充；在某合约的保证金率已知之前，按全名义价值计 = 保守）。 |
+| `maxPositionCost` | `number` | `maxMargin` 的**已弃用**别名（现也基于保证金）。两者都设时以 `maxMargin` 为准。 |
 
 ```ts
 const conservative: RiskConfig = { maxOrderVolume: 5, maxOrdersPerSec: 10, maxNotional: 2_000_000 };
@@ -994,13 +1022,14 @@ function buildOrder(): Partial<InputOrder> {
 | 最大名义价值 | `riskSet({ maxNotional })` | 每笔 | `0` / 省略 |
 | 限频 | `riskSet({ maxOrdersPerSec, orderBurst })` | 每秒 | `0` / 省略 |
 | 最大持仓手数 | `setMaxPosition(id, …)` | 每合约、每边 | `≤ 0` |
-| 最大持仓成本（按合约） | `setMaxPositionCost(id, …)` | 每合约 | `≤ 0` |
-| 最大持仓成本（全账户） | `riskSet({ maxPositionCost })` | 全账户 | `0` / 省略 |
+| 最大持仓保证金（按合约） | `setMaxPositionCost(id, …)` | 每合约 | `≤ 0` |
+| 最大持仓保证金（全账户） | `riskSet({ maxMargin })` | 全账户 | `0` / 省略 |
 
-持仓手数和持仓成本上限都按 **committed = 已持仓（已成）+ 在途（挂单）量** 计算，因此一连串开仓
-不会在成交回报到达前溜过上限。用 `syncPositions()` / `seedPosition()` 喂入已持仓，用
-`syncOrders()` 喂入挂单（尤其是重连后）。所有上限都在 C++ 发送路径上执行；突破会让
-`reqOrderInsert()` reject，原因在消息里。
+持仓手数和持仓保证金上限都按 **committed = 已持仓（已成）+ 在途（挂单）量** 计算，因此一连串
+开仓不会在成交回报到达前溜过上限。用 `syncPositions()` / `seedPosition()` 喂入已持仓，用
+`syncOrders()` 喂入挂单（尤其是重连后）。保证金率由 CTP 自动喂入（查询
+`reqQryInstrumentMarginRate`）；在某合约的保证金率已知之前，按全名义价值计（保守）。所有上限都
+在 C++ 发送路径上执行；突破会让 `reqOrderInsert()` reject，原因在消息里。
 
 ---
 
@@ -1028,7 +1057,7 @@ const md = new MarketData("./flow/md/", "tcp://182.254.243.31:30012");
 const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
 // 1) 在任何报单能发出之前先配置风控（在 C++ 中执行）。
-td.riskSet({ maxOrderVolume: 5, maxNotional: 2_000_000, maxOrdersPerSec: 10, maxPriceDeviation: 0.02, maxPositionCost: 5_000_000 });
+td.riskSet({ maxOrderVolume: 5, maxNotional: 2_000_000, maxOrdersPerSec: 10, maxPriceDeviation: 0.02, maxMargin: 5_000_000 });
 td.setMaxPosition(SYMBOL, { long: 10, short: 10 });
 td.trackMarketData(md);              // 偏离校验用的实时参考价
 
