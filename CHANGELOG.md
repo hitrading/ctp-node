@@ -1,3 +1,20 @@
+# [2.0.0](https://github.com/hitrading/ctp-node/compare/v1.2.0...v2.0.0) (2026-06-17)
+
+
+### Features
+
+* **risk:** source CTP data in C++, real-margin cap, market-data snapshot cache ([474a4dc](https://github.com/hitrading/ctp-node/commit/474a4dcdee977597f621ed7fee1fe8265772fe44))
+
+
+### BREAKING CHANGES
+
+* **risk:** Trader.setMultiplier and Trader.setRefPrice are removed --
+contract multipliers and the price-deviation reference are now sourced in C++
+(multipliers from instrument queries, the reference via trackMarketData(md)). The
+position cost cap is now margin-based; prefer riskSet({ maxMargin }).
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
 # [1.2.0](https://github.com/hitrading/ctp-node/compare/v1.1.0...v1.2.0) (2026-06-16)
 
 
