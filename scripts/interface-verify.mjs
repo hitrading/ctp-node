@@ -64,6 +64,18 @@ td.on("front-connected", async () => {
     await sleep(1100);
     await tryQ("reqQrySettlementInfoConfirm", () => td.reqQrySettlementInfoConfirm({ brokerId: C.brokerId, investorId: C.userId }));
 
+    // ---- auto-sourced risk inputs (fed into the C++ engine directly from the SPI
+    // responses OnRspQryInstrument / OnRspQryInstrumentMarginRate - no JS feed) ----
+    log("== auto-sourced risk inputs ==");
+    // Multiplier proof: au2608 x1000 reached the engine. A maxNotional that only
+    // trips WHEN the multiplier is applied - 700*1*1000 = 700k > 200k -> blocked;
+    // with the 1.0 default it would be 700 < 200k -> pass. check() blocks client-
+    // side (no send): a clean, deterministic proof the multiplier auto-sourced.
+    td.riskSet({ maxOrderVolume: 0, maxNotional: 200000, maxMargin: 0 });
+    check(/maxNotional/i.test(await sendOutcome({ ...ob, instrumentId: "au2608", direction: "0", combOffsetFlag: "0", limitPrice: 700, volumeTotalOriginal: 1 })),
+      "auto multiplier: au2608 x1000 sourced from OnRspQryInstrument (700*1*1000 > 200k notional -> blocked, no JS setMultiplier)");
+    td.riskSet({ maxNotional: 0 }); // clear the probe cap
+
     // ---- boundary conditions on the order gate (no fills) ----
     log("== boundaries ==");
     td.riskSet({ maxOrderVolume: 5 });
@@ -80,8 +92,24 @@ td.on("front-connected", async () => {
     // ---- MD subscribe/unsubscribe + ticks flowing ----
     log("== market data ==");
     check(ticks > 0, `md ticks flowing -> ${ticks} received`);
+
+    // ---- last-value cache (LVC) + deviation reference read in C++ ----
+    log("== snapshot cache (LVC) ==");
+    check(md.last("au2608") > 0, `md.last(au2608) from the C++ LVC -> ${md.last("au2608")}`);
+    const lvc = md.snapshot("au2608");
+    check(lvc !== null && lvc.instrumentId === "au2608", `md.snapshot(au2608) -> last ${lvc && lvc.lastPrice}, bid ${lvc && lvc.bidPrice1}`);
+    // trackMarketData wires the MD snapshot into the risk engine; the deviation
+    // check then reads au's live ref price in C++ (no JS). An order far from it
+    // must be blocked with a deviation reason - proving the C++ read end-to-end.
+    td.trackMarketData(md);
+    td.riskSet({ maxOrderVolume: 0, maxNotional: 0, maxPriceDeviation: 0.05 });
+    const devOut = await sendOutcome({ ...ob, instrumentId: "au2608", direction: "0", combOffsetFlag: "0", limitPrice: 100, volumeTotalOriginal: 1 });
+    check(/deviat/i.test(devOut), `auto ref price: au2608 @100 vs live ~${Math.round(md.last("au2608"))} (MD snapshot) -> deviation blocked`);
+    td.riskSet({ maxPriceDeviation: 0 }); // clear
+
     md.unsubscribe(["ag2608"]);
     check(true, "md.unsubscribe(ag2608) did not throw");
+    check(md.snapshot("ag2608") === null, "LVC entry cleared on unsubscribe(ag2608)");
     md.subscribe(["cu2608"]);
     check(true, "md.subscribe(cu2608) did not throw");
 

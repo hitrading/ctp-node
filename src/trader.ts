@@ -20,8 +20,8 @@ export interface RiskConfig {
   /** Max volume per single order. Omit/0 = disabled. */
   maxOrderVolume?: number;
   /** Reject if order price deviates from the reference by > this ratio (e.g.
-   *  0.02 = 2%). Feed the reference via trackMarketData() or setRefPrice();
-   *  with no reference the check is skipped. */
+   *  0.02 = 2%). Feed the reference via trackMarketData(md) (the MD snapshot is
+   *  read in C++); with no reference the check is skipped. */
   maxPriceDeviation?: number;
   /** Max notional (price × volume) per order. Omit/0 = disabled. */
   maxNotional?: number;
@@ -29,10 +29,19 @@ export interface RiskConfig {
   maxOrdersPerSec?: number;
   /** Token-bucket burst; defaults to maxOrdersPerSec. */
   orderBurst?: number;
-  /** Cap on total open-position cost (Σ open price × volume × multiplier).
-   *  0/undefined = disabled. Multipliers and existing positions are picked up
-   *  automatically via syncMultipliers() / syncPositions(). */
+  /** @deprecated Use {@link maxMargin}. Back-compat alias; now also margin-based
+   *  (the tracked open cost is real margin once margin rates are known).
+   *  maxMargin takes precedence when both are set. */
   maxPositionCost?: number;
+  /** Cap on total open-position MARGIN (Σ open price × volume × multiplier ×
+   *  marginRate) — the real capital occupied, a zero-lag hard cap enforced in
+   *  C++ on every opening order (regular AND armed). 0/undefined = disabled.
+   *  Margin rates are fed automatically from CTP's OnRspQryInstrumentMarginRate
+   *  inside C++ (populate them by calling reqQryInstrumentMarginRate); until a
+   *  contract's rate is known it counts at full notional (conservative).
+   *  Multipliers / existing positions are picked up via syncMultipliers() /
+   *  syncPositions(). */
+  maxMargin?: number;
 }
 
 /** A per-instrument lot cap: a single number caps both sides at that value;
@@ -104,11 +113,10 @@ export class Trader extends TraderBase {
         this.investor = r.userId;
         const mx = r.maxOrderRef ? parseInt(r.maxOrderRef, 10) : NaN;
         if (Number.isFinite(mx) && mx > this.orderRefSeq) this.orderRefSeq = mx;
-        // Publish our session so reservations key by (front, session, ref) and
-        // never collide with another terminal's orders on the same account.
-        if (typeof r.frontId === "number" && typeof r.sessionId === "number") {
-          this.native.setSession(r.frontId, r.sessionId);
-        }
+        // (The login session FrontID/SessionID — used as reservation keys so our
+        // orders never collide with another terminal's on the same account — is
+        // published into the risk engine directly in C++ from OnRspUserLogin; no
+        // JS relay needed.)
       }
     });
     this.start();
@@ -180,6 +188,7 @@ export class Trader extends TraderBase {
     assertFiniteLimit("riskSet.maxOrdersPerSec", config.maxOrdersPerSec);
     assertFiniteLimit("riskSet.orderBurst", config.orderBurst);
     assertFiniteLimit("riskSet.maxPositionCost", config.maxPositionCost);
+    assertFiniteLimit("riskSet.maxMargin", config.maxMargin);
     this.native.riskSet(config);
     return this;
   }
@@ -199,26 +208,23 @@ export class Trader extends TraderBase {
     return this;
   }
 
-  /** Set the reference price for an instrument (used by maxPriceDeviation). */
-  setRefPrice(instrumentId: string, price: number): this {
-    this.native.setRefPrice(instrumentId, price);
-    return this;
-  }
-
-  /** Auto-feed last prices from a MarketData feed so the maxPriceDeviation
-   *  check has a live reference. */
+  /** Use a MarketData feed as the live reference for the maxPriceDeviation check.
+   *  Wires the feed's C++ snapshot cache straight into this Trader's risk engine,
+   *  so the deviation check reads current prices in C++ on the order path (no JS
+   *  round-trip, and it also covers armed orders that fire with no JS in the loop).
+   *  Without this, no reference is set and the deviation check is skipped. */
   trackMarketData(md: MarketData): this {
-    md.on("rtn-depth-market-data", (t) =>
-      this.native.setRefPrice(t.instrumentId, t.lastPrice)
-    );
+    this.native._attachSnapshot(md._snapshotExternal());
     return this;
   }
 
-  /** Set a contract's multiplier (合约乘数) for position-cost accounting. */
-  setMultiplier(instrumentId: string, multiplier: number): this {
-    this.native.setMultiplier(instrumentId, multiplier);
-    return this;
-  }
+  // Contract multipliers (for cost accounting) and margin rates (for the
+  // maxMargin cap) are NOT fed from JS: the C++ risk engine sources them directly
+  // from CTP's OnRspQryInstrument / OnRspQryInstrumentMarginRate callbacks (see
+  // scripts/codegen/generate-trader.mjs). So any reqQryInstrument keeps
+  // multipliers current, and querying reqQryInstrumentMarginRate for the
+  // contracts you trade keeps the margin cap exact — no JS round-trip, and the
+  // checks also cover armed orders that fire from C++ with no JS in the loop.
 
   /**
    * Cap the open position (in lots) for one instrument, enforced in C++ on
@@ -279,29 +285,33 @@ export class Trader extends TraderBase {
     return this;
   }
 
-  /** Seed a pre-existing position's open cost (for the maxPositionCost cap). */
+  /** Seed a pre-existing position into the margin/cost cap. `margin` is the real
+   *  capital occupied (CTP InvestorPosition.UseMargin) — the unit the maxMargin
+   *  cap tracks. A deliberate resync op (overwrites the held side), so it stays a
+   *  JS-driven call, unlike the passive multiplier / margin-rate feeds (sourced in
+   *  C++). */
   seedPosition(
     instrumentId: string,
     side: "long" | "short",
     volume: number,
-    openCost: number
+    margin: number
   ): this {
-    this.native.seedPosition(instrumentId, side === "long", volume, openCost);
+    this.native.seedPosition(instrumentId, side === "long", volume, margin);
     return this;
   }
 
-  /** Seed open-position cost from reqQryInvestorPosition() rows for GROSS-mode
+  /** Seed open-position MARGIN from reqQryInvestorPosition() rows for GROSS-mode
    *  accounts (posiDirection '2' = long, '3' = short; any other value, incl. net
-   *  '1', is bucketed as short). Cost caps sum both sides so the bucket doesn't
-   *  matter for them, but a per-side *volume* cap on a net-mode instrument would
-   *  track the wrong side — for net-mode accounts, seed those via seedPosition()
-   *  with the side you intend. */
+   *  '1', is bucketed as short). Uses each row's real UseMargin. Cost/margin caps
+   *  sum both sides so the bucket doesn't matter for them, but a per-side *volume*
+   *  cap on a net-mode instrument would track the wrong side — for net-mode
+   *  accounts, seed those via seedPosition() with the side you intend. */
   seedFromPositions(
     positions: ReadonlyArray<{
       instrumentId: string;
       posiDirection: string;
       position: number;
-      openCost: number;
+      useMargin: number;
     }>
   ): this {
     // Aggregate by instrument+side (CTP may return several rows per instrument).
@@ -312,7 +322,7 @@ export class Trader extends TraderBase {
       const key = `${p.instrumentId}|${long}`;
       const e = agg.get(key) ?? { id: p.instrumentId, long, vol: 0, cost: 0 };
       e.vol += p.position;
-      e.cost += p.openCost;
+      e.cost += p.useMargin; // real margin occupied (the unit the cap tracks)
       agg.set(key, e);
     }
     for (const e of agg.values()) this.seedPosition(e.id, e.long ? "long" : "short", e.vol, e.cost);
@@ -357,17 +367,15 @@ export class Trader extends TraderBase {
     return [];
   }
 
-  /** Fetch contract multipliers from CTP and apply them. No args queries all
-   *  instruments (one request); otherwise queries the given symbols. Retries
-   *  through cold-start flow control so the multiplier is reliably applied. */
+  /** Query instruments so the C++ risk engine picks up their multipliers (it
+   *  sources them directly from OnRspQryInstrument — no JS feed). No args queries
+   *  all instruments (one request); otherwise the given symbols. Retries through
+   *  cold-start flow control. Returns the count of contracts with a multiplier. */
   async syncMultipliers(instrumentIds?: string[]): Promise<number> {
     let count = 0;
     const apply = (rows: unknown[]) => {
       for (const r of rows as Array<{ instrumentId: string; volumeMultiple: number }>) {
-        if (r.volumeMultiple > 0) {
-          this.setMultiplier(r.instrumentId, r.volumeMultiple);
-          count++;
-        }
+        if (r.volumeMultiple > 0) count++;
       }
     };
     if (instrumentIds && instrumentIds.length) {
@@ -381,8 +389,9 @@ export class Trader extends TraderBase {
     return count;
   }
 
-  /** Seed open-position cost from CTP (reqQryInvestorPosition). Uses the
-   *  logged-in account unless brokerId/investorId are supplied. */
+  /** Seed open-position MARGIN from CTP (reqQryInvestorPosition) into the cap.
+   *  Uses the logged-in account unless brokerId/investorId are supplied. A
+   *  deliberate resync (resets the held book first), so it stays JS-driven. */
   async syncPositions(opts?: { brokerId?: string; investorId?: string }): Promise<number> {
     const brokerId = opts?.brokerId ?? this.broker;
     const investorId = opts?.investorId ?? this.investor;
@@ -393,7 +402,7 @@ export class Trader extends TraderBase {
       instrumentId: string;
       posiDirection: string;
       position: number;
-      openCost: number;
+      useMargin: number;
     }>;
     this.resetPositions();
     this.seedFromPositions(rows);
@@ -441,18 +450,6 @@ export class Trader extends TraderBase {
       }));
     this.native.rebuildReservations(working);
     return working.length;
-  }
-
-  /** @internal test-only: feed a synthetic fill into the position-cost tracker. */
-  _applyTestTrade(instrumentId: string, isBuy: boolean, isOpen: boolean, price: number, volume: number): void {
-    this.native._applyTestTrade(instrumentId, isBuy, isOpen, price, volume);
-  }
-
-  /** @internal test-only: drive the in-flight reservation tracker (OnRtnOrder).
-   *  status: '1'/'3' = working (queueing), others (e.g. '0' filled, '5'
-   *  cancelled) = terminal. */
-  _applyTestOrder(frontId: number, sessionId: number, orderRef: string, instrumentId: string, isOpen: boolean, isLong: boolean, status: string, limitPrice: number, volTotal: number, volTraded: number): void {
-    this.native._applyTestOrder(frontId, sessionId, orderRef, instrumentId, isOpen, isLong, status, limitPrice, volTotal, volTraded);
   }
 
   /**

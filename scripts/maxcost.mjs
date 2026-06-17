@@ -45,8 +45,7 @@ td.on("front-connected", async () => {
       const rows = await td.reqQryInstrument({ instrumentId: id });
       const row = rows.find((r) => r.instrumentId === id);
       if (row) {
-        td.setMultiplier(id, row.volumeMultiple);
-        log(`${id}: multiplier=${row.volumeMultiple} exch=${row.exchangeId}`);
+        log(`${id}: multiplier=${row.volumeMultiple} exch=${row.exchangeId} (auto-fed to risk engine)`);
       } else log(`${id}: NOT FOUND (${rows.length} rows)`);
       await sleep(1100);
     }

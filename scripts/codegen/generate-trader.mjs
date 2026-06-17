@@ -118,6 +118,15 @@ for (const s of spi) {
     // publish our session synchronously on login, so reservation keys
     // (front:session:orderRef) are correct before any order can be sent
     c += `  if (p && risk_)\n    risk_->setSession(p->FrontID, p->SessionID);\n`;
+  } else if (s.name === "OnRspQryInstrumentMarginRate") {
+    // feed the contract's margin rate straight into the risk engine (no JS round-
+    // trip) so the open-position cost cap is enforced as a real MARGIN limit. The
+    // larger of long/short by-money = a conservative single per-instrument rate.
+    c += `  if (p && risk_) {\n    const double mr = p->LongMarginRatioByMoney > p->ShortMarginRatioByMoney ? p->LongMarginRatioByMoney : p->ShortMarginRatioByMoney;\n    risk_->setMarginRate(p->InstrumentID, mr);\n  }\n`;
+  } else if (s.name === "OnRspQryInstrument") {
+    // feed the contract multiplier straight into the risk engine (no JS round-
+    // trip) - idempotent metadata, same pattern as the margin rate above.
+    c += `  if (p && risk_)\n    risk_->setMultiplier(p->InstrumentID, p->VolumeMultiple);\n`;
   }
   c += `  ch_->push(ET_${member(s.name)}, ${reqId}, ${isLast}, ${errId}, ${errMsg}, ${sid}, ${ptr}, ${len});\n`;
   c += `}\n\n`;

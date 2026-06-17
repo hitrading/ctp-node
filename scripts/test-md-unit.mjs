@@ -19,6 +19,18 @@ ok(typeof md.unsubscribeForQuote(["rb2510"]) === "number", "unsubscribeForQuote 
 ok(typeof md.getApiVersion() === "string", "getApiVersion");
 ok(typeof md.getTradingDay() === "string", "getTradingDay");
 
+// snapshot / last — the C++ last-value cache. _injectTestTick drives a real tick
+// (rb2510, LastPrice 3500.5) through the SPI, which updates the cache before JS.
+md._injectTestTick(3499, 3501);
+const snap = md.snapshot("rb2510");
+ok(snap !== null && Math.abs(snap.lastPrice - 3500.5) < 1e-9, `snapshot(rb2510).lastPrice = ${snap && snap.lastPrice}`);
+ok(snap !== null && snap.instrumentId === "rb2510", "snapshot carries the instrumentId");
+ok(Math.abs(md.last("rb2510") - 3500.5) < 1e-9, `last(rb2510) = ${md.last("rb2510")}`);
+ok(md.snapshot("nope") === null, "snapshot(unknown) -> null");
+ok(md.last("nope") === 0, "last(unknown) -> 0");
+md.unsubscribe(["rb2510"]); // erases the cache entry (the offline CTP send is a no-op)
+ok(md.snapshot("rb2510") === null, "snapshot cleared after unsubscribe");
+
 // login/logout return request Promises (won't resolve offline; the idle timer is
 // unref'd so it won't keep the process alive). Swallow the eventual rejection.
 const lp = md.login({ brokerId: "9999", userId: "x", password: "y" });

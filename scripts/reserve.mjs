@@ -41,7 +41,7 @@ td.on("front-connected", async () => {
     await sleep(1500);
     const rows = await td.reqQryInstrument({ instrumentId: "au2608" });
     const row = rows.find((r) => r.instrumentId === "au2608");
-    if (row) { td.setMultiplier("au2608", row.volumeMultiple); log(`au2608 mult=${row.volumeMultiple}`); }
+    if (row) log(`au2608 mult=${row.volumeMultiple} (auto-fed to risk engine from this query)`);
     await sleep(1100);
     log(`positions: ${await td.syncPositions()} (expect 0)`);
 

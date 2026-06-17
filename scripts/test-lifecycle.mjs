@@ -36,8 +36,6 @@ check(after - before < 120, `no ring leak on close (RSS ${before} -> ${after} MB
 // ----- methods after close must not crash -----
 {
   const td = new Trader("./flow-td/", "tcp://127.0.0.1:1");
-  td.setMultiplier("rb2610", 10);
-  td._applyTestTrade("rb2610", true, true, 3000, 1);
   td.close();
   let crashed = false;
   try {

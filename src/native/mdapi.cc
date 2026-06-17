@@ -24,6 +24,7 @@
 #include "ThostFtdcMdApi.h"
 #include "channel.h"
 #include "mdspi.h"
+#include "snapshot.h"
 
 namespace ctp {
 
@@ -82,6 +83,9 @@ private:
   Napi::Value ChannelInfo(const Napi::CallbackInfo &info);
   Napi::Value Close(const Napi::CallbackInfo &info);
   Napi::Value AttachArm(const Napi::CallbackInfo &info);
+  Napi::Value Snapshot(const Napi::CallbackInfo &info);
+  Napi::Value Last(const Napi::CallbackInfo &info);
+  Napi::Value SnapshotExternal(const Napi::CallbackInfo &info);
   Napi::Value InjectTestTick(const Napi::CallbackInfo &info);
   Napi::Value BurstTicks(const Napi::CallbackInfo &info);
 
@@ -89,6 +93,9 @@ private:
   MdSpi *spi_ = nullptr;
   EventChannel *ch_ = nullptr;
   std::shared_ptr<ArmRegistry> armReg_;
+  // Latest-tick cache (LVC). shared_ptr so a Trader can borrow it (trackMarketData)
+  // for its in-C++ deviation reference, like the arm registry.
+  std::shared_ptr<SnapshotCache> snap_ = std::make_shared<SnapshotCache>();
   bool started_ = false;
   bool closed_ = false;
   // test-only background producer thread (doorbell cross-thread stress).
@@ -116,6 +123,9 @@ Napi::Function MarketData::Init(Napi::Env env) {
           InstanceMethod("_dropCount", &MarketData::DropCount),
           InstanceMethod("_info", &MarketData::ChannelInfo),
           InstanceMethod("_attachArm", &MarketData::AttachArm),
+          InstanceMethod("snapshot", &MarketData::Snapshot),
+          InstanceMethod("last", &MarketData::Last),
+          InstanceMethod("_snapshotExternal", &MarketData::SnapshotExternal),
           InstanceMethod("_injectTestTick", &MarketData::InjectTestTick),
           InstanceMethod("_burstTicks", &MarketData::BurstTicks),
           InstanceMethod("close", &MarketData::Close),
@@ -156,6 +166,7 @@ MarketData::MarketData(const Napi::CallbackInfo &info)
   ch_ = new EventChannel(8192, static_cast<size_t>(ctpMaxStructSize()),
                          DropPolicy::Oldest);
   spi_ = new MdSpi(api_, ch_);
+  spi_->setSnapshotCache(snap_.get());
   api_->RegisterSpi(spi_);
 
   for (auto &addr : fronts)
@@ -177,7 +188,10 @@ void MarketData::doClose() {
   if (spi_) {
     spi_->clearApi();
     spi_->setArmRegistry(nullptr);
+    spi_->setSnapshotCache(nullptr);
   }
+  if (snap_)
+    snap_->clear(); // free the LVC; a Trader still holding it sees an empty cache
   if (api_) {
     api_->Release(); // stops the CTP callback thread (no more push / onTick)
     api_ = nullptr;
@@ -231,8 +245,11 @@ Napi::Value MarketData::SubscribeMarketData(const Napi::CallbackInfo &info) {
                            subscribeImpl(info, &CThostFtdcMdApi::SubscribeMarketData));
 }
 Napi::Value MarketData::UnsubscribeMarketData(const Napi::CallbackInfo &info) {
-  return Napi::Number::New(
-      info.Env(), subscribeImpl(info, &CThostFtdcMdApi::UnSubscribeMarketData));
+  int rc = subscribeImpl(info, &CThostFtdcMdApi::UnSubscribeMarketData);
+  if (snap_)
+    for (auto &id : toStringList(info[0]))
+      snap_->erase(id); // drop the LVC entry for an unsubscribed instrument
+  return Napi::Number::New(info.Env(), rc);
 }
 Napi::Value MarketData::SubscribeForQuoteRsp(const Napi::CallbackInfo &info) {
   return Napi::Number::New(
@@ -347,6 +364,36 @@ Napi::Value MarketData::AttachArm(const Napi::CallbackInfo &info) {
       spi_->setArmRegistry(armReg_.get());
   }
   return info.Env().Undefined();
+}
+
+// snapshot(instrumentId) -> the latest full depth tick as raw struct bytes (JS
+// decodes with the shared codec, identical to a streamed tick), or null if none.
+Napi::Value MarketData::Snapshot(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  if (!info[0].IsString())
+    return env.Null();
+  CThostFtdcDepthMarketDataField f;
+  if (!snap_->get(info[0].As<Napi::String>().Utf8Value(), f))
+    return env.Null();
+  return Napi::Buffer<uint8_t>::Copy(env, reinterpret_cast<uint8_t *>(&f), sizeof(f));
+}
+
+// last(instrumentId) -> latest price (0 if none). Synchronous, no event wait.
+Napi::Value MarketData::Last(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  if (!info[0].IsString())
+    return Napi::Number::New(env, 0.0);
+  return Napi::Number::New(env, snap_->last(info[0].As<Napi::String>().Utf8Value()));
+}
+
+// Hand the LVC (as a shared_ptr) to a Trader so its deviation check reads live
+// prices in C++ (Trader._attachSnapshot). Mirrors the arm-registry sharing: a
+// heap shared_ptr copy with a finalizer, so the cache can't dangle.
+Napi::Value MarketData::SnapshotExternal(const Napi::CallbackInfo &info) {
+  auto *sp = new std::shared_ptr<SnapshotCache>(snap_);
+  return Napi::External<std::shared_ptr<SnapshotCache>>::New(
+      info.Env(), sp,
+      [](Napi::Env, std::shared_ptr<SnapshotCache> *p) { delete p; });
 }
 
 Napi::Value MarketData::InjectTestTick(const Napi::CallbackInfo &info) {

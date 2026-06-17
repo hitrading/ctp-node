@@ -17,6 +17,16 @@
 using namespace ctp;
 static const double DMAX = std::numeric_limits<double>::max(); // CTP "unset" sentinel band
 
+// Mock reference-price source (stands in for the MarketData snapshot cache, so
+// the deviation-reference tests need no CTP md struct).
+struct MockSnap : RefPriceSource {
+  std::unordered_map<std::string, double> px;
+  double last(const std::string &id) const override {
+    auto it = px.find(id);
+    return it != px.end() ? it->second : 0.0;
+  }
+};
+
 int main() {
   // --- check(): per-order limits ---
   {
@@ -76,12 +86,19 @@ int main() {
     CHECK(allowed == 3, "rate limiter: exactly the burst (3) is allowed, the rest throttled");
   }
 
-  // --- reference price ---
+  // --- reference price from the attached MD snapshot (deviation reference) ---
   {
     RiskEngine r;
-    r.setRefPrice("rb", 3500);
-    CHECK(r.refPrice("rb") == 3500, "setRefPrice / refPrice round-trip");
-    CHECK(r.refPrice("zz") == 0.0, "refPrice of an unknown instrument is 0");
+    CHECK(r.refPrice("rb") == 0.0, "no snapshot attached -> refPrice 0 (deviation skipped)");
+    auto snap = std::make_shared<MockSnap>();
+    snap->px["rb"] = 3500;
+    r.setMdSnapshot(snap);
+    CHECK(r.refPrice("rb") == 3500, "refPrice reads the attached MD snapshot");
+    CHECK(r.refPrice("zz") == 0.0, "refPrice of an instrument absent from the snapshot is 0");
+    snap->px["bad"] = DMAX; // CTP DBL_MAX "unset" sentinel
+    CHECK(r.refPrice("bad") == 0.0, "refPrice rejects a DBL_MAX 'unset' snapshot price");
+    r.setMdSnapshot(nullptr);
+    CHECK(r.refPrice("rb") == 0.0, "detached snapshot -> refPrice 0 again");
   }
 
   // --- held position cost (onTrade) + global maxPositionCost cap ---
@@ -97,6 +114,63 @@ int main() {
           "global cost cap: held 70000 + 35000 reserved > 100000 is blocked");
     r.onTrade("rb", false, false, 3600, 2); // close the long 2
     CHECK(r.currentPositionCost() < 1.0, "onTrade(close) releases the held cost (~0)");
+  }
+
+  // --- margin rate: tracked cost becomes real MARGIN = notional * marginRate ---
+  {
+    RiskEngine r;
+    r.setMultiplier("rb", 10);
+    r.setMarginRate("rb", 0.1);            // 10% margin
+    r.onTrade("rb", true, true, 3500, 2);  // 3500*2*10*0.1 = 7000 margin (vs 70000 notional)
+    CHECK(r.currentPositionCost() == 7000, "marginRate scales held cost to real margin (7000)");
+  }
+  {
+    RiskEngine r; // unset margin rate -> default 1.0 -> cost == notional (back-compatible)
+    r.setMultiplier("rb", 10);
+    r.onTrade("rb", true, true, 3500, 2);
+    CHECK(r.currentPositionCost() == 70000, "unset marginRate defaults to notional (1.0) - back-compatible");
+  }
+  {
+    RiskEngine r; // global maxMargin cap (in margin units)
+    RiskConfig c;
+    c.maxMargin = 10000;
+    r.configure(c);
+    r.setMultiplier("rb", 10);
+    r.setMarginRate("rb", 0.1);
+    r.onTrade("rb", true, true, 3500, 2); // 7000 margin held
+    CHECK(r.tryReserveOpen("o1", "rb", true, 3500, 1) == OpenGate::CostLimit,
+          "maxMargin: held 7000 + 3500 reserved > 10000 is blocked (margin-based)");
+    CHECK(r.tryReserveOpen("o2", "rb", true, 2000, 1) == OpenGate::Ok,
+          "maxMargin: held 7000 + 2000 reserved = 9000 < 10000 is allowed");
+  }
+  {
+    RiskEngine r; // maxMargin takes precedence over the deprecated maxPositionCost alias
+    RiskConfig c;
+    c.maxMargin = 5000;
+    c.maxPositionCost = 999999; // alias would allow; maxMargin must win
+    r.configure(c);
+    r.setMultiplier("rb", 10);
+    r.setMarginRate("rb", 0.1);
+    CHECK(r.tryReserveOpen("o", "rb", true, 6000, 1) == OpenGate::CostLimit,
+          "maxMargin (5000) overrides maxPositionCost: 6000*1*10*0.1=6000 > 5000 blocked");
+  }
+  {
+    RiskEngine r; // setMarginRate ignores invalid (0 / negative / sentinel) -> default stays
+    r.setMultiplier("rb", 10);
+    r.setMarginRate("rb", 0);
+    r.setMarginRate("rb", -0.5);
+    r.setMarginRate("rb", DMAX);
+    r.onTrade("rb", true, true, 3500, 1); // default 1.0 -> 35000 notional, never zeroed
+    CHECK(r.currentPositionCost() == 35000, "setMarginRate ignores 0/negative/sentinel (default kept, margin never voided)");
+  }
+  {
+    RiskEngine r; // marginRate is static metadata: survives resetPositions (like multipliers)
+    r.setMultiplier("rb", 10);
+    r.setMarginRate("rb", 0.1);
+    r.onTrade("rb", true, true, 3500, 1);
+    r.resetPositions();
+    r.onTrade("rb", true, true, 3500, 1); // 3500*1*10*0.1 = 3500
+    CHECK(r.currentPositionCost() == 3500, "marginRate survives resetPositions (fill still scaled x0.1)");
   }
 
   // --- per-instrument cost cap ---
@@ -295,8 +369,7 @@ int main() {
   }
   {
     RiskEngine r;
-    r.setRefPrice("rb", -5); // non-positive -> ignored
-    CHECK(r.refPrice("rb") == 0.0, "setRefPrice ignores a non-positive price");
+    CHECK(r.refPrice("rb") == 0.0, "refPrice is 0 with no snapshot attached");
     r.setMultiplier("rb", 0); // non-positive -> ignored (no-op)
     r.setMultiplier("rb", -1);
     CHECK(true, "setMultiplier ignores a non-positive multiplier");

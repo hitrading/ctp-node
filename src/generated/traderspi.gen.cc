@@ -152,6 +152,10 @@ void TraderSpi::OnRspQryTradingCode(CThostFtdcTradingCodeField *p, CThostFtdcRsp
 }
 
 void TraderSpi::OnRspQryInstrumentMarginRate(CThostFtdcInstrumentMarginRateField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  if (p && risk_) {
+    const double mr = p->LongMarginRatioByMoney > p->ShortMarginRatioByMoney ? p->LongMarginRatioByMoney : p->ShortMarginRatioByMoney;
+    risk_->setMarginRate(p->InstrumentID, mr);
+  }
   ch_->push(ET_RspQryInstrumentMarginRate, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_InstrumentMarginRate : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -172,6 +176,8 @@ void TraderSpi::OnRspQryProduct(CThostFtdcProductField *p, CThostFtdcRspInfoFiel
 }
 
 void TraderSpi::OnRspQryInstrument(CThostFtdcInstrumentField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  if (p && risk_)
+    risk_->setMultiplier(p->InstrumentID, p->VolumeMultiple);
   ch_->push(ET_RspQryInstrument, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_Instrument : -1, p, p ? (int)sizeof(*p) : 0);
 }
 

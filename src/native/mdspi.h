@@ -11,6 +11,7 @@
 #include "ThostFtdcMdApi.h"
 #include "arm.h"
 #include "channel.h"
+#include "snapshot.h"
 #include <atomic>
 
 namespace ctp {
@@ -39,6 +40,8 @@ public:
 
   // Feed depth ticks to a Trader's arm registry (or nullptr to detach).
   void setArmRegistry(ArmRegistry *r) { armReg_.store(r, std::memory_order_relaxed); }
+  // Latest-tick cache (LVC) updated on every depth tick (or nullptr to detach).
+  void setSnapshotCache(SnapshotCache *c) { snap_.store(c, std::memory_order_relaxed); }
 
   // Detach the api pointer before the owning MarketData releases it, so a
   // late/teardown callback (or the test tick hook) can't dereference a freed
@@ -74,6 +77,7 @@ private:
   std::atomic<CThostFtdcMdApi *> api_;
   EventChannel *ch_;
   std::atomic<ArmRegistry *> armReg_{nullptr};
+  std::atomic<SnapshotCache *> snap_{nullptr};
 };
 
 } // namespace ctp

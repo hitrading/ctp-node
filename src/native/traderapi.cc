@@ -26,6 +26,7 @@
 #include "arm.h"
 #include "channel.h"
 #include "risk.h"
+#include "snapshot.h"
 
 namespace ctp {
 
@@ -81,17 +82,13 @@ private:
   Napi::Value RiskHalt(const Napi::CallbackInfo &info);
   Napi::Value RiskResume(const Napi::CallbackInfo &info);
   Napi::Value LastRiskReason(const Napi::CallbackInfo &info);
-  Napi::Value SetRefPrice(const Napi::CallbackInfo &info);
-  Napi::Value SetMultiplier(const Napi::CallbackInfo &info);
+  Napi::Value AttachSnapshot(const Napi::CallbackInfo &info);
   Napi::Value SetMaxPositionVolume(const Napi::CallbackInfo &info);
   Napi::Value SetMaxInstrumentCost(const Napi::CallbackInfo &info);
-  Napi::Value SetSession(const Napi::CallbackInfo &info);
   Napi::Value RebuildReservations(const Napi::CallbackInfo &info);
   Napi::Value SeedPosition(const Napi::CallbackInfo &info);
   Napi::Value PositionCost(const Napi::CallbackInfo &info);
   Napi::Value ResetPositions(const Napi::CallbackInfo &info);
-  Napi::Value ApplyTestTrade(const Napi::CallbackInfo &info);
-  Napi::Value ApplyTestOrder(const Napi::CallbackInfo &info);
   Napi::Value Start(const Napi::CallbackInfo &info);
   Napi::Value Buffer(const Napi::CallbackInfo &info);
   Napi::Value ClaimBatch(const Napi::CallbackInfo &info);
@@ -126,17 +123,13 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("riskHalt", &Trader::RiskHalt),
           InstanceMethod("riskResume", &Trader::RiskResume),
           InstanceMethod("lastRiskReason", &Trader::LastRiskReason),
-          InstanceMethod("setRefPrice", &Trader::SetRefPrice),
-          InstanceMethod("setMultiplier", &Trader::SetMultiplier),
+          InstanceMethod("_attachSnapshot", &Trader::AttachSnapshot),
           InstanceMethod("setMaxPositionVolume", &Trader::SetMaxPositionVolume),
           InstanceMethod("setMaxInstrumentCost", &Trader::SetMaxInstrumentCost),
-          InstanceMethod("setSession", &Trader::SetSession),
           InstanceMethod("rebuildReservations", &Trader::RebuildReservations),
           InstanceMethod("seedPosition", &Trader::SeedPosition),
           InstanceMethod("positionCost", &Trader::PositionCost),
           InstanceMethod("resetPositions", &Trader::ResetPositions),
-          InstanceMethod("_applyTestTrade", &Trader::ApplyTestTrade),
-          InstanceMethod("_applyTestOrder", &Trader::ApplyTestOrder),
           InstanceMethod("_start", &Trader::Start),
           InstanceMethod("_buffer", &Trader::Buffer),
           InstanceMethod("_claim", &Trader::ClaimBatch),
@@ -334,6 +327,7 @@ Napi::Value Trader::RiskSet(const Napi::CallbackInfo &info) {
     cfg.maxOrdersPerSec = getDbl(o, "maxOrdersPerSec", 0.0);
     cfg.orderBurst = getDbl(o, "orderBurst", 0.0);
     cfg.maxPositionCost = getDbl(o, "maxPositionCost", 0.0);
+    cfg.maxMargin = getDbl(o, "maxMargin", 0.0);
     risk_.configure(cfg);
   }
   return info.Env().Undefined();
@@ -355,19 +349,13 @@ Napi::Value Trader::LastRiskReason(const Napi::CallbackInfo &info) {
   return Napi::String::New(info.Env(), r ? r : "");
 }
 
-Napi::Value Trader::SetRefPrice(const Napi::CallbackInfo &info) {
-  if (info.Length() >= 2 && info[0].IsString() && info[1].IsNumber()) {
-    risk_.setRefPrice(info[0].As<Napi::String>().Utf8Value(),
-                      info[1].As<Napi::Number>().DoubleValue());
-  }
-  return info.Env().Undefined();
-}
-
-Napi::Value Trader::SetMultiplier(const Napi::CallbackInfo &info) {
-  if (info.Length() >= 2 && info[0].IsString() && info[1].IsNumber()) {
-    risk_.setMultiplier(info[0].As<Napi::String>().Utf8Value(),
-                        info[1].As<Napi::Number>().DoubleValue());
-  }
+// (mdSnapshotExternal) - attach a MarketData's snapshot cache so the deviation
+// check reads live prices in C++ (no JS round-trip). See Trader.trackMarketData.
+Napi::Value Trader::AttachSnapshot(const Napi::CallbackInfo &info) {
+  auto ext = info[0].As<Napi::External<std::shared_ptr<SnapshotCache>>>();
+  std::shared_ptr<SnapshotCache> *sp = ext.Data();
+  if (sp && *sp)
+    risk_.setMdSnapshot(*sp); // SnapshotCache -> const RefPriceSource (upcast)
   return info.Env().Undefined();
 }
 
@@ -386,15 +374,6 @@ Napi::Value Trader::SetMaxInstrumentCost(const Napi::CallbackInfo &info) {
   if (info.Length() >= 2 && info[0].IsString() && info[1].IsNumber()) {
     risk_.setMaxInstrumentCost(info[0].As<Napi::String>().Utf8Value(),
                                info[1].As<Napi::Number>().DoubleValue());
-  }
-  return info.Env().Undefined();
-}
-
-// (frontId, sessionId) - our login session, for reservation keys.
-Napi::Value Trader::SetSession(const Napi::CallbackInfo &info) {
-  if (info.Length() >= 2 && info[0].IsNumber() && info[1].IsNumber()) {
-    risk_.setSession(info[0].As<Napi::Number>().Int32Value(),
-                     info[1].As<Napi::Number>().Int32Value());
   }
   return info.Env().Undefined();
 }
@@ -442,35 +421,6 @@ Napi::Value Trader::PositionCost(const Napi::CallbackInfo &info) {
 
 Napi::Value Trader::ResetPositions(const Napi::CallbackInfo &info) {
   risk_.resetPositions();
-  return info.Env().Undefined();
-}
-
-// test-only: (instrumentId, isBuy, isOpen, price, volume)
-Napi::Value Trader::ApplyTestTrade(const Napi::CallbackInfo &info) {
-  if (info.Length() >= 5) {
-    risk_.onTrade(info[0].As<Napi::String>().Utf8Value(),
-                  info[1].ToBoolean().Value(), info[2].ToBoolean().Value(),
-                  info[3].As<Napi::Number>().DoubleValue(),
-                  info[4].As<Napi::Number>().DoubleValue());
-  }
-  return info.Env().Undefined();
-}
-
-// (frontId, sessionId, orderRef, instrumentId, isOpen, isLong, status,
-// limitPrice, volTotal, volTraded) - drive the reservation tracker (OnRtnOrder).
-Napi::Value Trader::ApplyTestOrder(const Napi::CallbackInfo &info) {
-  if (info.Length() >= 10) {
-    std::string status = info[6].As<Napi::String>().Utf8Value();
-    risk_.onOrderUpdate(info[0].As<Napi::Number>().Int32Value(),
-                        info[1].As<Napi::Number>().Int32Value(),
-                        info[2].As<Napi::String>().Utf8Value(),
-                        info[3].As<Napi::String>().Utf8Value(),
-                        info[4].ToBoolean().Value(), info[5].ToBoolean().Value(),
-                        status.empty() ? ' ' : status[0],
-                        info[7].As<Napi::Number>().DoubleValue(),
-                        info[8].As<Napi::Number>().DoubleValue(),
-                        info[9].As<Napi::Number>().DoubleValue());
-  }
   return info.Env().Undefined();
 }
 

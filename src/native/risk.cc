@@ -15,8 +15,8 @@ namespace ctp {
 // trade) IS finite, so it slips past isfinite alone; 1e300 is far above any real
 // value and far below DBL_MAX. Centralized so EVERY double entering the math
 // rejects the sentinel uniformly: a split policy is exactly what let DBL_MAX
-// poison setMultiplier/onTrade after setRefPrice was already guarded (rounds
-// 11/14). A sentinel/Inf multiplier or fill makes cost Inf and a later
+// poison setMultiplier/onTrade after the reference-price path was already guarded
+// (rounds 11/14). A sentinel/Inf multiplier or fill makes cost Inf and a later
 // proportional close-release Inf-Inf = NaN, and NaN > cap is false -> the cost
 // cap is silently voided. Reject at the door instead.
 static inline bool sanePositive(double x) {
@@ -85,29 +85,37 @@ void RiskEngine::configure(const RiskConfig &cfg) {
   maxOrderVolume_.store(cfg.maxOrderVolume, std::memory_order_relaxed);
   maxPriceDeviation_.store(cfg.maxPriceDeviation, std::memory_order_relaxed);
   maxNotional_.store(cfg.maxNotional, std::memory_order_relaxed);
-  maxPositionCost_.store(cfg.maxPositionCost, std::memory_order_relaxed);
+  // maxMargin is the canonical margin-based global cap; maxPositionCost is the
+  // deprecated alias. Prefer maxMargin when set.
+  maxPositionCost_.store(cfg.maxMargin > 0.0 ? cfg.maxMargin : cfg.maxPositionCost,
+                         std::memory_order_relaxed);
   limiter_.configure(cfg.maxOrdersPerSec, cfg.orderBurst);
 }
 
 void RiskEngine::halt() { halted_.store(true, std::memory_order_relaxed); }
 void RiskEngine::resume() { halted_.store(false, std::memory_order_relaxed); }
 
-void RiskEngine::setRefPrice(const std::string &instrumentId, double price) {
-  // Reject the CTP DBL_MAX "unset" sentinel (and non-finite/non-positive) — see
-  // sanePositive. A sentinel reference would make |price - ref| / ref == 1.0 for
-  // ANY real limit price, falsely blocking every deviation-checked order on the
-  // instrument; instead the reference stays unset until a real price arrives and
-  // the deviation check skips (its refPrice > 0 guard).
-  if (!sanePositive(price))
-    return;
+void RiskEngine::setMdSnapshot(std::shared_ptr<const RefPriceSource> source) {
   std::lock_guard<std::mutex> lk(refMutex_);
-  refPrices_[instrumentId] = price;
+  mdSnap_ = std::move(source);
 }
 
 double RiskEngine::refPrice(const std::string &instrumentId) const {
-  std::lock_guard<std::mutex> lk(refMutex_);
-  auto it = refPrices_.find(instrumentId);
-  return it != refPrices_.end() ? it->second : 0.0;
+  // Read the deviation reference from the live MD snapshot (in C++). Copy the
+  // shared_ptr under our lock, then query outside it (the cache has its own
+  // mutex) — no nested locking, and a concurrent detach can't free it mid-read.
+  // A non-finite / DBL_MAX "unset" last price is rejected here (not in the cache)
+  // so a sentinel reference can't make |price-ref|/ref == 1.0 and falsely block
+  // every order — the deviation check skips on a 0 reference.
+  std::shared_ptr<const RefPriceSource> snap;
+  {
+    std::lock_guard<std::mutex> lk(refMutex_);
+    snap = mdSnap_;
+  }
+  if (!snap)
+    return 0.0;
+  const double px = snap->last(instrumentId);
+  return sanePositive(px) ? px : 0.0;
 }
 
 void RiskEngine::setMultiplier(const std::string &instrumentId, double mult) {
@@ -116,6 +124,16 @@ void RiskEngine::setMultiplier(const std::string &instrumentId, double mult) {
   // else (<=0, NaN, +Inf, or a DBL_MAX-class value) falls back to 1.0 — see
   // sanePositive for why the sentinel band matters.
   multipliers_[instrumentId] = sanePositive(mult) ? mult : 1.0;
+}
+
+void RiskEngine::setMarginRate(const std::string &instrumentId, double rate) {
+  std::lock_guard<std::mutex> lk(posMutex_);
+  // Store only a usable rate (finite, positive, sub-sentinel). A 0/invalid rate
+  // (e.g. an all-by-volume contract reporting 0 by-money, or a malformed field)
+  // is ignored so the conservative default keeps applying — zeroing the margin
+  // would silently void the cap for that instrument.
+  if (sanePositive(rate))
+    marginRate_[instrumentId] = rate;
 }
 
 void RiskEngine::setMaxPositionVolume(const std::string &instrumentId,
@@ -128,6 +146,17 @@ void RiskEngine::setMaxPositionVolume(const std::string &instrumentId,
 double RiskEngine::multiplierLocked(const std::string &instrumentId) const {
   auto it = multipliers_.find(instrumentId);
   return it != multipliers_.end() ? it->second : 1.0;
+}
+
+double RiskEngine::marginRateLocked(const std::string &instrumentId) const {
+  auto it = marginRate_.find(instrumentId);
+  return it != marginRate_.end() ? it->second : kDefaultMarginRate;
+}
+
+double RiskEngine::costFactorLocked(const std::string &instrumentId) const {
+  // The tracked open "cost" is MARGIN, so every cost computation scales the
+  // notional factor (multiplier) by the instrument's margin rate.
+  return multiplierLocked(instrumentId) * marginRateLocked(instrumentId);
 }
 
 void RiskEngine::seedPosition(const std::string &instrumentId, bool isLong,
@@ -158,11 +187,11 @@ void RiskEngine::onTrade(const std::string &instrumentId, bool isBuy,
   // Real CTP fills are always positive, finite, and far below the sentinel band;
   // ignore malformed data rather than let it corrupt the tracked cost (a NaN
   // would silently void the cost cap, +Inf/DBL_MAX would jam or void it). See
-  // sanePositive — same uniform sentinel rejection as setRefPrice/setMultiplier.
+  // sanePositive — same uniform sentinel rejection as setMultiplier / refPrice.
   if (!sanePositive(price) || !sanePositive(volume))
     return;
   std::lock_guard<std::mutex> lk(posMutex_);
-  const double cost = price * volume * multiplierLocked(instrumentId);
+  const double cost = price * volume * costFactorLocked(instrumentId);
   // Per-fill backstop: even with sanePositive inputs the PRODUCT could be
   // non-finite (e.g. 1e299 * 1e299); never let a non-finite single-fill cost in.
   if (!std::isfinite(cost))
@@ -234,7 +263,7 @@ OpenGate RiskEngine::tryReserveOpen(const std::string &orderRef,
                                     double price, double volume) {
   const double globalCap = maxPositionCost_.load(std::memory_order_relaxed);
   std::lock_guard<std::mutex> lk(posMutex_);
-  const double addCost = volume * costPrice(price) * multiplierLocked(instrumentId);
+  const double addCost = volume * costPrice(price) * costFactorLocked(instrumentId);
   const Pos *p = nullptr;
   auto pit = positions_.find(instrumentId);
   if (pit != positions_.end())
@@ -318,8 +347,8 @@ void RiskEngine::onOrderUpdate(int frontId, int sessionId,
   double desiredVol = terminal ? 0.0 : volTotal - volTraded;
   if (desiredVol < 0.0)
     desiredVol = 0.0;
-  const double mult = multiplierLocked(instrumentId);
-  const double desiredCost = desiredVol * costPrice(limitPrice) * mult;
+  const double factor = costFactorLocked(instrumentId);
+  const double desiredCost = desiredVol * costPrice(limitPrice) * factor;
 
   auto rit = reservations_.find(key);
   if (rit == reservations_.end()) {
@@ -398,7 +427,7 @@ void RiskEngine::rebuildOpenReservations(const std::vector<OpenOrderInfo> &order
     // entry to release it - it would over-block opens until the next full resync.
     if (reservations_.count(key))
       continue;
-    const double cost = o.vol * costPrice(o.price) * multiplierLocked(o.instrumentId);
+    const double cost = o.vol * costPrice(o.price) * costFactorLocked(o.instrumentId);
     Pos &pp = positions_[o.instrumentId];
     if (o.isLong) {
       pp.longPendVol += o.vol;

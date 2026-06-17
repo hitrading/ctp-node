@@ -7,15 +7,16 @@
 // Long-only, signal-driven. SimNow = a SIMULATION account (no real money).
 //
 // SAFETY (so "all contracts" can't run away): every order passes the C++ pre-trade
-// risk gate (max order volume, orders/sec, account-wide open-cost cap); on top of
-// that the JS side caps concurrent open positions (STRAT_MAX_POS) and never opens a
+// risk gate (max order volume, orders/sec, and a ZERO-LAG HARD CAP on total open
+// MARGIN using real per-contract margin rates fed from CTP); on top of that the JS
+// side caps concurrent open positions (STRAT_MAX_POS) and never opens a
 // contract it is already long (dedup). Stop any time with Ctrl-C (kill-switch) or
 // by the scheduled stop time.
 //
 // CREDENTIALS come ONLY from the environment - never written to a file or the task:
 //   CTP_BROKER CTP_USER CTP_PASS CTP_APPID CTP_AUTHCODE CTP_MD_FRONT CTP_TD_FRONT
 // Tunables (env, optional):
-//   STRAT_LOTS (1)  STRAT_MAX_POS (30)  STRAT_MAX_COST (5000000)
+//   STRAT_LOTS (1)  STRAT_MAX_POS (30)  STRAT_MAX_MARGIN (300000 = real-margin hard cap, ¥)
 //   STRAT_MAX_OPS (5 = max order sends/sec)  STRAT_STOP (15:05 = HH:MM local exit)
 import { MarketData, Trader } from "../dist/index.js";
 import { mkdirSync } from "node:fs";
@@ -33,9 +34,10 @@ const cfg = {
   tdFront: env.CTP_TD_FRONT ?? "tcp://182.254.243.31:30002",
   lots: Number(env.STRAT_LOTS ?? 1),
   maxPos: Number(env.STRAT_MAX_POS ?? 30),
-  maxCost: Number(env.STRAT_MAX_COST ?? 5_000_000),
+  maxMargin: Number(env.STRAT_MAX_MARGIN ?? 300_000), // C++ hard cap on total open MARGIN (¥); real per-contract rates fed from CTP
   maxOps: Number(env.STRAT_MAX_OPS ?? 5),
   stop: env.STRAT_STOP ?? "15:05",
+  futuresOnly: (env.STRAT_FUTURES_ONLY ?? "1") === "1", // 1 = only trade futures (productClass '1'), skip options/combos
 };
 if (!cfg.userId || !cfg.password) { console.error("Set CTP_USER and CTP_PASS (SimNow account)."); process.exit(2); }
 
@@ -72,7 +74,9 @@ const order = (id, dir, off, price, vol) => ({
 
 function tryBuy(id, s) {
   if (longPos.has(id)) return;                              // already long (dedup)
-  if (longPos.size >= cfg.maxPos) { blocked++; return; }    // concurrency cap
+  if (longPos.size >= cfg.maxPos) { blocked++; return; }    // concurrency cap (count safety)
+  // The real-margin hard cap (STRAT_MAX_MARGIN) is enforced in C++ on the order
+  // path (riskSet maxMargin); a refused open rejects below and counts as blocked.
   const price = s.ask > 0 && s.ask < 1e300 ? s.ask : s.px;  // marketable (hit the ask)
   if (!(price > 0)) return;
   longPos.set(id, { lots: cfg.lots });                      // optimistic; rolled back if the send is refused
@@ -162,7 +166,12 @@ md.on("front-connected", async () => {
 
 // ================= Trader =================
 const td = new Trader("./flow-td/", cfg.tdFront);
-td.riskSet({ maxOrderVolume: cfg.lots, maxOrdersPerSec: cfg.maxOps, maxPositionCost: cfg.maxCost });
+// Zero-lag hard cap on total open MARGIN, enforced in C++ on every order. Real
+// per-contract margin rates are fed straight into the risk engine from CTP's
+// OnRspQryInstrumentMarginRate (see the margin-rate drip after handshake); until a
+// contract's rate arrives it counts at full notional (conservative, never under).
+td.riskSet({ maxOrderVolume: cfg.lots, maxOrdersPerSec: cfg.maxOps, maxMargin: cfg.maxMargin });
+let ratesQueried = 0;
 td.on("error", (e) => log("[td handler error]", e?.message || e));
 td.on("front-disconnected", (r) => log("TD front-disconnected", r));
 td.on("rtn-trade", (tr) => { fills++; log(`  FILL ${tr.instrumentId} ${tr.offsetFlag === "0" ? "OPEN" : "CLOSE"} ${tr.volume}@${tr.price}`); });
@@ -180,21 +189,49 @@ td.on("front-connected", async () => {
     if (!handshakeDone) {
       await sleep(1200);
       const rows = await td.reqQryInstrument({});            // one big multi-row response = every instrument
-      allInstruments = rows.map((r) => r.instrumentId).filter(Boolean);
-      for (const r of rows) {
-        if (!r.instrumentId) continue;
+      // productClass: '1' Futures, '2' Options, '3' Combination, ... Trade futures only by default.
+      const tradeable = rows.filter((r) => r.instrumentId && (!cfg.futuresOnly || r.productClass === "1"));
+      allInstruments = tradeable.map((r) => r.instrumentId);
+      for (const r of tradeable) {
         meta.set(r.instrumentId, { tick: r.priceTick || 1, exch: r.exchangeId || "" });
-        if (r.volumeMultiple > 0) td.setMultiplier(r.instrumentId, r.volumeMultiple); // seed the cost cap
       }
-      log(`got ${allInstruments.length} instruments; seeding existing positions...`);
+      // (Contract multipliers are sourced into the C++ risk engine automatically
+      // from this reqQryInstrument response — no td.setMultiplier needed.)
+      log(`got ${rows.length} instruments; trading set = ${allInstruments.length} ${cfg.futuresOnly ? "futures (productClass '1')" : "all contracts"}; seeding existing positions...`);
       await sleep(1100);
       await td.syncPositions().catch(() => {});              // seed the risk engine with any existing position cost
+      const a0 = (await td.reqQryTradingAccount({ brokerId: cfg.brokerId, investorId: cfg.userId }).catch(() => []))[0];
+      if (a0) log(`account: balance ${Math.round(a0.balance / 1e4)}w available ${Math.round(a0.available / 1e4)}w | maxMargin hard cap ${Math.round(cfg.maxMargin / 1e4)}w (enforced in C++)`);
       handshakeDone = true;
       resolveInstruments();
+      dripMarginRates();                                     // background: load real margin rates into the C++ risk engine
     }
     log("TD handshake ok.");
   } catch (e) { log("TD flow FAILED:", e.message, "errorId", e.errorId); resolveInstruments(); }
 });
+
+// ================= margin-rate drip =================
+// Fetch each tradeable contract's REAL margin rate from CTP (queries are rate-
+// limited ~1/s). The OnRspQryInstrumentMarginRate response is intercepted inside
+// C++ and fed straight to the risk engine, so the maxMargin hard cap counts real
+// margin instead of full notional. Retries transient flow-control rejects; any
+// still-unloaded contract simply counts at conservative notional until it lands.
+async function dripMarginRates() {
+  let pending = [...allInstruments];
+  for (let pass = 0; pending.length && pass < 3; pass++) {
+    const retry = [];
+    for (const id of pending) {
+      const m = meta.get(id);
+      try {
+        await td.reqQryInstrumentMarginRate({ brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: id, hedgeFlag: "1", exchangeId: m?.exch || "" });
+        ratesQueried++;
+      } catch { retry.push(id); }   // flow-control / transient: stays at notional, retried next pass
+      await sleep(1200);            // within CTP's query flow limit
+    }
+    pending = retry;
+  }
+  log(`margin rates loaded for ${ratesQueried}/${allInstruments.length} contracts.`);
+}
 
 // ================= periodic stats =================
 const eld = monitorEventLoopDelay({ resolution: 10 });
@@ -210,7 +247,7 @@ const stat = setInterval(() => {
   const cpu = process.cpuUsage(lastCpu); lastCpu = process.cpuUsage();
   const cpuPct = Math.round((cpu.user + cpu.system) / 1000 / (dt * 1000) * 100);
   const p99 = (eld.percentile(99) / 1e6).toFixed(1); eld.reset();
-  log(`t+${Math.round((Date.now() - t0) / 1000)}s | ticking ${st.size}/${allInstruments.length} | ticks ${totalTicks} (${tps}/s) | DROPPED ${md.droppedRecords - dropBaseline} | bars ${bars} | golden ${golden} dead ${dead} | BUY ${buys} SELL ${sells} fills ${fills} blocked ${blocked} | open ${longPos.size}/${cfg.maxPos} | RSS ${rss}MB cpu ${cpuPct}% lag-p99 ${p99}ms`);
+  log(`t+${Math.round((Date.now() - t0) / 1000)}s | ticking ${st.size}/${allInstruments.length} | ticks ${totalTicks} (${tps}/s) | DROPPED ${md.droppedRecords - dropBaseline} | bars ${bars} | golden ${golden} dead ${dead} | BUY ${buys} SELL ${sells} fills ${fills} blocked ${blocked} | open ${longPos.size}/${cfg.maxPos} | margin ${Math.round(td.positionCost() / 1e4)}/${Math.round(cfg.maxMargin / 1e4)}w (rates ${ratesQueried}/${allInstruments.length}) | RSS ${rss}MB cpu ${cpuPct}% lag-p99 ${p99}ms`);
   if (now.getHours() > sh || (now.getHours() === sh && now.getMinutes() >= sm)) { log(`stop time ${cfg.stop} reached.`); shutdown(0); }
 }, 5000);
 
@@ -225,4 +262,4 @@ async function shutdown(code) {
 process.on("SIGINT", () => { log("SIGINT -> kill-switch (halt) + shutdown"); try { td.halt(); } catch { /* */ } shutdown(0); });
 process.on("SIGTERM", () => shutdown(0));
 
-log(`strategy starting | MD ${cfg.mdFront} | TD ${cfg.tdFront} | lots ${cfg.lots} maxPos ${cfg.maxPos} maxCost ${cfg.maxCost} ops/s ${cfg.maxOps} | stop ${cfg.stop}`);
+log(`strategy starting | MD ${cfg.mdFront} | TD ${cfg.tdFront} | lots ${cfg.lots} maxPos ${cfg.maxPos} maxMargin ${Math.round(cfg.maxMargin / 1e4)}w ops/s ${cfg.maxOps} | stop ${cfg.stop}`);

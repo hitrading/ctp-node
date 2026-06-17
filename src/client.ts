@@ -259,6 +259,14 @@ export abstract class CtpClient extends EventEmitter {
     return d;
   }
 
+  /** Decode one struct's raw bytes (e.g. a native snapshot) into a plain object,
+   *  reusing the lazily-built per-struct decoder — the same codec the ring uses,
+   *  so the result is identical to a streamed record. */
+  protected decodeStruct(structId: number, bytes: Uint8Array): Record<string, unknown> {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    return this.decoderFor(structId)(view, bytes, 0);
+  }
+
   private drain(): void {
     let count = this.native._claim();
     while (count > 0) {

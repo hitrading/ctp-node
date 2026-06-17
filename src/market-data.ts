@@ -14,6 +14,7 @@ import type {
   RspUserLogin,
   UserLogout,
 } from "./generated/structs.gen.js";
+import { STRUCT_ID } from "./generated/structs.gen.js";
 
 const MD_BASE = 0x1000;
 const MD_EVENTS = new Map<number, string>([
@@ -87,6 +88,28 @@ export class MarketData extends CtpClient {
   }
   unsubscribeForQuote(instrumentIds: string[]): number {
     return (this.native as { unsubscribeForQuoteRsp(a: string[]): number }).unsubscribeForQuoteRsp(instrumentIds);
+  }
+
+  /** Latest cached depth tick for an instrument — the C++ last-value cache,
+   *  updated on every tick before it reaches JS. Returns null if none has been
+   *  seen (or it was unsubscribed). Synchronous: no waiting for an event, no
+   *  per-tick bookkeeping in your strategy. */
+  snapshot(instrumentId: string): DepthMarketData | null {
+    const bytes = (this.native as { snapshot(id: string): Uint8Array | null }).snapshot(instrumentId);
+    return bytes
+      ? (this.decodeStruct(STRUCT_ID.DepthMarketData, bytes) as unknown as DepthMarketData)
+      : null;
+  }
+
+  /** Latest price for an instrument from the cache (0 if none seen). Synchronous. */
+  last(instrumentId: string): number {
+    return (this.native as { last(id: string): number }).last(instrumentId);
+  }
+
+  /** @internal Hand the C++ snapshot cache to a Trader (Trader.trackMarketData),
+   *  so the Trader's deviation check reads live prices in C++ — no JS round-trip. */
+  _snapshotExternal(): unknown {
+    return (this.native as { _snapshotExternal(): unknown })._snapshotExternal();
   }
 
   /** Log in; resolves with the login response (or rejects on CTP error). */

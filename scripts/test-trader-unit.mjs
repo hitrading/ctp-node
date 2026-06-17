@@ -26,8 +26,8 @@ ok(true, "riskSet applies a full config");
 throws(() => td.riskSet({ maxOrderVolume: Infinity }), "riskSet rejects non-finite maxOrderVolume");
 throws(() => td.riskSet({ maxNotional: NaN }), "riskSet rejects NaN maxNotional");
 td.halt(); td.resume(); ok(true, "halt() / resume()");
-td.setRefPrice("rb2510", 3500); ok(true, "setRefPrice");
-td.setMultiplier("rb2510", 10); ok(true, "setMultiplier");
+throws(() => td.riskSet({ maxMargin: Infinity }), "riskSet rejects non-finite maxMargin");
+td.riskSet({ maxMargin: 3e5 }); ok(true, "riskSet applies maxMargin (real-margin hard cap)");
 td.setMaxPosition("rb2510", 100); ok(true, "setMaxPosition (number caps both sides)");
 td.setMaxPosition("ru2510", { long: 100, short: 20 }); ok(true, "setMaxPosition ({long,short})");
 td.setMaxPosition("ag2510", { long: 5 }); ok(true, "setMaxPosition (one side only)");
@@ -39,10 +39,10 @@ td.setMaxPositionCosts({ au2608: 5e6, ag2608: 2e6 }); ok(true, "setMaxPositionCo
 throws(() => td.setMaxPositionCosts({ x: Infinity }), "setMaxPositionCosts rejects non-finite");
 td.seedPosition("rb2510", "long", 5, 10000); ok(true, "seedPosition");
 td.seedFromPositions([
-  { instrumentId: "rb", posiDirection: "2", position: 3, openCost: 300 },
-  { instrumentId: "rb", posiDirection: "2", position: 2, openCost: 200 },
-  { instrumentId: "au", posiDirection: "3", position: 1, openCost: 900 },
-  { instrumentId: "z", posiDirection: "2", position: 0, openCost: 0 },
+  { instrumentId: "rb", posiDirection: "2", position: 3, useMargin: 300 },
+  { instrumentId: "rb", posiDirection: "2", position: 2, useMargin: 200 },
+  { instrumentId: "au", posiDirection: "3", position: 1, useMargin: 900 },
+  { instrumentId: "z", posiDirection: "2", position: 0, useMargin: 0 },
 ]);
 ok(true, "seedFromPositions aggregates by instrument+side and skips zero-position rows");
 ok(typeof td.positionCost() === "number", "positionCost");
@@ -66,11 +66,10 @@ const h = td.arm(md, { instrumentId: "rb", side: "sell", triggerPrice: 3500, ord
 ok(typeof h.id === "number", "arm returns a handle id");
 ok(typeof h.disarm() === "boolean", "arm handle disarm()");
 
-// trackMarketData: an md tick should flow to the risk engine's reference price.
+// trackMarketData wires the MD snapshot cache into the risk engine in C++ (the
+// deviation reference); the read-in-C++ path itself is covered by the C++ harness.
 td.trackMarketData(md);
-md._injectTestTick(3499, 3501);
-await new Promise((r) => setTimeout(r, 60)); // let the doorbell drain the injected tick
-ok(true, "trackMarketData routes md ticks to setRefPrice");
+ok(true, "trackMarketData(md) wires the MD snapshot (no JS round-trip)");
 
 // session() + sync* with the leaf req methods stubbed (no network).
 td.reqAuthenticate = async () => ({});

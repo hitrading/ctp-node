@@ -85,8 +85,12 @@ void MdSpi::OnRtnDepthMarketData(CThostFtdcDepthMarketDataField *p) {
     if (td)
       std::snprintf(p->TradingDay, sizeof(p->TradingDay), "%s", td);
   }
-  // Evaluate armed triggers first (lowest tick-to-order latency), then publish.
+  // Update the latest-tick cache, evaluate armed triggers (lowest tick-to-order
+  // latency), then publish to the ring.
   if (p) {
+    SnapshotCache *sc = snap_.load(std::memory_order_relaxed);
+    if (sc)
+      sc->update(*p); // LVC: latest full tick per instrument (incl. trading day)
     ArmRegistry *ar = armReg_.load(std::memory_order_relaxed);
     if (ar)
       ar->onTick(p->InstrumentID, p->BidPrice1, p->AskPrice1);

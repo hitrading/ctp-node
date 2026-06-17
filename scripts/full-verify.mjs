@@ -119,8 +119,7 @@ td.on("front-connected", async () => {
       const rows = await td.reqQryInstrument({ instrumentId: id });
       const r = rows.find((x) => x.instrumentId === id);
       inst[id] = { mult: r.volumeMultiple, tick: r.priceTick };
-      td.setMultiplier(id, r.volumeMultiple);
-      log(`${id}: mult=${r.volumeMultiple} tick=${r.priceTick}`);
+      log(`${id}: mult=${r.volumeMultiple} tick=${r.priceTick} (auto-fed to risk engine)`);
       await sleep(1100);
     }
     td.trackMarketData(md); // feed deviation reference
