@@ -1,7 +1,7 @@
 // Live validation of (1) multi-terminal awareness: a working order placed by
 // session B is counted against session A's position cap; and (2) syncOrders():
-// rebuilding the in-flight reservation from reqQryOrder after the local state
-// was cleared (as a reconnect would). au2608, real working (resting) orders.
+// rebuilding the in-flight reservation from reqQryOrder as reconnect recovery.
+// au2608, real working (resting) orders.
 import { MarketData, Trader } from "../dist/index.js";
 import { mkdirSync } from "node:fs";
 import process from "node:process";
@@ -50,9 +50,11 @@ B.on("front-connected", async () => {
     await login(B); log("B logged in");
     for (let i = 0; i < 30 && !px[I]; i++) await sleep(300);
     await A.syncMultipliers([I]);
-    await A.syncPositions();
-    A.setMaxPosition(I, { long: 2 }); // A's cap: 2 long lots
-    log(`A: setMaxPosition(${I}, {long:2}); start clean`);
+    await B.syncMultipliers([I]);
+    await A.syncOrders(); await A.syncPositions();
+    await B.syncOrders(); await B.syncPositions();
+    A.setInstrumentPositionLimit(I, { long: 2 });
+    log(`A: setInstrumentPositionLimit(${I}, {long:2}); start clean`);
     await cancelWorking(A); await cancelWorking(B); await sleep(1000);
 
     // ---- (1) multi-terminal: B's working order counts against A's cap ----
@@ -71,22 +73,21 @@ B.on("front-connected", async () => {
     log(`A places resting open ${I} x1 @ ${restBuy()} -> ${placed}`);
     check(/SENT/.test(placed), "A: resting order placed (clean slate before resync)");
     await sleep(2500);
-    A.resetPositions(); // simulate a reconnect wiping local reservation state
-    log("A.resetPositions() (simulating reconnect: local reservations cleared)");
     const n = await A.syncOrders(); // rebuild from the broker's working orders
+    await A.syncPositions();        // required final snapshot after every order rebuild
     log(`A.syncOrders() re-reserved ${n} working order(s)`);
     check(n >= 1, `syncOrders found A's working order (n=${n})`);
     check(/position volume/i.test(await probeOpen(A, 2)), "A: open 2 blocked again after syncOrders (reservation rebuilt: 1 + 2 > 2)");
 
     log(`\nRESULT: ${pass} pass, ${fail} fail`);
-  } catch (e) { log("FAILED:", e.message, "errorId=", e.errorId); }
+  } catch (e) { fail++; log("FAILED:", e.message, "errorId=", e.errorId); }
   finally {
     await cancelWorking(A).catch(() => {}); await cancelWorking(B).catch(() => {});
     await sleep(800);
     const posn = await A.reqQryInvestorPosition({ brokerId: C.brokerId, investorId: C.userId }).catch(() => []);
     const ordn = await A.reqQryOrder({ brokerId: C.brokerId, investorId: C.userId }).catch(() => []);
     log(`FINAL: open positions=${posn.filter((p) => p.position > 0).length}, working orders=${ordn.filter((o) => o.orderStatus === "1" || o.orderStatus === "3").length}`);
-    md.close(); A.close(); B.close(); process.exit(0);
+    md.close(); A.close(); B.close(); process.exit(fail ? 1 : 0);
   }
 });
 

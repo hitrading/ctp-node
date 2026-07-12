@@ -64,7 +64,7 @@ async function main() {
 
   // 4) C++ pre-trade risk gate, end-to-end and LIVE. The order is oversized, so the
   //    gate rejects it before it is ever sent to the exchange (nothing rests).
-  td.riskSet({ maxOrderVolume: 1 });
+  td.setRiskLimits({ maxOrderVolume: 1 });
   let blocked = false;
   await td.reqOrderInsert({
     brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: "rb2510",

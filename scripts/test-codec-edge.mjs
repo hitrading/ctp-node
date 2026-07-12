@@ -30,10 +30,48 @@ ok(obj.i32 === 7, "decode int32 field (kind 1)");
 ok(obj.i16 === 300, "decode int16 field (kind 2)");
 ok(obj.d === 1.5, "decode double field (kind 3)");
 
-// encodeStruct: undefined/null skipped; over-long truncated, NUL kept; size===1 single byte.
-const buf2 = encodeStruct(layout, STRUCTS[SID].fields, { s: "TOOLONGSTRING", i32: undefined, i16: null });
-ok(buf2[7] === 0, "char[8] keeps its NUL terminator when input is over-long");
-ok(buf2[6] === 0x47, "char[8] wrote the first 7 bytes of the over-long string");
+// Invalid numeric values and over-capacity strings are rejected, never silently
+// truncated/coerced into a different wire request.
+throws(() => encodeStruct(layout, STRUCTS[SID].fields, { s: "TOOLONGSTRING" }),
+  "char[N] rejects an over-capacity encoded string");
+throws(() => encodeStruct(layout, STRUCTS[SID].fields, { s: 123 }),
+  "char[N] rejects implicit non-string coercion");
+throws(() => encodeStruct(layout, STRUCTS[SID].fields, { s: "AB\0CD" }),
+  "char[N] rejects an embedded NUL that would change the wire value");
+throws(() => encodeStruct(layout, STRUCTS[SID].fields, { i32: 1.5 }),
+  "int32 rejects fractional input");
+throws(() => encodeStruct(layout, STRUCTS[SID].fields, { i32: "7" }),
+  "int32 rejects implicit string coercion");
+throws(() => encodeStruct(layout, STRUCTS[SID].fields, { i16: 40000 }),
+  "int16 rejects out-of-range input");
+throws(() => encodeStruct(layout, STRUCTS[SID].fields, { d: Infinity }),
+  "double rejects non-finite input");
+throws(() => encodeStruct(layout, STRUCTS[SID].fields.slice(0, 3), {}),
+  "encodeStruct rejects descriptor/layout field-count drift");
+throws(() => encodeStruct(layout, STRUCTS[SID].fields, []),
+  "encodeStruct rejects an array masquerading as a request object");
+throws(() => encodeStruct(layout, STRUCTS[SID].fields, Object.create({ i32: 7 })),
+  "encodeStruct rejects inherited request fields / non-plain prototypes");
+Object.defineProperty(Object.prototype, "i32", { value: 77, configurable: true });
+try {
+  const cleanPrototype = encodeStruct(layout, STRUCTS[SID].fields, {});
+  ok(new DataView(cleanPrototype.buffer).getInt32(8, true) === 0,
+    "encodeStruct ignores a polluted Object.prototype field");
+} finally {
+  delete Object.prototype.i32;
+}
+const nullPrototypeRequest = Object.assign(Object.create(null), { i32: 9 });
+ok(new DataView(encodeStruct(layout, STRUCTS[SID].fields, nullPrototypeRequest).buffer)
+  .getInt32(8, true) === 9, "encodeStruct accepts an explicit null-prototype dictionary");
+throws(() => encodeStruct(layout, STRUCTS[SID].fields, { [Symbol("hidden")]: 1 }),
+  "encodeStruct rejects symbol request fields instead of silently ignoring them");
+throws(() => encodeStruct(layout, STRUCTS[SID].fields, { i32: null }),
+  "encodeStruct rejects null fields instead of silently omitting them");
+throws(() => encodeStruct(layout, STRUCTS[SID].fields, { typoField: 1 }),
+  "encodeStruct rejects unknown request fields instead of silently zeroing them");
+throws(() => encodeStruct({ size: 4, fields: [{ offset: 0, size: 4, kind: 9 }] },
+  [{ js: "x", kind: 9 }], { x: 1 }),
+  "encodeStruct throws on an unknown layout kind");
 STRUCTS[90001] = { name: "One", fields: [{ js: "c", kind: 0 }] };
 const b1 = encodeStruct({ size: 4, fields: [{ offset: 0, size: 1, kind: 0 }] }, STRUCTS[90001].fields, { c: "X" });
 ok(b1[0] === 0x58, "size===1 char field writes the single byte (no reserved NUL)");
@@ -50,7 +88,39 @@ ok(readStr(new Uint8Array([65, 66, 0]), 0, 3) === "AB", "readStr ASCII fast path
 ok(readStr(new Uint8Array([0xd6, 0xd0, 0]), 0, 3) === "中", "readStr gb18030 fallback (中)");
 
 // buildAllDecoders over the REAL layout table -> builds a decoder for every struct.
-const layouts = parseLayouts(native.__layoutData());
+const nativeLayouts = native.__layoutData();
+throws(() => parseLayouts([]), "parseLayouts rejects a non-Int32Array");
+throws(() => parseLayouts(new Int32Array()), "parseLayouts rejects empty data");
+const badStructCount = nativeLayouts.slice(); badStructCount[0]--;
+throws(() => parseLayouts(badStructCount), "parseLayouts rejects descriptor/layout struct-count drift");
+const badHeader = nativeLayouts.slice(); badHeader[1] = 0;
+throws(() => parseLayouts(badHeader), "parseLayouts rejects a non-positive struct size");
+const badFieldCount = nativeLayouts.slice(); badFieldCount[2]++;
+throws(() => parseLayouts(badFieldCount), "parseLayouts rejects descriptor/layout field-count drift");
+throws(() => parseLayouts(nativeLayouts.slice(0, nativeLayouts.length - 1)),
+  "parseLayouts rejects truncated data");
+const trailing = new Int32Array(nativeLayouts.length + 1);
+trailing.set(nativeLayouts); trailing[trailing.length - 1] = 123;
+throws(() => parseLayouts(trailing), "parseLayouts rejects trailing data");
+const badKind = nativeLayouts.slice(); badKind[5] = 9;
+throws(() => parseLayouts(badKind), "parseLayouts rejects an unknown/mismatched field kind");
+const badOffset = nativeLayouts.slice(); badOffset[3] = -1;
+throws(() => parseLayouts(badOffset), "parseLayouts rejects an out-of-bounds field");
+const overlapping = nativeLayouts.slice();
+let cursor = 1, overlapPatched = false;
+for (let structId = 0; structId < overlapping[0]; structId++) {
+  const fieldCount = overlapping[cursor + 1];
+  if (fieldCount >= 2) {
+    const firstOffset = overlapping[cursor + 2];
+    overlapping[cursor + 5] = firstOffset; // second field offset
+    overlapPatched = true;
+    break;
+  }
+  cursor += 2 + fieldCount * 3;
+}
+ok(overlapPatched, "test fixture found a multi-field native struct");
+throws(() => parseLayouts(overlapping), "parseLayouts rejects overlapping native fields");
+const layouts = parseLayouts(nativeLayouts);
 const all = buildAllDecoders(layouts);
 ok(all.length === layouts.length && typeof all[34] === "function", "buildAllDecoders built a decoder for every struct");
 

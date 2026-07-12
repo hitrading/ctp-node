@@ -13,6 +13,12 @@
 #include "channel.h"
 #include "snapshot.h"
 #include <atomic>
+#include <deque>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace ctp {
 
@@ -35,18 +41,32 @@ enum {
 
 class MdSpi : public CThostFtdcMdSpi {
 public:
-  MdSpi(CThostFtdcMdApi *api, EventChannel *channel) : api_(api), ch_(channel) {}
+  explicit MdSpi(EventChannel *channel) : ch_(channel) {}
   ~MdSpi() {}
 
   // Feed depth ticks to a Trader's arm registry (or nullptr to detach).
-  void setArmRegistry(ArmRegistry *r) { armReg_.store(r, std::memory_order_relaxed); }
+  void setArmRegistry(std::shared_ptr<ArmRegistry> r) {
+    std::lock_guard<std::mutex> lk(armRegistryMutex_);
+    armReg_ = std::move(r);
+  }
   // Latest-tick cache (LVC) updated on every depth tick (or nullptr to detach).
-  void setSnapshotCache(SnapshotCache *c) { snap_.store(c, std::memory_order_relaxed); }
-
-  // Detach the api pointer before the owning MarketData releases it, so a
-  // late/teardown callback (or the test tick hook) can't dereference a freed
-  // api. Published atomically: OnRtnDepthMarketData reads it lock-free.
-  void clearApi() { api_.store(nullptr, std::memory_order_relaxed); }
+  void setSnapshotCache(SnapshotCache *c) { snap_.store(c, std::memory_order_release); }
+  // Session-transition state is native because SimNow may echo requestId=0.
+  // Only one login/logout may be outstanding; a JS timeout poisons transitions
+  // until the next front callback so a late id-0 login cannot authenticate a
+  // newer attempt.
+  bool beginLogin(int requestId);
+  bool beginLogout(int requestId);
+  // Called by the JS idle timer. Returns true only when the timer won the
+  // native state race and poisoned the still-pending transition. If false, a
+  // final callback already changed state and its lossless row must be awaited.
+  bool timeoutSessionTransition(int requestId);
+  void abandonSessionTransition();
+  // End the current authenticated MD epoch and reset transition ambiguity.
+  // Reserved for concrete front transitions / close and immediate send failure.
+  void invalidateSession();
+  void noteSubscriptionRequest(const std::vector<std::string> &instrumentIds,
+                               bool subscribe);
 
   void OnFrontConnected() override;
   void OnFrontDisconnected(int nReason) override;
@@ -74,10 +94,39 @@ public:
   void OnRtnForQuoteRsp(CThostFtdcForQuoteRspField *p) override;
 
 private:
-  std::atomic<CThostFtdcMdApi *> api_;
+  enum class SessionState : uint8_t {
+    Inactive,
+    LoginPending,
+    Authenticated,
+    LogoutPending,
+    Ambiguous,
+  };
+  void invalidateSessionLocked(); // sessionMutex_ held
+  bool responseMatchesLocked(SessionState pendingState, int requestId) const;
   EventChannel *ch_;
-  std::atomic<ArmRegistry *> armReg_{nullptr};
+  // Copy shared ownership before evaluating a tick. This makes replacing or
+  // detaching a registry safe even when a callback already started.
+  std::mutex armRegistryMutex_;
+  std::shared_ptr<ArmRegistry> armReg_;
   std::atomic<SnapshotCache *> snap_{nullptr};
+  // Linearizes login/disconnect/logout against tick-to-arm evaluation. Once an
+  // invalidation callback returns, no earlier accepted tick can still fire.
+  std::mutex sessionMutex_;
+  // Protected by sessionMutex_.
+  SessionState sessionState_ = SessionState::Inactive;
+  int pendingSessionRequestId_ = 0;
+  std::string tradingDay_;
+  struct SubscriptionState {
+    uint64_t latestGeneration = 0;
+    bool desired = true;
+    std::deque<uint64_t> subscribeGenerations;
+    std::deque<uint64_t> unsubscribeGenerations;
+  };
+  uint64_t nextSubscriptionGeneration_ = 1;
+  std::unordered_map<std::string, SubscriptionState> subscriptions_;
+  bool subscriptionAllowsLocked(const std::string &instrumentId) const;
+  void finishSubscriptionLocked(const std::string &instrumentId,
+                                bool subscribe, bool success);
 };
 
 } // namespace ctp

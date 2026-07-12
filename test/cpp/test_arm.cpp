@@ -102,6 +102,8 @@ int main() {
     reg.arm(mkSpec("rb", '0', 3500));
     reg.onTick("rb", 3490, 3499);
     CHECK(reg.fireCount() == 1 && reg.blockedCount() == 0, "fireCount increments when the sink accepts (rc 0)");
+    CHECK(reg.size() == 0,
+          "successful arm is removed immediately from the per-tick scan");
   }
   {
     ArmRegistry reg;
@@ -111,6 +113,11 @@ int main() {
     reg.arm(mkSpec("rb", '0', 3500));
     reg.onTick("rb", 3490, 3499);
     CHECK(reg.blockedCount() == 1 && reg.fireCount() == 0, "blockedCount increments when the sink refuses (rc != 0)");
+    CHECK(reg.size() == 1,
+          "refused arm remains live instead of being silently consumed");
+    reg.onTick("rb", 3490, 3499);
+    CHECK(sink.fires == 1,
+          "refused arm does not hammer the sink again before its backoff expires");
   }
   {
     ArmRegistry reg;
@@ -126,7 +133,22 @@ int main() {
     reg.arm(mkSpec("rb", '0', 3500));
     reg.clearSink();              // teardown
     reg.onTick("rb", 3490, 3499); // a hit after the sink is cleared
-    CHECK(sink.fires == 0, "clearSink: a trigger hit after teardown does not fire");
+    CHECK(sink.fires == 0 && reg.size() == 0,
+          "clearSink: teardown atomically removes every live trigger");
+  }
+  {
+    ArmRegistry reg;
+    MockSink sink;
+    reg.setSink(&sink);
+    reg.arm(mkSpec("rb", '0', 3500));
+    reg.arm(mkSpec("rb", '0', 3501));
+    reg.clear();
+    CHECK(reg.size() == 0,
+          "hard-stop clear removes every historical arm");
+    reg.arm(mkSpec("rb", '0', 3500));
+    reg.onTick("rb", 3490, 3499);
+    CHECK(sink.fires == 1,
+          "hard-stop clear preserves the sink for deliberate re-arming");
   }
 
   REPORT("ARM-CPP TEST");

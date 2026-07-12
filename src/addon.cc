@@ -76,7 +76,7 @@ Napi::Value RiskSelfTest(const Napi::CallbackInfo &info) {
   Napi::Object out = Napi::Object::New(env);
 
   ctp::RiskEngine eng;
-  ctp::RiskConfig cfg;
+  ctp::RiskLimits cfg;
   cfg.maxOrderVolume = 5;
   cfg.maxPriceDeviation = 0.02;
   eng.configure(cfg);
@@ -84,7 +84,7 @@ Napi::Value RiskSelfTest(const Napi::CallbackInfo &info) {
   out.Set("normal", Verdict(env, eng.check("rb2510", 3500.0, 3500.0, 1)));
   out.Set("tooBig", Verdict(env, eng.check("rb2510", 3500.0, 3500.0, 10)));
   out.Set("offPrice", Verdict(env, eng.check("rb2510", 3500.0, 3000.0, 1)));
-  eng.halt();
+  eng.reduceOnly();
   out.Set("halted", Verdict(env, eng.check("rb2510", 3500.0, 3500.0, 1)));
 
   ctp::RateLimiter rl;

@@ -5,7 +5,14 @@
 export { MarketData, MarketDataEvent } from "./market-data.js";
 export type { MdLoginReq } from "./market-data.js";
 export { Trader, TraderEvent } from "./trader.js";
-export type { RiskConfig, LotCap, SessionOptions, ArmSpec, ArmHandle } from "./trader.js";
+export type {
+  RiskLimits,
+  InstrumentPositionLimit,
+  PositionSeed,
+  SessionOptions,
+  ArmSpec,
+  ArmHandle,
+} from "./trader.js";
 export { CtpClient } from "./client.js";
 export type { CallbackOptions, RspInfo } from "./client.js";
 

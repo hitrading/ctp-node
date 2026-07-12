@@ -39,38 +39,25 @@ void EventChannel::stop() {
   }
 }
 
-bool EventChannel::push(int32_t eventType, int32_t requestId, int32_t isLast,
-                        int32_t errorId, const char *errorMsg, int32_t structId,
-                        const void *payload, int32_t payloadLen) {
-  const uint64_t w = writeIdx_.load(std::memory_order_relaxed);
-  if (policy_ == DropPolicy::Newest) {
-    // Reliable: refuse (and count) the newest record when full so nothing
-    // already queued is lost. Only the producer touches drops_ in this mode.
-    const uint64_t r = readIdx_.load(std::memory_order_acquire);
-    if (w - r >= numSlots_) {
-      drops_.fetch_add(1, std::memory_order_relaxed);
-      return false;
-    }
-  }
-  // DropPolicy::Oldest: never refuse. When full this overwrites the slot holding
-  // the oldest unread record (slot (w % numSlots) == slot (readIdx % numSlots)
-  // once w - readIdx == numSlots). The producer stays wait-free and deliberately
-  // does NOT read/advance readIdx_ or touch drops_ - doing so from the producer
-  // would race the consumer, the sole writer of both. The consumer reconciles
-  // the overrun in claim() (skip lapped records) and validate() (discard a read
-  // torn mid-overwrite), and owns the drop counter.
-
-  uint8_t *slot = ring_.data() + (w % numSlots_) * slotSize_;
+void EventChannel::writeRecord(uint8_t *slot, int32_t eventType,
+                               int32_t requestId, int32_t isLast,
+                               int32_t errorId, const char *errorMsg,
+                               int32_t structId, const void *payload,
+                               int32_t payloadLen, bool droppable) {
   putI32(slot + SLOT_EVENT_TYPE, eventType);
   putI32(slot + SLOT_REQUEST_ID, requestId);
   putI32(slot + SLOT_IS_LAST, isLast);
   putI32(slot + SLOT_ERROR_ID, errorId);
   putI32(slot + SLOT_STRUCT_ID, structId);
+  putI32(slot + SLOT_INTERNAL_FLAGS,
+         droppable ? SLOT_FLAG_DROPPABLE : 0);
 
   if (errorMsg && errorMsg[0]) {
-    std::strncpy(reinterpret_cast<char *>(slot + SLOT_ERROR_MSG), errorMsg,
-                 SLOT_ERROR_MSG_CAP - 1);
-    slot[SLOT_ERROR_MSG + SLOT_ERROR_MSG_CAP - 1] = 0;
+    size_t messageBytes = 0;
+    while (messageBytes < SLOT_ERROR_MSG_CAP - 1 && errorMsg[messageBytes])
+      ++messageBytes;
+    std::memcpy(slot + SLOT_ERROR_MSG, errorMsg, messageBytes);
+    slot[SLOT_ERROR_MSG + messageBytes] = 0;
   } else {
     slot[SLOT_ERROR_MSG] = 0;
   }
@@ -81,13 +68,181 @@ bool EventChannel::push(int32_t eventType, int32_t requestId, int32_t isLast,
     std::memcpy(slot + SLOT_HEADER_SIZE, payload, static_cast<size_t>(n));
   }
   putI32(slot + SLOT_PAYLOAD_LEN, n);
+}
 
-  writeIdx_.store(w + 1, std::memory_order_release);
+bool EventChannel::recordDroppable(const uint8_t *slot) {
+  int32_t flags = 0;
+  std::memcpy(&flags, slot + SLOT_INTERNAL_FLAGS, sizeof(flags));
+  return (flags & SLOT_FLAG_DROPPABLE) != 0;
+}
 
-  if (!pending_.exchange(true, std::memory_order_acq_rel) && tsfn_) {
+std::vector<uint8_t> EventChannel::stageRecord(
+    int32_t eventType, int32_t requestId, int32_t isLast, int32_t errorId,
+    const char *errorMsg, int32_t structId, const void *payload,
+    int32_t payloadLen, bool droppable) {
+  const size_t payloadBytes = payload && payloadLen > 0
+                                  ? std::min<size_t>(
+                                        static_cast<size_t>(payloadLen),
+                                        maxPayload_)
+                                  : 0;
+  std::vector<uint8_t> record(align8(SLOT_HEADER_SIZE + payloadBytes), 0);
+  writeRecord(record.data(), eventType, requestId, isLast, errorId, errorMsg,
+              structId, payload, payloadLen, droppable);
+  return record;
+}
+
+void EventChannel::ringDoorbell() {
+  if (!pending_.exchange(true, std::memory_order_acq_rel) && tsfn_)
     napi_call_threadsafe_function(tsfn_, nullptr, napi_tsfn_nonblocking);
+}
+
+void EventChannel::migrateUnclaimedRingLocked(uint64_t write, uint64_t read) {
+  // A claimed batch belongs to JS until release() and must never be moved or
+  // displaced. Move every later ring record into the stable staging list when
+  // Oldest first enters overflow mode. This is what lets a tick behind an
+  // interleaved control record displace an older ring tick without overwriting
+  // memory JS may currently be decoding.
+  const size_t physical = static_cast<size_t>(write - read);
+  const size_t unclaimed = physical > claimedOldest_
+                               ? physical - claimedOldest_
+                               : 0;
+  for (size_t i = 0; i < unclaimed; ++i) {
+    const uint64_t index = read + claimedOldest_ + i;
+    const uint8_t *slot = ring_.data() + (index % numSlots_) * slotSize_;
+    int32_t payloadLen = 0;
+    std::memcpy(&payloadLen, slot + SLOT_PAYLOAD_LEN, sizeof(payloadLen));
+    const size_t payloadBytes =
+        payloadLen > 0
+            ? std::min<size_t>(static_cast<size_t>(payloadLen), maxPayload_)
+            : 0;
+    std::vector<uint8_t> record(
+        slot, slot + align8(SLOT_HEADER_SIZE + payloadBytes));
+    appendOverflowLocked(std::move(record), recordDroppable(slot));
   }
-  return true;
+  skippedRing_ += unclaimed;
+}
+
+void EventChannel::appendOverflowLocked(std::vector<uint8_t> record,
+                                        bool droppable) {
+  overflow_.push_back(std::move(record));
+  if (policy_ == DropPolicy::Oldest && droppable) {
+    auto it = overflow_.end();
+    --it;
+    droppableOverflow_.push_back(it);
+  }
+}
+
+void EventChannel::makeRoomForOldestLocked(bool incomingDroppable) {
+  if (!incomingDroppable || droppableOverflow_.size() < numSlots_)
+    return;
+
+  // Control responses do not consume the bounded tick capacity. Stable list
+  // iterators make this O(1), irrespective of how many controls precede the
+  // oldest retained tick.
+  overflow_.erase(droppableOverflow_.front());
+  droppableOverflow_.pop_front();
+  drops_.fetch_add(1, std::memory_order_relaxed);
+}
+
+bool EventChannel::push(int32_t eventType, int32_t requestId, int32_t isLast,
+                        int32_t errorId, const char *errorMsg, int32_t structId,
+                        const void *payload, int32_t payloadLen,
+                        bool droppable) {
+  for (;;) {
+    // Once overflow starts, preserve ordering by staging every later producer
+    // record until the consumer has copied the queue back into the ring.
+    if (policy_ != DropPolicy::Newest &&
+        overflowing_.load(std::memory_order_acquire)) {
+      std::lock_guard<std::mutex> lk(overflowMutex_);
+      if (!overflowing_.load(std::memory_order_relaxed))
+        continue; // consumer emptied it while we waited; retry the ring path
+      std::vector<uint8_t> rec =
+          stageRecord(eventType, requestId, isLast, errorId, errorMsg,
+                      structId, payload, payloadLen, droppable);
+      if (policy_ == DropPolicy::Oldest)
+        makeRoomForOldestLocked(droppable);
+      appendOverflowLocked(std::move(rec), droppable);
+      ringDoorbell();
+      return true;
+    }
+
+    const uint64_t w = writeIdx_.load(std::memory_order_relaxed);
+    const uint64_t r = readIdx_.load(std::memory_order_acquire);
+    if (w - r >= numSlots_) {
+      if (policy_ == DropPolicy::Newest) {
+        drops_.fetch_add(1, std::memory_order_relaxed);
+        return false;
+      }
+      // Serialize the transition to staged mode with a possible consumer refill.
+      std::lock_guard<std::mutex> lk(overflowMutex_);
+      if (writeIdx_.load(std::memory_order_relaxed) -
+              readIdx_.load(std::memory_order_acquire) <
+          numSlots_)
+        continue; // consumer freed a slot before we acquired the handoff lock
+      const uint64_t w2 = writeIdx_.load(std::memory_order_relaxed);
+      const uint64_t r2 = readIdx_.load(std::memory_order_acquire);
+      overflowing_.store(true, std::memory_order_release);
+      if (policy_ == DropPolicy::Oldest)
+        migrateUnclaimedRingLocked(w2, r2);
+      std::vector<uint8_t> rec =
+          stageRecord(eventType, requestId, isLast, errorId, errorMsg,
+                      structId, payload, payloadLen, droppable);
+      if (policy_ == DropPolicy::Oldest)
+        makeRoomForOldestLocked(droppable);
+      appendOverflowLocked(std::move(rec), droppable);
+      ringDoorbell();
+      return true;
+    }
+
+    uint8_t *slot = ring_.data() + (w % numSlots_) * slotSize_;
+    writeRecord(slot, eventType, requestId, isLast, errorId, errorMsg,
+                structId, payload, payloadLen, droppable);
+    writeIdx_.store(w + 1, std::memory_order_release);
+    ringDoorbell();
+    return true;
+  }
+}
+
+void EventChannel::refillFromOverflow() {
+  if (!overflowing_.load(std::memory_order_acquire))
+    return;
+  std::lock_guard<std::mutex> lk(overflowMutex_);
+  refillFromOverflowLocked();
+}
+
+void EventChannel::refillFromOverflowLocked() {
+  if (!overflowing_.load(std::memory_order_relaxed))
+    return;
+  uint64_t w = writeIdx_.load(std::memory_order_relaxed);
+  uint64_t r = readIdx_.load(std::memory_order_acquire);
+  if (policy_ == DropPolicy::Oldest && skippedRing_ > 0) {
+    const size_t skip =
+        std::min(skippedRing_, static_cast<size_t>(w - r));
+    r += skip;
+    skippedRing_ -= skip;
+    readIdx_.store(r, std::memory_order_release);
+  }
+  size_t free = static_cast<size_t>(numSlots_ - (w - r));
+  while (free > 0 && !overflow_.empty()) {
+    auto front = overflow_.begin();
+    uint8_t *slot = ring_.data() + (w % numSlots_) * slotSize_;
+    std::memset(slot, 0, slotSize_);
+    std::memcpy(slot, front->data(), front->size());
+    if (policy_ == DropPolicy::Oldest && recordDroppable(front->data())) {
+      // Tick iterators follow list order, so a droppable list head is also the
+      // oldest tracked tick.
+      if (!droppableOverflow_.empty() && droppableOverflow_.front() == front)
+        droppableOverflow_.pop_front();
+    }
+    overflow_.erase(front);
+    ++w;
+    --free;
+  }
+  writeIdx_.store(w, std::memory_order_release);
+  if (overflow_.empty()) {
+    droppableOverflow_.clear();
+    overflowing_.store(false, std::memory_order_release);
+  }
 }
 
 uint32_t EventChannel::claim() {
@@ -99,65 +254,38 @@ uint32_t EventChannel::claim() {
   // misses -> a stranded record (lost wakeup). The producer's exchange() is a
   // locked RMW (already a full barrier), so only the consumer needs this.
   std::atomic_thread_fence(std::memory_order_seq_cst);
-  const uint64_t w = writeIdx_.load(std::memory_order_acquire);
-  uint64_t r = readIdx_.load(std::memory_order_relaxed);
-  // DropPolicy::Oldest: if the producer lapped us while we were idle, the oldest
-  // (w - r) - numSlots records have been overwritten and are gone. Skip them so
-  // we only hand the consumer the freshest numSlots slots. Counting + advancing
-  // readIdx_ here is safe because the consumer is the sole writer of both readIdx_
-  // and (in this mode) drops_. Under DropPolicy::Newest the producer keeps
-  // w - r <= numSlots, so this branch never fires.
-  if (w - r > numSlots_) {
-    const uint64_t skip = (w - r) - numSlots_;
-    drops_.fetch_add(skip, std::memory_order_relaxed);
-    r += skip;
-    readIdx_.store(r, std::memory_order_release);
+  if (policy_ == DropPolicy::Oldest) {
+    std::lock_guard<std::mutex> lk(overflowMutex_);
+    // The normal JS consumer always releases before claiming again. If a raw
+    // caller violates that contract, do not create a second ownership window.
+    if (claimedOldest_ != 0)
+      return static_cast<uint32_t>(claimedOldest_);
+    refillFromOverflowLocked();
+    const uint64_t w = writeIdx_.load(std::memory_order_acquire);
+    const uint64_t r = readIdx_.load(std::memory_order_relaxed);
+    claimedOldest_ = static_cast<size_t>(w - r);
+    return static_cast<uint32_t>(claimedOldest_);
   }
+  refillFromOverflow();
+  const uint64_t w = writeIdx_.load(std::memory_order_acquire);
+  const uint64_t r = readIdx_.load(std::memory_order_relaxed);
   return static_cast<uint32_t>(w - r);
 }
 
-uint32_t EventChannel::validate(uint32_t claimed) {
-  // Consumer thread. The producer may have lapped the ring while we decoded the
-  // batch claim() handed us, overwriting the oldest records mid-read. Compare the
-  // current write index against the batch start (readIdx_, unchanged since claim()
-  // because only the consumer advances it, and we have not released yet): any
-  // record at or below the in-flight write slot was (or is being) torn and must
-  // be discarded.
-  //
-  // floor = w - numSlots + 1, NOT w - numSlots. push() writes physical slot
-  // (idx % numSlots) BEFORE publishing writeIdx_ = idx+1, so when we observe
-  // writeIdx_ == w the producer may be mid-overwriting the slot for index w —
-  // which is the SAME physical slot that holds index (w - numSlots). We cannot
-  // tell "finished w-1, idle" from "mid-writing w", so we conservatively treat
-  // index (w - numSlots) as torn too. Using w - numSlots here would deliver that
-  // boundary record while its slot is being overwritten — a torn quote reaching
-  // a handler (silent corruption under sustained overflow).
-  //
-  // Cost of being conservative: whenever the ring is observed EXACTLY full
-  // (w - r == numSlots) — including the producer simply being idle at a full ring,
-  // not mid-writing — this drops the single oldest record in the batch even if its
-  // slot was intact. That is one unnecessary drop of the *stalest* queued quote,
-  // and only once the consumer has already fallen a full ring (numSlots) behind,
-  // i.e. exactly the overload regime where drop-oldest is meant to shed the
-  // stalest quotes. So it is never data corruption and never more than one drop
-  // per drain, always the least-valuable record. The exact alternative (no
-  // over-drop AND no torn delivery) is a per-slot seqlock generation stamp;
-  // deemed not worth an extra producer atomic on the hot path to save one
-  // already-stale quote at the full-ring boundary.
-  const uint64_t w = writeIdx_.load(std::memory_order_acquire);
-  const uint64_t r = readIdx_.load(std::memory_order_relaxed);
-  const uint64_t floor = (w >= numSlots_) ? (w - numSlots_ + 1) : 0;
-  if (floor <= r)
-    return 0; // producer never reached our batch; every decoded record is clean
-  uint64_t torn = floor - r;
-  if (torn > claimed)
-    torn = claimed; // producer raced far past the batch; whole batch is torn
-  drops_.fetch_add(torn, std::memory_order_relaxed);
-  return static_cast<uint32_t>(torn);
-}
-
 void EventChannel::release(uint32_t n) {
-  readIdx_.store(readIdx_.load(std::memory_order_relaxed) + n,
+  if (policy_ == DropPolicy::Oldest) {
+    std::lock_guard<std::mutex> lk(overflowMutex_);
+    const uint64_t r = readIdx_.load(std::memory_order_relaxed);
+    const uint64_t w = writeIdx_.load(std::memory_order_acquire);
+    const uint64_t released =
+        std::min<uint64_t>(std::min<uint64_t>(n, claimedOldest_), w - r);
+    readIdx_.store(r + released, std::memory_order_release);
+    claimedOldest_ -= static_cast<size_t>(released);
+    return;
+  }
+  const uint64_t r = readIdx_.load(std::memory_order_relaxed);
+  const uint64_t w = writeIdx_.load(std::memory_order_acquire);
+  readIdx_.store(r + std::min<uint64_t>(n, w - r),
                  std::memory_order_release);
 }
 

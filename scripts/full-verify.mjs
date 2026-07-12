@@ -52,12 +52,12 @@ const send = (id, dir, off, price, vol, ref) =>
   td.reqOrderInsert({ ...orderBase, instrumentId: id, direction: dir, combOffsetFlag: off, limitPrice: price, volumeTotalOriginal: vol, ...(ref ? { orderRef: ref } : {}) })
     .then(() => "SENT").catch((e) => e.message);
 const openMkt = (id, vol) => send(id, "0", "0", mkBuy(id), vol);
-const cost = () => td.positionCost();
+const margin = () => td.accountMargin;
 
 function clearAll() {
-  td.riskSet({}); // clears scalar caps incl. global maxPositionCost
+  td.setRiskLimits({}); // clears scalar caps including maxAccountMargin
   td.resume();
-  for (const id of [A, G]) { td.setMaxPosition(id, 0); td.setMaxPositionCost(id, 0); }
+  for (const id of [A, G]) { td.setInstrumentPositionLimit(id, 0); td.setInstrumentMarginLimit(id, 0); }
 }
 
 async function flatten(tag) {
@@ -78,7 +78,6 @@ async function flatten(tag) {
     if (!inst[id]) {
       const r = (await td.reqQryInstrument({ instrumentId: id }).catch(() => [])).find((x) => x.instrumentId === id);
       if (r) inst[id] = { mult: r.volumeMultiple, tick: r.priceTick };
-      await sleep(1100); // query flow control
     }
     if (!px[id]) md.subscribe([id]);
   }
@@ -120,66 +119,67 @@ td.on("front-connected", async () => {
       const r = rows.find((x) => x.instrumentId === id);
       inst[id] = { mult: r.volumeMultiple, tick: r.priceTick };
       log(`${id}: mult=${r.volumeMultiple} tick=${r.priceTick} (auto-fed to risk engine)`);
-      await sleep(1100);
     }
     td.trackMarketData(md); // feed deviation reference
     for (let i = 0; i < 30 && (!px[A] || !px[G]); i++) await sleep(300);
     log(`prices au=${px[A].last} ag=${px[G].last}`);
     await flatten("startup");
+    await td.syncMarginRates([A, G]);
+    await td.syncOrders();
     await td.syncPositions();
-    check(Math.abs(cost()) < 1, `clean start: positionCost=${cost().toFixed(0)}`);
+    check(Math.abs(margin()) < 1, `clean start: accountMargin=${margin().toFixed(0)}`);
 
     // ===== PHASE 1: pre-send gate (non-marketable prices; no fills) =====
     log("== PHASE 1: pre-send gate ==");
     clearAll();
-    td.riskSet({ maxOrderVolume: 2 });
+    td.setRiskLimits({ maxOrderVolume: 2 });
     check(/pre-trade risk/i.test(await send(A, "0", "0", restBuy(A), 5, "")), "maxOrderVolume: 5 lots > 2 blocked");
 
     clearAll();
-    td.riskSet({ maxPriceDeviation: 0.02 }); // 2%; ref = last via trackMarketData
+    td.setRiskLimits({ maxPriceDeviation: 0.02 }); // 2%; ref = last via trackMarketData
     check(/pre-trade risk/i.test(await send(A, "0", "0", rt(px[A].last * 0.85, inst[A].tick), 1, "")), "maxPriceDeviation: -15% vs ref blocked");
 
     clearAll();
     const auLotNotional = px[A].last * inst[A].mult; // ~949k
-    td.riskSet({ maxNotional: auLotNotional / 2 }); // between price*1 and price*mult
+    td.setRiskLimits({ maxNotional: auLotNotional / 2 }); // between price*1 and price*mult
     check(/pre-trade risk/i.test(await send(A, "0", "0", restBuy(A), 1, "")), `maxNotional: 1 au lot (~${(auLotNotional / 1e4).toFixed(0)}w) > cap proves multiplier-aware`);
 
     clearAll();
-    td.halt();
+    td.reduceOnly();
     check(/pre-trade risk/i.test(await send(A, "0", "0", restBuy(A), 1, "")), "kill-switch (halt): blocked");
     td.resume();
 
     clearAll();
-    td.riskSet({ maxOrdersPerSec: 2, orderBurst: 2 });
+    td.setRiskLimits({ maxOrdersPerSec: 2, orderBurst: 2 });
     const burst = await Promise.all([1, 2, 3, 4, 5].map(() => send(A, "0", "0", restBuy(A), 1, "")));
     const rateBlocked = burst.filter((r) => /rate limited/i.test(r)).length;
     check(rateBlocked >= 1, `rate limit: ${rateBlocked}/5 throttled (burst 2)`);
     clearAll();
     await flatten("phase1"); // cancel any resting rate-test orders
 
-    // ===== PHASE 2: real open/close cycle, position-cost tracking =====
+    // ===== PHASE 2: real open/close cycle, position-margin tracking =====
     log("== PHASE 2: open/close cycle ==");
     clearAll();
     check(/SENT/.test(await openMkt(A, 1)), "au open 1 submitted (resolves, no hang)");
     await sleep(2500);
-    const auCost = cost();
-    check(auCost > 900000 && auCost < 1000000, `au positionCost=${auCost.toFixed(0)} ~= price*1*1000`);
+    const auCost = margin();
+    check(auCost > 0, `au accountMargin=${auCost.toFixed(0)} from the live CTP margin schedule`);
     await flatten();
     await sleep(800);
-    check(Math.abs(cost()) < 1, `au closed: positionCost=${cost().toFixed(0)}`);
+    check(Math.abs(margin()) < 1, `au closed: accountMargin=${margin().toFixed(0)}`);
 
     check(/SENT/.test(await openMkt(G, 1)), "ag open 1 submitted");
     await sleep(2500);
-    const agCost = cost();
-    check(agCost > 230000 && agCost < 280000, `ag positionCost=${agCost.toFixed(0)} ~= price*1*15`);
+    const agCost = margin();
+    check(agCost > 0, `ag accountMargin=${agCost.toFixed(0)} from the live CTP margin schedule`);
     await flatten();
     await sleep(800);
-    check(Math.abs(cost()) < 1, `ag closed: positionCost=${cost().toFixed(0)}`);
+    check(Math.abs(margin()) < 1, `ag closed: accountMargin=${margin().toFixed(0)}`);
 
     // ===== PHASE 3: per-side lot cap with real fills =====
     log("== PHASE 3: lot cap ==");
     clearAll();
-    td.setMaxPosition(A, { long: 2 });
+    td.setInstrumentPositionLimit(A, { long: 2 });
     check(/SENT/.test(await openMkt(A, 1)), "lot cap: open 1/2 ok");
     await sleep(2200);
     check(/SENT/.test(await openMkt(A, 1)), "lot cap: open 2/2 ok");
@@ -189,35 +189,35 @@ td.on("front-connected", async () => {
     check(/SENT/.test(await send(A, "1", "3", mkSell(A), 1, "")), "lot cap: CLOSE passes despite full cap (close exempt)");
     await flatten();
     await sleep(800);
-    check(Math.abs(cost()) < 1, `lot cap: flat after, positionCost=${cost().toFixed(0)}`);
+    check(Math.abs(margin()) < 1, `lot cap: flat after, accountMargin=${margin().toFixed(0)}`);
 
-    // ===== PHASE 4: per-instrument cost cap with real position =====
-    log("== PHASE 4: per-instrument cost cap ==");
+    // ===== PHASE 4: per-instrument margin cap with real position =====
+    log("== PHASE 4: per-instrument margin cap ==");
     clearAll();
-    td.setMaxPositionCost(A, auLotNotional * 1.5); // ~1.5 lots
-    check(/SENT/.test(await openMkt(A, 1)), "instr cost cap: open 1 (~1 lot) ok");
+    td.setInstrumentMarginLimit(A, auCost * 1.5); // ~1.5 observed lots
+    check(/SENT/.test(await openMkt(A, 1)), "instrument margin cap: open 1 (~1 lot) ok");
     await sleep(2500);
-    check(/position cost/i.test(await openMkt(A, 1)), "instr cost cap: open 2 (~2 lots > 1.5) blocked");
+    check(/position margin/i.test(await openMkt(A, 1)), "instrument margin cap: open 2 (~2 lots > 1.5) blocked");
     await flatten();
     await sleep(800);
 
-    // ===== PHASE 5: global cost cap across au + ag =====
-    log("== PHASE 5: global cost cap ==");
+    // ===== PHASE 5: account margin cap across au + ag =====
+    log("== PHASE 5: account margin cap ==");
     clearAll();
-    td.riskSet({ maxPositionCost: px[A].last * inst[A].mult + px[G].last * inst[G].mult * 1.5 }); // ~ 1 au + 1.5 ag
+    td.setRiskLimits({ maxAccountMargin: auCost + agCost * 1.5 }); // ~ 1 au + 1.5 ag
     check(/SENT/.test(await openMkt(A, 1)), "global cap: au ok");
     await sleep(2500);
     check(/SENT/.test(await openMkt(G, 1)), "global cap: + ag ok (still under)");
     await sleep(2500);
-    check(/position cost/i.test(await openMkt(G, 1)), "global cap: + 2nd ag blocked (au+2ag over cap)");
+    check(/position margin/i.test(await openMkt(G, 1)), "account margin cap: + 2nd ag blocked (au+2ag over cap)");
     await flatten();
     await sleep(800);
-    check(Math.abs(cost()) < 1, `global cap: flat after, positionCost=${cost().toFixed(0)}`);
+    check(Math.abs(margin()) < 1, `global cap: flat after, accountMargin=${margin().toFixed(0)}`);
 
     // ===== PHASE 6: in-flight reservation (resting order) =====
     log("== PHASE 6: in-flight reservation ==");
     clearAll();
-    td.setMaxPosition(A, { long: 1 });
+    td.setInstrumentPositionLimit(A, { long: 1 });
     check(/SENT/.test(await send(A, "0", "0", restBuy(A), 1, "")), "reservation: resting open 1 sent (reserves)");
     await sleep(800);
     check(/position volume/i.test(await openMkt(A, 1)), "reservation: 2nd open blocked while 1st in-flight (not yet filled)");
@@ -233,10 +233,11 @@ td.on("front-connected", async () => {
     check(/position volume/i.test(await openMkt(A, 1)), "reservation: held 1 (=cap) -> next open blocked (reserve->held, no gap/double-count)");
     await flatten();
     await sleep(800);
-    check(Math.abs(cost()) < 1, `reservation: flat after, positionCost=${cost().toFixed(0)}`);
+    check(Math.abs(margin()) < 1, `reservation: flat after, accountMargin=${margin().toFixed(0)}`);
 
     log(`\nRESULT: ${pass} pass, ${fail} fail`);
   } catch (e) {
+    fail++;
     log("FAILED:", e.message, "errorId=", e.errorId);
   } finally {
     await flatten("final");
@@ -245,7 +246,7 @@ td.on("front-connected", async () => {
     const ordn = await td.reqQryOrder({ brokerId: cfg.brokerId, investorId: cfg.userId });
     log(`FINAL: open positions=${posn.filter((p) => p.position > 0).length}, working orders=${ordn.filter((o) => o.orderStatus === "1" || o.orderStatus === "3").length}`);
     md.close(); td.close();
-    process.exit(0);
+    process.exit(fail ? 1 : 0);
   }
 });
 

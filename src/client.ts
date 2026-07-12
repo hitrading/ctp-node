@@ -40,6 +40,10 @@ const S_ERRID = 12;
 const S_SID = 16;
 const S_PLEN = 20;
 const S_ERRMSG = 24;
+// At one send per 1.1 s, an accidental Promise.all over thousands of queries
+// otherwise creates a multi-hour, unbounded Promise backlog. Normal sequential
+// use and bounded concurrency stay fully automatic.
+const MAX_SCHEDULED_QUERIES = 256;
 
 export interface RspInfo {
   errorId: number;
@@ -69,7 +73,6 @@ export interface NativeClient {
   _dropCount(): number;
   // Present only on drop-oldest channels (market data); used by drainOldest().
   _readIndex?(): number;
-  _validate?(claimed: number): number;
   close(): void;
 }
 
@@ -78,12 +81,13 @@ interface Pending {
   resolve: (v: unknown) => void;
   reject: (e: unknown) => void;
   single: boolean;
+  zeroIdEvent?: number;
+  sessionTransition?: boolean;
   timer?: ReturnType<typeof setTimeout>;
 }
 
-/** One record decoded out of the ring, split from delivery so the drop-oldest
- *  path can decode a whole batch, then discard any torn (overwritten) records,
- *  before any handler runs. */
+/** One decoded ring record. The keep-newest path decodes a claimed batch before
+ *  delivery while native ownership prevents it from being displaced. */
 interface DecodedRecord {
   evt: number;
   value: unknown;
@@ -91,10 +95,8 @@ interface DecodedRecord {
 }
 
 // --- Lifecycle tripwire (dev aid) --------------------------------------------
-// The CTP vendor DLLs deadlock inside Release() after a handful of
-// Init()->Release() cycles in one process - a long-standing limitation of the
-// vendor SDK (its api objects are not safe to create/Init/Release repeatedly),
-// NOT a bug in this binding. Correct usage is to create each MarketData/Trader
+// Repeated Init()->Release() cycles have been observed to hang inside the
+// Windows CTP vendor DLL. Correct usage is to create each MarketData/Trader
 // ONCE and reuse it, handling reconnects in place; a "reconnect by destroy-and-
 // recreate" bug instead churns through clients and will eventually wedge the
 // whole process. We count clients that were started (Init) and then closed
@@ -105,10 +107,8 @@ interface DecodedRecord {
 // for any sane app (a few long-lived clients) and for the test suite. See
 // docs/native-hooks.md ("Process lifecycle").
 function recreateWarnThreshold(raw: string | undefined): number {
-  // Default 3: the vendor DLL deadlocks inside Release() after only ~4
-  // Init()/Release() cycles, so a higher threshold would never fire before the
-  // very hang it warns about. 3 lets the warning print on the close() that
-  // precedes the typical wedge, while a create-once app (one or two long-lived
+  // Default 3: this warns before the low cycle counts at which hangs have been
+  // observed, while a create-once app (one or two long-lived
   // clients closed at shutdown) stays under it. 0 disables.
   const DEFAULT = 3;
   if (raw === undefined) return DEFAULT;
@@ -128,8 +128,8 @@ function noteClientReleased(): void {
     recreateWarned = true;
     console.warn(
       `[ctp-node] ${startedThenClosed} CTP clients have been created and closed ` +
-        `in this process. The CTP vendor DLLs deadlock inside Release() after a few ` +
-        `Init()/Release() cycles, so a MarketData/Trader must be created ONCE and ` +
+        `in this process. Repeated CTP Init()/Release() cycles have been observed ` +
+        `to hang inside the vendor DLL's Release(), so a MarketData/Trader must be created ONCE and ` +
         `reused: handle reconnects in place (re-run your front-connected handshake), ` +
         `never destroy and recreate the client. Set CTP_RECREATE_WARN=0 to silence, ` +
         `or to another number to retune. See docs/native-hooks.md (Process lifecycle).`
@@ -152,12 +152,11 @@ export abstract class CtpClient extends EventEmitter {
   private headerSize = 0;
   private readPos = 0;
   // Overflow policy of the underlying channel (from _info()). Drop-oldest (market
-  // data) takes the buffered drainOldest() path; drop-newest (trader) the inline
+  // data) takes the buffered drainOldest() path; lossless Trader uses inline
   // drain(). See src/native/channel.h.
   private dropOldest = false;
   // Reused scratch holding a whole decoded batch for the drop-oldest path, so we
-  // can validate against producer overruns *after* decoding and before delivering
-  // (a torn record never reaches a handler). Indices 0..count-1 are live per drain.
+  // can validate logical displacement after decoding and before delivery.
   private batch: (DecodedRecord | undefined)[] = [];
   // Set the instant close() begins. close() frees the native ring synchronously,
   // so if an event handler invoked from drain() calls close() mid-batch, the
@@ -170,12 +169,18 @@ export abstract class CtpClient extends EventEmitter {
   private started = false;
   private readonly pending = new Map<number, Pending>();
   private reqSeq = 0;
-  /** Event ids whose requestId-0 response should resolve the oldest pending
-   *  request. Needed only for SimNow market-data login/logout, which don't echo
-   *  the id; scoping to those events means an unrelated id-0 response
-   *  (sub/unsub/error) can't hijack them. The trader echoes ids and leaves this
-   *  empty. */
-  protected readonly zeroIdFallbackEvents = new Set<number>();
+  private queryQueue: Promise<void> = Promise.resolve();
+  // The first query must be eligible immediately even during the first 1.1 s
+  // of process uptime. Later sends replace this with a monotonic timestamp.
+  private lastQuerySentAt = Number.NEGATIVE_INFINITY;
+  private requestContextEpoch = 0;
+  // Counts only deliberate login/logout transitions. Front callbacks advance
+  // the context epoch but not this counter, which lets a compound handshake
+  // distinguish the one expected login invalidation from an inline disconnect.
+  private explicitRequestTransitionSeq = 0;
+  private queryInvalidationReason = "client context changed";
+  private scheduledQueries = 0;
+  private cancelQueryDelay?: () => void;
   /** A request that goes idle this long (no response and, for multi-row queries,
    *  no further rows) rejects, so awaiters don't hang forever. The timer resets
    *  on each row, so a large streaming query isn't cut off by total duration. */
@@ -193,8 +198,11 @@ export abstract class CtpClient extends EventEmitter {
     this.layouts = parseLayouts(layoutBlob);
     this.decoders = new Array(this.layouts.length);
     this.events = events;
-    // A dropped connection won't deliver in-flight responses - fail them fast.
-    this.on("front-disconnected", () => this.rejectAllPending("front disconnected"));
+    // A front transition invalidates both in-flight requests and query calls
+    // which are still queued behind them. This also covers providers that emit
+    // a new connected event without a preceding disconnected callback.
+    this.on("front-connected", () => this.invalidateRequestContext("front connected"));
+    this.on("front-disconnected", () => this.invalidateRequestContext("front disconnected"));
   }
 
   /** Reject and clear every in-flight request (on disconnect / close). */
@@ -206,6 +214,63 @@ export abstract class CtpClient extends EventEmitter {
       this.pending.delete(id);
       p.reject(err);
     }
+  }
+
+  /** Invalidate all work tied to the previous connection/login context.
+   * Subclasses call this immediately before a login/logout transition. */
+  protected invalidateRequestContext(reason: string): void {
+    this.requestContextEpoch++;
+    this.queryInvalidationReason = reason;
+    // Wake the sole query currently waiting for its spacing deadline so it can
+    // observe the new epoch. Tail entries then reject in queue order without
+    // ever reaching native code.
+    this.cancelQueryDelay?.();
+    this.cancelQueryDelay = undefined;
+    this.rejectAllPending(reason);
+  }
+
+  /** Begin a deliberate login/logout transition. Generated/manual public
+   * transition methods use this rather than calling invalidate directly. */
+  protected beginRequestContextTransition(reason: string): void {
+    this.explicitRequestTransitionSeq++;
+    this.invalidateRequestContext(reason);
+  }
+
+  /** Capture/validate the connection-login epoch across a compound async
+   * operation. QueryRequest protects one queued send; session/sync helpers use
+   * this token so a later step cannot silently continue on a new front. */
+  protected requestContextToken(): number {
+    return this.requestContextEpoch;
+  }
+
+  protected requestTransitionToken(): number {
+    return this.explicitRequestTransitionSeq;
+  }
+
+  protected assertRequestContext(token: number, operation: string): void {
+    if (this.closing) throw new Error("client closed");
+    if (token !== this.requestContextEpoch) {
+      throw new Error(`${operation} invalidated: ${this.queryInvalidationReason}`);
+    }
+  }
+
+  /** Internal state hook for a response that actually matched and successfully
+   * settled the current request. Streaming stale callbacks are still emitted to
+   * users, but cannot mutate a subclass's confirmed session identity. */
+  protected onRequestResolved(
+    _eventName: string | undefined,
+    _value: unknown,
+    _options: CallbackOptions
+  ): void {}
+
+  /** Linearize a session-request idle timeout with native login/logout state.
+   * Subclasses return false when the final native callback already won the
+   * race and its non-droppable response is merely waiting to be drained. */
+  protected shouldTimeoutRequest(
+    _requestId: number,
+    _sessionTransition: boolean
+  ): boolean {
+    return true;
   }
 
   /** Wire up the ring view + doorbell. Subclasses call this in their ctor. */
@@ -232,7 +297,7 @@ export abstract class CtpClient extends EventEmitter {
   close(): void {
     if (this.closing) return; // idempotent; also stops any in-progress drain
     this.closing = true;
-    this.rejectAllPending("client closed");
+    this.invalidateRequestContext("client closed");
     if (this.started) noteClientReleased(); // dev tripwire (see top of file)
     this.native.close();
   }
@@ -295,19 +360,15 @@ export abstract class CtpClient extends EventEmitter {
   }
 
   /**
-   * Drop-oldest drain (market data). The producer overwrites the oldest unread
-   * record when full and never blocks, so the consumer can be lapped mid-read.
-   * We therefore decode the whole claimed batch first, then ask the channel how
-   * many of the oldest records it overwrote *during* that decode (validate()),
-   * discard those (they hold torn bytes), and only then deliver the rest — so a
-   * torn record never reaches a handler. The records we do deliver are always the
-   * freshest available, and conservation holds (received + dropped == produced).
+   * Keep-newest drain (market data). Overflow is copied into native staging,
+   * never over a slot JS may be reading. A claimed batch is owned until release,
+   * so newer records can displace only the unclaimed logical window.
    */
   private drainOldest(): void {
     let count = this.native._claim();
     while (count > 0) {
       if (this.closing) return;
-      // claim() may have advanced readIdx_ past lapped records; resync our slot
+      // claim() may have advanced readIdx_ past displaced records; resync our slot
       // cursor to the channel's authoritative read index before decoding.
       this.readPos = (this.native._readIndex as () => number)();
       const numSlots = this.numSlots;
@@ -317,16 +378,11 @@ export abstract class CtpClient extends EventEmitter {
         const slot = ((this.readPos + i) % numSlots) * slotSize;
         batch[i] = this.decodeSlot(slot);
       }
-      // How many leading (oldest) records did the producer overwrite while we
-      // were decoding? Those are torn — discard them (validate() counts them as
-      // drops). The remainder were provably untouched during decode.
-      const torn = (this.native._validate as (n: number) => number)(count);
-      for (let i = 0; i < torn; i++) batch[i] = undefined; // release torn refs
       if (this.closing) {
-        for (let i = torn; i < count; i++) batch[i] = undefined;
+        for (let i = 0; i < count; i++) batch[i] = undefined;
         return;
       }
-      for (let i = torn; i < count; i++) {
+      for (let i = 0; i < count; i++) {
         const rec = batch[i]!;
         batch[i] = undefined;
         // A handler from an earlier record this batch may have called close(),
@@ -363,15 +419,10 @@ export abstract class CtpClient extends EventEmitter {
     const base = slot + this.headerSize;
 
     let value: unknown;
-    // sid bounds check (sid < layouts.length): under the drop-oldest path a slot
-    // may be overwritten while we decode it (a torn read). The header int32s are
-    // normally read old-or-new intact, but DataView.getInt32 atomicity isn't
-    // guaranteed, so a torn sid could land out of range; decoderFor() would then
-    // build over an undefined layout and throw. The torn record is discarded by
-    // validate() afterward, but the throw would escape the decode loop (which is
-    // not wrapped) and crash the doorbell callback. Bounding sid keeps decodeSlot
-    // total: an out-of-range sid yields an undefined value, harmlessly dropped.
-    if (plen > 0 && sid >= 0 && sid < this.layouts.length)
+    // Keep the decoder total even if a native/provider record contains a corrupt
+    // struct id. Staged overflow no longer mutates ring bytes during this read.
+    if (plen > 0 && sid >= 0 && sid < this.layouts.length &&
+        plen >= this.layouts[sid].size)
       value = this.decoderFor(sid)(v, u8, base);
     else if (sid === -2 && plen >= 4) value = v.getInt32(base, true);
     else value = undefined;
@@ -399,15 +450,23 @@ export abstract class CtpClient extends EventEmitter {
 
     // Responses (Rsp*) carry isLast (0/1 -> boolean); streaming pushes (Rtn*,
     // front, …) use -1 (-> undefined). Correlate a response to its pending
-    // request by requestId; only for the configured zeroIdFallbackEvent
-    // (MarketData's login) do we resolve a server requestId of 0 against the
-    // oldest pending request — SimNow's MD login doesn't echo the id. Scoping to
-    // that one event keeps an unrelated id-0 response from hijacking a request.
+    // request by requestId. SimNow's MD login/logout don't echo the id (server
+    // requestId 0), so those requests tag themselves with the event they await
+    // (zeroIdEvent); an id-0 response then matches only the pending request
+    // expecting THIS event — see the id-0 branch below.
     if (options.isLast !== undefined && this.pending.size > 0) {
       let key: number | undefined =
         reqId !== 0 && this.pending.has(reqId) ? reqId : undefined;
-      if (key === undefined && reqId === 0 && this.zeroIdFallbackEvents.has(evt)) {
-        key = this.pending.keys().next().value;
+      if (key === undefined && reqId === 0) {
+        // SimNow MD login/logout may return requestId 0. Match only a request
+        // that explicitly expects THIS response event; a concurrent logout can
+        // no longer consume a login response (or vice versa).
+        for (const [candidate, pending] of this.pending) {
+          if (pending.zeroIdEvent === evt) {
+            key = candidate;
+            break;
+          }
+        }
       }
       const p = key !== undefined ? this.pending.get(key) : undefined;
       if (p && key !== undefined) {
@@ -425,7 +484,13 @@ export abstract class CtpClient extends EventEmitter {
           if (options.isLast === true) {
             if (p.timer) clearTimeout(p.timer);
             this.pending.delete(key);
-            p.resolve(p.single ? p.rows[0] : p.rows);
+            const result = p.single ? p.rows[0] : p.rows;
+            try {
+              this.onRequestResolved(this.events.get(evt), result, options);
+              p.resolve(result);
+            } catch (error) {
+              p.reject(error);
+            }
           } else {
             this.armRequestTimer(key, p); // more rows expected: reset idle timeout
           }
@@ -452,9 +517,12 @@ export abstract class CtpClient extends EventEmitter {
     // getInt32, so the pending-map key MUST stay within positive int32 or it
     // would stop matching the echoed wire id past 2^31 requests (responses would
     // then only ever reject on the idle timeout). Cycle 1..2^31-1; skip 0, which
-    // is the "no id" / zeroIdFallback sentinel. (Reuse can't collide: nothing
-    // stays pending across 2^31 requests — the idle timeout is seconds.)
-    this.reqSeq = this.reqSeq >= 0x7fffffff ? 1 : this.reqSeq + 1;
+    // is the "no id" / zeroIdFallback sentinel. Trader armed orders reserve the
+    // upper positive-int half (0x40000000..0x7fffffff), so a native arm error can
+    // never settle an unrelated JS request with the same id. Reuse cannot
+    // collide: nothing stays pending across a billion requests (idle timeout is
+    // seconds).
+    this.reqSeq = this.reqSeq >= 0x3fffffff ? 1 : this.reqSeq + 1;
     return this.reqSeq;
   }
 
@@ -472,9 +540,19 @@ export abstract class CtpClient extends EventEmitter {
       case -10002:
         return "rate limited (order rate exceeded)";
       case -10003:
-        return "blocked by max position cost";
+        return "blocked by position margin limit";
       case -10004:
         return "blocked by max position volume (lots)";
+      case -10005:
+        return "duplicate orderRef in this front/session";
+      case -10006:
+        return "request is unavailable in the current risk mode or cannot be fully covered by configured local risk controls";
+      case -10007:
+        return "required risk state or metadata unavailable (reconcile positions/orders and refresh price, multiplier and margin inputs)";
+      case -10008:
+        return "invalid order direction/hedge flag or unsupported combOffsetFlag (single-leg only)";
+      case -10009:
+        return "session transition already in flight or ambiguous; await it, or reconnect after a timeout";
       default:
         return undefined;
     }
@@ -484,7 +562,13 @@ export abstract class CtpClient extends EventEmitter {
    * Send a request and resolve when its response arrives (matched by id).
    * `single` resolves with the one row; otherwise with the accumulated rows.
    */
-  protected request<T>(send: (id: number) => number, single = false): Promise<T> {
+  protected request<T>(
+    send: (id: number) => number,
+    single = false,
+    zeroIdEvent?: number,
+    sessionTransition = false
+  ): Promise<T> {
+    if (this.closing) return Promise.reject(new Error("client closed"));
     const id = this.nextRequestId();
     return new Promise<T>((resolve, reject) => {
       const entry: Pending = {
@@ -492,6 +576,8 @@ export abstract class CtpClient extends EventEmitter {
         resolve: resolve as (v: unknown) => void,
         reject,
         single,
+        zeroIdEvent,
+        sessionTransition,
       };
       this.pending.set(id, entry);
       let rc: number;
@@ -505,13 +591,99 @@ export abstract class CtpClient extends EventEmitter {
       if (rc !== 0) {
         this.pending.delete(id);
         const msg = this.riskRejectMessage(rc) ?? `request rejected by CTP API (code ${rc})`;
-        reject(new Error(msg));
+        reject(Object.assign(new Error(msg), { ctpReturnCode: rc }));
         return;
       }
       // Backstop: if the request goes idle (no response / no further rows for a
       // multi-row query), fail rather than hang forever.
-      this.armRequestTimer(id, entry);
+      // A provider is allowed to invoke the response callback inline from
+      // send(). In that case deliver() has already settled and removed this
+      // entry; do not leave a dead timeout behind for another 30 seconds.
+      if (this.pending.get(id) === entry) this.armRequestTimer(id, entry);
     });
+  }
+
+  /** Serialize every ReqQry* / ReqQuery* call on this CTP client.
+   *  CTP commonly allows about one query per second; putting the scheduler below
+   *  the generated surface means raw concurrent reqQry* calls are covered too,
+   *  not only the higher-level sync helpers. */
+  protected queryRequest<T>(
+    send: (id: number) => number,
+    single = false
+  ): Promise<T> {
+    if (this.closing) return Promise.reject(new Error("client closed"));
+    if (this.scheduledQueries >= MAX_SCHEDULED_QUERIES) {
+      return Promise.reject(new Error(
+        `query queue is full (${MAX_SCHEDULED_QUERIES}); await earlier queries before submitting more`
+      ));
+    }
+    this.scheduledQueries++;
+    const epoch = this.requestContextEpoch;
+    let resolveOuter!: (value: T | PromiseLike<T>) => void;
+    let rejectOuter!: (reason?: unknown) => void;
+    const outer = new Promise<T>((resolve, reject) => {
+      resolveOuter = resolve;
+      rejectOuter = reject;
+    });
+    const run = this.queryQueue.then(async () => {
+      const invalidReason = () => this.closing
+        ? "client closed"
+        : epoch !== this.requestContextEpoch
+          ? this.queryInvalidationReason
+          : undefined;
+      let reason = invalidReason();
+      if (reason !== undefined) {
+        rejectOuter(new Error(reason));
+        return;
+      }
+      // performance.now() is monotonic; a wall-clock adjustment must not turn a
+      // one-second query interval into an hours-long delay or a rate-limit burst.
+      // Re-check after every timer: Node may round or wake a timer slightly
+      // early, and the public contract is AT LEAST 1100 ms between attempts.
+      for (;;) {
+        reason = invalidReason();
+        if (reason !== undefined) {
+          rejectOuter(new Error(reason));
+          return;
+        }
+        const wait = 1100 - (performance.now() - this.lastQuerySentAt);
+        if (wait <= 0) break;
+        await new Promise<void>((resolve) => {
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            if (this.cancelQueryDelay === finish) this.cancelQueryDelay = undefined;
+            resolve();
+          };
+          const timer = setTimeout(finish, Math.ceil(wait));
+          this.cancelQueryDelay = finish;
+        });
+      }
+      reason = invalidReason();
+      if (reason !== undefined) {
+        rejectOuter(new Error(reason));
+        return;
+      }
+      this.lastQuerySentAt = performance.now();
+      try {
+        resolveOuter(await this.request<T>(send, single));
+      } catch (error) {
+        rejectOuter(error);
+      }
+    });
+    // Keep failures in scheduler plumbing observable by the caller too. The
+    // queue itself deliberately recovers below so one failed query cannot
+    // poison every later query.
+    void run.then(undefined, rejectOuter);
+    const releaseScheduledSlot = () => { this.scheduledQueries--; };
+    void run.then(releaseScheduledSlot, releaseScheduledSlot);
+    this.queryQueue = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return outer;
   }
 
   /** (Re)arm a pending request's idle timeout. Called at send and reset on each
@@ -520,6 +692,23 @@ export abstract class CtpClient extends EventEmitter {
     if (this.requestTimeoutMs <= 0) return;
     if (entry.timer) clearTimeout(entry.timer);
     entry.timer = setTimeout(() => {
+      if (this.pending.get(id) !== entry) return;
+      let shouldTimeout: boolean;
+      try {
+        shouldTimeout = this.shouldTimeoutRequest(
+          id, entry.sessionTransition === true
+        );
+      } catch (error) {
+        if (this.pending.delete(id)) entry.reject(error);
+        return;
+      }
+      if (!shouldTimeout) {
+        // Native final processing already happened under its state lock. The
+        // control response is lossless, so wait for the queued row instead of
+        // manufacturing a timeout/native-session split brain.
+        this.armRequestTimer(id, entry);
+        return;
+      }
       if (this.pending.delete(id)) entry.reject(new Error("request timed out"));
     }, this.requestTimeoutMs);
     if (typeof entry.timer.unref === "function") entry.timer.unref();
@@ -533,6 +722,7 @@ export abstract class CtpClient extends EventEmitter {
    * rtn-trade events, correlating by orderRef.
    */
   protected submit(send: (id: number) => number): Promise<void> {
+    if (this.closing) return Promise.reject(new Error("client closed"));
     const id = this.nextRequestId();
     let rc: number;
     try {
@@ -542,6 +732,6 @@ export abstract class CtpClient extends EventEmitter {
     }
     if (rc === 0) return Promise.resolve();
     const msg = this.riskRejectMessage(rc) ?? `order rejected by CTP API (code ${rc})`;
-    return Promise.reject(new Error(msg));
+    return Promise.reject(Object.assign(new Error(msg), { ctpReturnCode: rc }));
   }
 }

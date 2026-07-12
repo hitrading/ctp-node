@@ -11,27 +11,37 @@
 <p align="center">
   <a href="https://github.com/hitrading/ctp-node/actions/workflows/build.yml"><img alt="CI" src="https://github.com/hitrading/ctp-node/actions/workflows/build.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/hitrading/ctp-node?color=blue"></a>
-  <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A5%2018-brightgreen">
+  <img alt="Node" src="https://img.shields.io/badge/node-22.22.2%2B-brightgreen">
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6">
   <img alt="decode" src="https://img.shields.io/badge/decode-~8M%20ticks%2Fs-ff7f0e">
 </p>
 
 <p align="center">
-  <img src="docs/assets/validation.svg" alt="ctp-node validation — green test suite + live full-market stress (18,111 instruments, 0 dropped)" width="780">
+  <img src="docs/assets/validation.svg" alt="ctp-node validation — green offline suite plus a labeled historical live sample" width="780">
 </p>
 
 - **Plain objects, idiomatic TypeScript.** Every CTP struct is a generated `interface` with camelCase fields (`tick.lastPrice`, `tick.instrumentId`); every CTP enum is a real TS `enum`. No hand-written marshalling.
-- **Fast.** The CTP callback thread only memcpy's bytes into a lock-free ring; JS decodes straight from it into plain objects at **~8M ticks/sec** (166× headroom over a 50k/sec open-auction burst).
+- **Fast.** The isolated generated 46-field decoder runs at about **8M ticks/sec**. More importantly, the reproducible native-SPI-to-JS full-path probe sustained 500k ticks/sec across 18,111 real cache keys with zero drops and delivered an 18,111-tick all-contract callback storm intact on the measured host; see [Performance & memory](docs/troubleshooting.md#performance--memory) for hardware, CPU/RSS and limits.
 - **Hybrid API.** `EventEmitter` for streaming pushes (`rtn-depth-market-data`, `rtn-order`…) + `Promise` for request/response (login, queries, orders), correlated by request id with multi-row accumulation.
 - **Pre-trade risk in C++.** Kill-switch, max order volume, max notional, price-deviation (fat-finger) guard, account-wide and per-instrument open-position margin caps, per-instrument max position (lots, per side), and a token-bucket rate limiter are enforced on the order path in native code — a JS GC pause can't defeat them.
 - **Stable by construction.** No hand-marshalling, threadsafe-functions released properly, `Init()` deferred so `front-connected` is never missed, compiler-truth (`offsetof`) binary layout, gb18030 decoded in JS (no Windows code-page bug).
 
 > Targets the regime CTP actually supports (snapshot-driven, ms-tolerant strategies: CTA, arbitrage, market making). True microsecond HFT is not achievable through CTP in any language.
 
+> **Boundary:** this package is an in-process protocol binding and local second
+> line of risk. It does not authenticate callers, verify signed mandates, or own
+> an external heartbeat watchdog. Production use still requires an authenticated
+> gateway/supervisor and a fresh soak of the exact commit and packaged binaries.
+> The protocol surface is broader than the local ledger: quantitative admission
+> is complete only for ordinary single-leg orders; quote/exec/comb/parked and
+> similar advanced mutations are binding-only and rejected whenever local risk
+> is enabled. Until the exact `3.0.0-rc` artifact passes that soak and the external
+> mandate/watchdog controls exist, the production-live decision remains **No-Go**.
+
 ## Requirements
 
-Node ≥ 18. Prebuilt binaries are shipped for **Windows and Linux (x64)** — most users need no compiler there. **macOS (and any other platform) builds from source on install**, which needs a C++ toolchain (macOS: Xcode Command Line Tools; Windows: VS Build Tools; Linux: clang/gcc). The CTP shared libraries are bundled next to the loaded addon and resolved automatically.
+Node 22.22.2+ on supported even-numbered release lines (`^22.22.2 || ^24.15.0 || >=26.0.0`). This mirrors the Node.js range required by the bundled `node-gyp`; odd-numbered/EOL releases and Node 24.0–24.14 are not supported. Prebuilt binaries are shipped for **Windows and Linux (x64)** — most users need no compiler there. **macOS (and any other platform) builds from source on install**, which needs a C++ toolchain (macOS: Xcode Command Line Tools; Windows: VS Build Tools; Linux: clang/gcc). The CTP shared libraries are bundled next to the loaded addon and resolved automatically.
 
 ## Install
 
@@ -53,7 +63,7 @@ const { Trader, MarketData } = require("@hitrading/ctp-node");  // CommonJS
 - **Full API reference** — every TypeScript/JavaScript interface and method, with each parameter's type and meaning, plus usage examples: [English](docs/API.md) · [简体中文](docs/API.zh-CN.md)
 - Architecture & native internals — the lock-free data plane, the C++ risk engine, backpressure, and the create-once process-lifecycle notes: [English](docs/native-hooks.md) · [简体中文](docs/native-hooks.zh-CN.md)
 - **Troubleshooting & FAQ** — connection/front rotation, login & authentication, query rate limits, order rejections, limit-down, lifecycle, build issues, CTP error codes: [English](docs/troubleshooting.md) · [简体中文](docs/troubleshooting.zh-CN.md)
-- **Testing & coverage** — unit tests (JS ≥ 95 %, C++ `risk`/`arm` standalone ≥ 98 %) plus the credential-gated live SimNow integration suite: [integration & testing](docs/integration.md)
+- **Testing & coverage** — full offline regression plus a credential-gated SimNow suite that must be run separately; historical samples are not a soak result for the current candidate: [integration & testing](docs/integration.md)
 - **Releasing** — fully automatic `semantic-release` (Conventional Commits → version + CHANGELOG + GitHub Release + npm publish): [RELEASING.md](RELEASING.md) · [CHANGELOG.md](CHANGELOG.md)
 
 ## Quick start — market data
@@ -73,8 +83,9 @@ md.on("rtn-depth-market-data", (tick) => {
   console.log(tick.instrumentId, tick.lastPrice, tick.bidPrice1, tick.askPrice1);
 });
 
-// Latest market data is cached in C++ (a last-value cache, updated on every tick
-// before it reaches JS), so you get a synchronous snapshot with no bookkeeping in JS:
+// After a successful MD login, market data is cached in C++ (a last-value cache,
+// updated before each authenticated-session tick reaches JS), so you get a
+// synchronous snapshot with no bookkeeping in JS:
 //   md.snapshot("rb2510");  // latest full depth tick (DepthMarketData) or null
 //   md.last("rb2510");      // latest price, 0 if none seen yet
 ```
@@ -87,22 +98,23 @@ import { Trader } from "@hitrading/ctp-node";
 const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
 // Pre-trade risk, enforced in C++ on every order:
-td.riskSet({ maxOrderVolume: 10, maxOrdersPerSec: 20, maxPriceDeviation: 0.02, maxMargin: 2_000_000 }); // maxMargin = real-margin cap on open positions
-td.trackMarketData(md); // use live MD prices (read in C++) for the price-deviation guard
-td.setMaxPositions({ rb2610: 100, au2610: 10, ru2610: { long: 100, short: 20 } }); // per-instrument lot caps
-td.setMaxPositionCosts({ ag2608: 2_000_000, au2608: 5_000_000 });                   // per-instrument cost caps
+td.setRiskLimits({ maxOrderVolume: 10, maxOrdersPerSec: 20, maxPriceDeviation: 0.02, maxAccountMargin: 2_000_000 });
+td.trackMarketData(md); // fresh C++ reference for deviation, notional and margin gates
+td.setInstrumentPositionLimits({ rb2610: 100, au2610: 10, ru2610: { long: 100, short: 20 } });
+td.setInstrumentMarginLimits({ ag2608: 2_000_000, au2608: 5_000_000 });              // per-instrument scheduled-margin caps
 
 td.on("front-connected", async () => {
-  // One-call handshake (call again after a reconnect): authenticate → login →
-  // confirm settlement → sync multipliers / positions / orders. Risk inputs are
-  // fetched from CTP automatically — no manual multipliers/seeding.
-  await td.session({ brokerId, userId, password, appId, authCode });
+  // One-call handshake (call again after a reconnect). Margin-rate queries need
+  // an explicit bounded trading universe (one CTP query per contract).
+  await td.session({ brokerId, userId, password, appId, authCode,
+    sync: { marginRates: ["rb2510", "ag2608", "au2608"] } });
 
   // ...or hand-roll it if you need finer control:
   //   await td.reqAuthenticate({ brokerId, userId, appId, authCode });
   //   await td.reqUserLogin({ brokerId, userId, password });
   //   await td.reqSettlementInfoConfirm({ brokerId, investorId }); // real accounts
-  //   await td.syncMultipliers(); await td.syncPositions(); await td.syncOrders();
+  //   await td.syncMultipliers(); await td.syncMarginRates(["rb2510"]);
+  //   await td.syncOrders(); await td.syncPositions(); // held snapshot must be last
 
   // Promise-based queries return all rows:
   const positions = await td.reqQryInvestorPosition({ brokerId, investorId });
@@ -112,7 +124,7 @@ td.on("front-connected", async () => {
   // rtn-trade. orderRef is auto-assigned a unique value if you leave it blank.
   await td.reqOrderInsert({
     brokerId, investorId, instrumentId: "rb2510",
-    direction: "0",            // see Direction enum
+    direction: "0", combOffsetFlag: "0", // buy-open; see enums
     limitPrice: 3500, volumeTotalOriginal: 1,
   });
 });
@@ -120,8 +132,9 @@ td.on("front-connected", async () => {
 td.on("rtn-order", (order) => console.log("order update", order.orderStatus));
 td.on("rtn-trade", (trade) => console.log("filled", trade.price, trade.volume));
 
-// Emergency kill-switch (blocks all sends in C++ immediately):
-// td.halt();  /  td.resume();
+// Atomic modes: reduceOnly() keeps closes+cancels; haltAll() blocks closes too.
+// Multi-leg combOffsetFlag values are rejected until a per-leg ledger exists.
+// td.reduceOnly();  /  td.haltAll();  /  td.resume();
 ```
 
 ### Armed orders (latency-critical)
@@ -136,11 +149,11 @@ const armed = trader.arm(md, {
   side: "buy",            // buy fires when ask ≤ trigger; sell when bid ≥ trigger
   triggerPrice: 3500,
   order: {
-    brokerId, investorId, instrumentId: "rb2510", direction: "0",
-    limitPrice: 3500, volumeTotalOriginal: 1, orderRef: "snipe-1",
+    brokerId, investorId, instrumentId: "rb2510", direction: "0", combOffsetFlag: "0",
+    limitPrice: 3500, volumeTotalOriginal: 1, orderRef: "900001",
   },
 });
-// One-shot. The ack/fill arrives via the normal rtn-order events (match orderRef).
+// Removed after a successful send; refusal stays armed with bounded exponential backoff.
 // armed.disarm();
 ```
 
@@ -155,14 +168,16 @@ Direction.Sell;  // "1"
 ## API shape
 
 - `new MarketData(flowPath, fronts)` / `new Trader(flowPath, fronts)` — `fronts` is a `tcp://` address or an array.
-- Requests are camelCase methods taking a `Partial<...>` of the CTP field object and returning a `Promise`. `reqQry*` resolve with an array of rows; most requests resolve with the single response row.
+- Requests are camelCase methods taking a `Partial<...>` of the CTP field object and returning a `Promise`. Request objects are strict plain objects: unknown/inherited/removed fields and `null` field values are rejected instead of ignored. Input arrays must be dense and use explicit own entries; sparse/prototype-provided values are rejected. `reqQry*` resolve with an array of rows; most requests resolve with the single response row.
+- All `reqQry*` / `reqQuery*` calls on one client are snapshotted, serialized and paced internally (one in flight, at least 1100 ms between attempted sends), so callers must not add `setTimeout(1000)`. The bounded queue is per client; raw queries are paced but only `sync*` helpers retry transient flow control.
 - Exchange-bound inserts/actions (`reqOrderInsert`, `reqOrderAction`, …) resolve on **submission** — CTP returns no success response for an accepted order, only `rtn-order` / `rtn-trade` (correlate by `orderRef`). They reject only if the send is refused (risk gate, rate limit, or a CTP API error code).
 - Streaming events use kebab-case names (`rtn-depth-market-data`, `rtn-order`, …); handlers get `(data, options)` where `options` carries `{ requestId?, isLast?, rspInfo? }`.
-- The latest tick per instrument is kept in a C++ last-value cache (updated on every tick before it reaches JS; an entry is cleared on unsubscribe, all on close), so `md.snapshot(instrumentId)` returns the latest full `DepthMarketData` (or `null`) and `md.last(instrumentId)` the latest price (0 if none) — synchronously, with no per-tick bookkeeping in JS. The same cache backs the price-deviation guard, so that check reads live prices in C++.
+- The latest tick per instrument is kept in a C++ last-value cache. It is invalid before a successful MD login; login opens a new empty epoch, and connect/disconnect, a new login/logout attempt, successful logout, and close invalidate and clear it. Only later ticks in the authenticated epoch update the cache or drive armed orders. `md.snapshot(instrumentId)` returns the latest full `DepthMarketData` (or `null`) and `md.last(instrumentId)` the latest price (0 if none) synchronously. The same epoch-bound cache backs the price-deviation guard.
 - `client.droppedRecords` reports records dropped under backpressure. Market
-  data drops the **oldest** unread record (so you always see the freshest quote);
-  the trader drops the **newest** instead, so a queued order/trade return is never
-  silently discarded. Monitor it either way.
+  data uses bounded keep-newest staging and retains the freshest quote;
+  the trader uses a lossless ordered overflow queue, so order/trade/query returns
+  are not deliberately discarded when its 4096-slot ring fills. Sustained Trader
+  overload can therefore consume memory: keep handlers bounded and monitor lag.
 - `client.close()` releases the underlying CTP API. Call it **once**, at shutdown — a CTP client is create-once / reuse; reconnecting by recreating it deadlocks in the vendor DLL (see [Lifecycle](#lifecycle-create-once-reuse)).
 
 ## Lifecycle: create once, reuse
@@ -183,9 +198,9 @@ md.on("front-connected", async () => {     // first connect AND every reconnect
 td.on("front-connected", () => td.session({ brokerId, userId, password, appId, authCode }));
 ```
 
-> **Why.** `close()` calls the vendor `CThostFtdc*Api::Release()`, and the CTP
-> DLLs **deadlock inside `Release()` after a few `Init()`/`Release()` cycles in
-> one process** — a limitation of the CTP SDK itself, not of this binding. A
+> **Why.** `close()` calls the vendor `CThostFtdc*Api::Release()`. Repeated
+> `Init()`/`Release()` cycles have been observed to deadlock inside the Windows
+> vendor DLL; the binding cannot safely recover a process from that state. A
 > "reconnect by recreate" loop will hang the whole process (and on Windows the
 > wedged process ignores `SIGTERM`, so it must be force-killed with `taskkill /F`
 > — until then it locks `build\Release\ctp.node` and breaks the next native
@@ -201,8 +216,8 @@ CTP callback thread (C++)                 Node event loop (JS)
   OnRtn.../OnRsp... → memcpy bytes  ──►   coalesced doorbell → drain whole batch
   into lock-free SPSC ring,                → decode each record from the ring
   bump atomic index, ring doorbell           (monomorphic generated decoder)
-  (on overflow: MD drops oldest,             → plain object → emit / resolve
-   trader drops newest/reliable)
+  (on overflow: MD stages/evicts oldest,      → plain object → emit / resolve
+   trader spills losslessly in order)
 ```
 
 Everything below the public API is generated from the CTP headers

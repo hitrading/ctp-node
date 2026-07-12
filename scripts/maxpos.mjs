@@ -49,20 +49,21 @@ td.on("front-connected", async () => {
     log("logged in");
     await sleep(1500);
     await td.syncMultipliers([cfg.symbol]);
-    log(`start positions: ${await td.syncPositions()} (positionCost=${td.positionCost().toFixed(0)})`);
+    await td.syncOrders();
+    log(`start positions: ${await td.syncPositions()} (accountMargin=${td.accountMargin.toFixed(0)})`);
 
-    td.setMaxPosition(cfg.symbol, 2); // cap: 2 lots per side
-    log("setMaxPosition(rb2610, 2)");
+    td.setInstrumentPositionLimit(cfg.symbol, 2); // cap: 2 lots per side
+    log("setInstrumentPositionLimit(rb2610, 2)");
 
     await sleep(1000);
     log(`open 1 -> ${await openN(1)} (expect SENT)`);
     await sleep(2500); // let the fill land so the cap sees held=1
-    log(`  held long now ~1, positionCost=${td.positionCost().toFixed(0)}`);
+    log(`  held long now ~1, accountMargin=${td.accountMargin.toFixed(0)}`);
     log(`open 2 -> ${await openN(2)} (expect BLOCKED: 1+2>2)`);
     await sleep(500);
     log(`open 1 -> ${await openN(1)} (expect SENT)`);
     await sleep(2500); // fill -> held=2
-    log(`  held long now ~2, positionCost=${td.positionCost().toFixed(0)}`);
+    log(`  held long now ~2, accountMargin=${td.accountMargin.toFixed(0)}`);
     log(`open 1 -> ${await openN(1)} (expect BLOCKED: 2+1>2)`);
 
     // flatten whatever we hold
@@ -75,7 +76,7 @@ td.on("front-connected", async () => {
       await sleep(2500);
     }
     await sleep(1200);
-    log(`FINAL positions: ${await td.syncPositions()} (positionCost=${td.positionCost().toFixed(0)}) -> account flat`);
+    log(`FINAL positions: ${await td.syncPositions()} (accountMargin=${td.accountMargin.toFixed(0)}) -> account flat`);
   } catch (e) {
     log("FAILED:", e.message, "errorId=", e.errorId);
   }

@@ -17,9 +17,12 @@
 #define CTP_NATIVE_ARM_H
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace ctp {
@@ -30,7 +33,10 @@ struct ArmSpec {
   char side = '0'; // '0' buy: fire when ask<=trigger; '1' sell: bid>=trigger
   double triggerPrice = 0.0;
   std::vector<uint8_t> orderTemplate; // pre-encoded CThostFtdcInputOrderField
-  bool fired = false;
+  int lastRc = 0;
+  std::chrono::steady_clock::time_point nextAttempt{};
+  uint32_t retryDelayMs = 100;
+  bool firing = false;
 };
 
 // Implemented by the Trader. Called on the MD callback thread; must be
@@ -44,13 +50,16 @@ class ArmRegistry {
 public:
   void setSink(OrderSink *sink); // link (Trader ctor)
   void clearSink();              // unlink under lock (Trader teardown)
+  bool hasSink() const;          // safe attach/replacement check
+  void clear();                  // remove every arm, keep the Trader sink linked
 
   uint64_t arm(ArmSpec spec); // JS thread
   bool disarm(uint64_t id);   // JS thread
   size_t size() const;
-  // Armed triggers that fired and were SENT (fireArmed returned 0).
+  // Armed triggers that were successfully SENT (fireArmed returned 0).
   uint64_t fireCount() const { return fireCount_.load(std::memory_order_relaxed); }
-  // Armed triggers that fired but were REFUSED by the risk gate / send (rc!=0).
+  // Attempts refused by the risk gate / send (rc!=0). Refused triggers remain
+  // armed and retry with bounded exponential backoff; this is an attempt counter.
   uint64_t blockedCount() const { return blockedCount_.load(std::memory_order_relaxed); }
 
   // Hot path: MD callback thread, once per depth tick.
@@ -58,7 +67,10 @@ public:
 
 private:
   mutable std::mutex m_;
-  std::vector<ArmSpec> armed_;
+  std::condition_variable idleCv_;
+  size_t inFlight_ = 0;
+  std::unordered_map<std::string, std::vector<ArmSpec>> armedByInstrument_;
+  std::unordered_map<uint64_t, std::string> instrumentById_;
   uint64_t nextId_ = 1;
   std::atomic<size_t> count_{0}; // lock-free "any arms?" gate
   std::atomic<uint64_t> fireCount_{0};

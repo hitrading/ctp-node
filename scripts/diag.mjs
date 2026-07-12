@@ -57,7 +57,6 @@ td.on("front-connected", async () => {
     const inst = await td.reqQryInstrument({ instrumentId: cfg.symbol });
     log("reqQryInstrument rows=", inst.length);
     for (const r of inst) log("  inst", r.instrumentId, "exch=" + r.exchangeId, "volumeMultiple=" + r.volumeMultiple, "priceTick=" + r.priceTick);
-    await sleep(1100);
 
     // (2) raw positions
     const pos = await queryPositions();
@@ -76,7 +75,6 @@ td.on("front-connected", async () => {
       await td.reqOrderInsert({
         ...orderBase, instrumentId: p.instrumentId, direction: dir,
         combOffsetFlag: offset, limitPrice: px, volumeTotalOriginal: p.position,
-        orderRef: "flat-" + p.instrumentId.slice(-4),
       });
       log("  -> close submit RESOLVED");
       await sleep(3500);

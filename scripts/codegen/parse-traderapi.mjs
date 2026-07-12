@@ -37,5 +37,24 @@ export async function parseTraderApi(path) {
     req.push({ name: m[1], struct: m[2] });
   }
 
+  // An SDK upgrade may introduce a signature our narrow parser does not yet
+  // understand. Detect that explicitly instead of publishing a binding that
+  // silently omits the method/callback.
+  const declaredSpi = new Set(
+    [...text.matchAll(/virtual\s+void\s+(On\w+)\s*\(/g)].map((x) => x[1])
+  );
+  const parsedSpi = new Set(spi.map((x) => x.name));
+  const missingSpi = [...declaredSpi].filter((name) => !parsedSpi.has(name));
+  const declaredReq = new Set(
+    [...text.matchAll(/virtual\s+int\s+(Req\w+)\s*\(/g)].map((x) => x[1])
+  );
+  const parsedReq = new Set(req.map((x) => x.name));
+  const missingReq = [...declaredReq].filter((name) => !parsedReq.has(name));
+  if (missingSpi.length || missingReq.length) {
+    throw new Error(
+      `unparsed Trader API declarations: ${[...missingSpi, ...missingReq].join(", ")}`
+    );
+  }
+
   return { spi, req };
 }

@@ -2,16 +2,13 @@
 // This is the hot-path cost that decides whether JS can keep up with the
 // open-auction flood. Real CTP load is ~thousands/sec steady, tens of
 // thousands/sec in bursts.
-import { createRequire } from "node:module";
-import { existsSync } from "node:fs";
 import { parseLayouts, buildDecoder } from "../dist/codec.js";
 import { STRUCT_ID } from "../dist/generated/structs.gen.js";
-
-const require = createRequire(import.meta.url);
-const found = ["../build/Release/ctp.node", "../build/Debug/ctp.node"].find((p) =>
-  existsSync(new URL(p, import.meta.url))
-);
-const native = require(found);
+// Load the addon through the package's own binding (node-gyp-build: prebuilt
+// binary or the local source build) so this benchmark runs in the published
+// layout too, not only a dev tree with build/Release. Same pattern as the codec
+// tests, which also read native.__layoutData()/__sampleDepthMarketData().
+import { native } from "../dist/native-binding.js";
 
 const layouts = parseLayouts(native.__layoutData());
 const id = STRUCT_ID.DepthMarketData;

@@ -10,10 +10,13 @@ import { mkdirSync, appendFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 
 const LOGF = "simnow.out.log";
+let failed = false;
+let mdLoggedIn = false;
+let tdLoggedIn = false;
 try { writeFileSync(LOGF, `=== run ${new Date().toISOString()} ===\n`); } catch {}
 const flog = (line) => { try { appendFileSync(LOGF, line + "\n"); } catch {} };
-process.on("uncaughtException", (e) => flog("UNCAUGHT: " + (e?.stack || e)));
-process.on("unhandledRejection", (e) => flog("UNHANDLED: " + (e?.stack || e?.message || e)));
+process.on("uncaughtException", (e) => { failed = true; flog("UNCAUGHT: " + (e?.stack || e)); });
+process.on("unhandledRejection", (e) => { failed = true; flog("UNHANDLED: " + (e?.stack || e?.message || e)); });
 
 const env = process.env;
 const cfg = {
@@ -54,10 +57,12 @@ md.on("front-connected", async () => {
   log("MD front-connected; logging in...");
   try {
     const r = await md.login({ brokerId: cfg.brokerId, userId: cfg.userId, password: cfg.password });
+    mdLoggedIn = true;
     log("MD login ok, tradingDay =", r.tradingDay);
     const rc = md.subscribe([cfg.symbol]);
     log("MD subscribed", cfg.symbol, "rc=", rc);
   } catch (e) {
+    failed = true;
     log("MD login FAILED:", e.message);
   }
 });
@@ -72,7 +77,7 @@ md.on("rtn-depth-market-data", (t) => {
 
 // ---------------- Trader ----------------
 const td = new Trader("./flow-td/", cfg.tdFront);
-td.riskSet({ maxOrderVolume: 5, maxOrdersPerSec: 5 });
+td.setRiskLimits({ maxOrderVolume: 5, maxOrdersPerSec: 5 });
 td.on("front-connected", async () => {
   log("TD front-connected");
   try {
@@ -87,6 +92,7 @@ td.on("front-connected", async () => {
       }
     }
     const li = await td.reqUserLogin({ brokerId: cfg.brokerId, userId: cfg.userId, password: cfg.password });
+    tdLoggedIn = true;
     log("TD login ok, frontId =", li.frontId, "sessionId =", li.sessionId, "maxOrderRef =", li.maxOrderRef);
 
     // Settlement confirm is required before trading queries on many brokers.
@@ -95,16 +101,17 @@ td.on("front-connected", async () => {
     const acct = await td.reqQryTradingAccount({ brokerId: cfg.brokerId, investorId: cfg.userId });
     log("TD trading account rows:", acct.length, acct[0] ? `available=${acct[0].available} balance=${acct[0].balance}` : "");
 
-    await sleep(1200); // SimNow throttles queries to 1/sec
     const pos = await td.reqQryInvestorPosition({ brokerId: cfg.brokerId, investorId: cfg.userId });
     log("TD positions rows:", pos.length, pos.map((p) => `${p.instrumentId}:${p.position}`).slice(0, 6).join(" "));
+    await td.syncOrders();
+    await td.syncPositions();
 
     if (cfg.placeOrder) {
       log("placing a test order: BUY 1 @ 1 (far below market -> rejected, no fill) ...");
       await sleep(1200);
       td.reqOrderInsert({
         brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: cfg.symbol,
-        orderRef: "smoke1", direction: "0", combOffsetFlag: "0", combHedgeFlag: "1",
+        direction: "0", combOffsetFlag: "0", combHedgeFlag: "1",
         orderPriceType: "2", limitPrice: 1, volumeTotalOriginal: 1,
         timeCondition: "3", volumeCondition: "1", contingentCondition: "1",
         forceCloseReason: "0", isAutoSuspend: 0, userForceClose: 0,
@@ -119,7 +126,7 @@ td.on("front-connected", async () => {
         instrumentId: cfg.symbol, side: "buy", triggerPrice: 99999,
         order: {
           brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: cfg.symbol,
-          orderRef: "armfire1", direction: "0", combOffsetFlag: "0", combHedgeFlag: "1",
+          orderRef: "900001", direction: "0", combOffsetFlag: "0", combHedgeFlag: "1",
           orderPriceType: "2", limitPrice: 1, volumeTotalOriginal: 1,
           timeCondition: "3", volumeCondition: "1", contingentCondition: "1",
           forceCloseReason: "0", isAutoSuspend: 0, userForceClose: 0,
@@ -129,7 +136,7 @@ td.on("front-connected", async () => {
     }
 
     if (cfg.devDemo) {
-      td.riskSet({ maxPriceDeviation: 0.05 });
+      td.setRiskLimits({ maxPriceDeviation: 0.05 });
       td.trackMarketData(md);
       log("maxPriceDeviation 5% + trackMarketData(md); waiting for live ref price...");
       await sleep(2500);
@@ -137,7 +144,7 @@ td.on("front-connected", async () => {
       const r = await td
         .reqOrderInsert({
           brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: cfg.symbol,
-          orderRef: "dev1", direction: "0", combOffsetFlag: "0", combHedgeFlag: "1",
+          direction: "0", combOffsetFlag: "0", combHedgeFlag: "1",
           orderPriceType: "2", limitPrice: bad, volumeTotalOriginal: 1,
           timeCondition: "3", volumeCondition: "1", contingentCondition: "1",
           forceCloseReason: "0", isAutoSuspend: 0, userForceClose: 0,
@@ -148,30 +155,30 @@ td.on("front-connected", async () => {
     }
 
     if (cfg.riskLive) {
-      log("--- live position-cost verification (auto multiplier + auto position) ---");
+      log("--- live position-margin verification (auto multiplier + auto position) ---");
       const inst = await td.reqQryInstrument({ instrumentId: cfg.symbol });
       log(`reqQryInstrument ${cfg.symbol}: volumeMultiple=${inst[0]?.volumeMultiple}`);
-      await sleep(1100);
       log(`syncMultipliers applied ${await td.syncMultipliers([cfg.symbol])}`);
-      td.riskSet({ maxPositionCost: 100_000_000 }); // high: won't block, just track
+      td.trackMarketData(md);
+      log(`syncMarginRates applied ${await td.syncMarginRates([cfg.symbol])}`);
+      td.setRiskLimits({ maxAccountMargin: 100_000_000 }); // high: won't block, just track
       const buyPx = Math.round((lastSeenPrice || 3200) + 30);
       log(`opening BUY 1 @ ${buyPx} (marketable -> should fill) ...`);
       await td
-        .reqOrderInsert({ brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: cfg.symbol, orderRef: "rlopen", direction: "0", combOffsetFlag: "0", combHedgeFlag: "1", orderPriceType: "2", limitPrice: buyPx, volumeTotalOriginal: 1, timeCondition: "3", volumeCondition: "1", contingentCondition: "1", forceCloseReason: "0", isAutoSuspend: 0, userForceClose: 0 })
+        .reqOrderInsert({ brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: cfg.symbol, direction: "0", combOffsetFlag: "0", combHedgeFlag: "1", orderPriceType: "2", limitPrice: buyPx, volumeTotalOriginal: 1, timeCondition: "3", volumeCondition: "1", contingentCondition: "1", forceCloseReason: "0", isAutoSuspend: 0, userForceClose: 0 })
         .then(() => log("open accepted")).catch((e) => log("open:", e.message));
       await sleep(2500);
-      log(`positionCost after fill (auto from OnRtnTrade) = ${td.positionCost()}  (expect ~ ${buyPx}*10)`);
-      await sleep(1100);
-      log(`syncPositions seeded ${await td.syncPositions()} position(s); positionCost = ${td.positionCost()}`);
-      await sleep(1100);
+      log(`accountMargin after fill (auto from OnRtnTrade) = ${td.accountMargin}  (expect ~ ${buyPx}*10)`);
+      log(`syncPositions seeded ${await td.syncPositions()} position(s); accountMargin = ${td.accountMargin}`);
       const sellPx = Math.round((lastSeenPrice || 3100) - 30);
       log(`closing SELL 1 @ ${sellPx} (平今) to flatten ...`);
       await td
-        .reqOrderInsert({ brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: cfg.symbol, orderRef: "rlclose", direction: "1", combOffsetFlag: "3", combHedgeFlag: "1", orderPriceType: "2", limitPrice: sellPx, volumeTotalOriginal: 1, timeCondition: "3", volumeCondition: "1", contingentCondition: "1", forceCloseReason: "0", isAutoSuspend: 0, userForceClose: 0 })
+        .reqOrderInsert({ brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: cfg.symbol, direction: "1", combOffsetFlag: "3", combHedgeFlag: "1", orderPriceType: "2", limitPrice: sellPx, volumeTotalOriginal: 1, timeCondition: "3", volumeCondition: "1", contingentCondition: "1", forceCloseReason: "0", isAutoSuspend: 0, userForceClose: 0 })
         .then(() => log("close accepted")).catch((e) => log("close:", e.message));
       await sleep(1500);
     }
   } catch (e) {
+    failed = true;
     log("TD flow FAILED:", e.message, "errorId=", e.errorId);
   }
 });
@@ -183,7 +190,8 @@ td.on("err-rtn-order-insert", (_d, o) => log("err-rtn-order-insert:", o.rspInfo?
 log("connecting... MD", cfg.mdFront, "| TD", cfg.tdFront, "| user", cfg.userId);
 setTimeout(() => {
   log(`done. received ${tickCount} ticks.`);
+  if (!mdLoggedIn || !tdLoggedIn) failed = true;
   md.close();
   td.close();
-  process.exit(0);
+  process.exit(failed ? 1 : 0);
 }, Number(env.CTP_RUN_MS ?? 20000));

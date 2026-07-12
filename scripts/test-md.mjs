@@ -2,12 +2,13 @@
 // depth tick natively (as if from OnRtnDepthMarketData), then verify it flows
 // ring -> coalesced doorbell -> JS drain -> decode -> emit as a plain object.
 import { MarketData } from "../dist/index.js";
+process.env.CTP_NODE_TEST_HOOKS = "1";
 import { mkdirSync } from "node:fs";
 
 mkdirSync("flow-test", { recursive: true });
 
 const md = new MarketData("./flow-test/", "tcp://127.0.0.1:1");
-console.log("MarketData api version:", md.getApiVersion());
+console.log("MarketData api version:", md.apiVersion);
 
 let got = null;
 md.on("rtn-depth-market-data", (tick) => {

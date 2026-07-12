@@ -2,6 +2,7 @@
 #ifndef CTP_TRADERSPI_GEN_H
 #define CTP_TRADERSPI_GEN_H
 #include "ThostFtdcTraderApi.h"
+#include "../native/arm.h"
 #include "../native/channel.h"
 #include "../native/risk.h"
 namespace ctp {
@@ -189,10 +190,11 @@ enum {
 
 class TraderSpi : public CThostFtdcTraderSpi {
 public:
-  TraderSpi(CThostFtdcTraderApi *api, EventChannel *channel) : api_(api), ch_(channel) {}
+  explicit TraderSpi(EventChannel *channel) : ch_(channel) {}
   ~TraderSpi() {}
 
   void setRisk(RiskEngine *r) { risk_ = r; }
+  void setArmRegistry(ArmRegistry *a) { arm_ = a; }
 
   void OnFrontConnected() override;
   void OnFrontDisconnected(int arg) override;
@@ -374,9 +376,9 @@ public:
   void OnErrRtnHedgeCfmAction(CThostFtdcHedgeCfmActionField *p, CThostFtdcRspInfoField *e) override;
 
 private:
-  CThostFtdcTraderApi *api_;
   EventChannel *ch_;
   RiskEngine *risk_ = nullptr;
+  ArmRegistry *arm_ = nullptr;
 };
 } // namespace ctp
 #endif

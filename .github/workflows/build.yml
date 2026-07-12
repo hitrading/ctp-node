@@ -2,7 +2,7 @@ name: build & prebuild
 
 on:
   push:
-    branches: [master, main]   # a push to master runs CI, then semantic-release decides + cuts a release
+    branches: [master, next]   # master=stable; next=rc prerelease
   pull_request:
 
 jobs:
@@ -18,20 +18,21 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.22.2
       - run: npm ci
-      - run: npm run build:ts
+      - run: npm run build # regenerate + force current native source; never test a checked-in stale prebuild
+      - run: git diff --exit-code -- src/generated/ # tagged generated sources must reproduce exactly
       - run: npm run coverage   # runs the suite under c8 and FAILS if coverage drops below .c8rc.json thresholds
       - name: C++ unit tests (standalone risk/arm) + coverage report
         if: matrix.os == 'ubuntu-latest'   # Linux leg: g++/gcov; the C++ logic is platform-agnostic
         run: CXX=g++ COVERAGE=1 npm run test:cpp   # gates the C++ tests passing; coverage is reported (best-effort)
-      - run: npm run prebuild
+      - run: npm run prebuild:napi
       - name: bundle CTP libs alongside the prebuilt addon
         shell: bash
         run: |
           dir=$(ls -d prebuilds/*/ | head -n1)
           case "${{ matrix.os }}" in
-            windows-2022)  cp ctpsdk/windows/*.dll "$dir" || true ;;
+            windows-2022)  cp ctpsdk/windows/*.dll "$dir" ;;
             ubuntu-latest) cp ctpsdk/linux/*.so "$dir" ;;
           esac
           ls -la "$dir"
@@ -51,11 +52,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.22.2
       - run: npm ci
-      - run: npm run build:ts
+      - run: npm run build
+      - run: git diff --exit-code -- src/generated/
       - run: npm test
-      - run: npm run prebuild
+      - run: npm run prebuild:napi
       - name: bundle CTP libs alongside the prebuilt addon
         shell: bash
         run: |
@@ -67,7 +69,7 @@ jobs:
           name: prebuilds-macos-13
           path: prebuilds/
 
-  # Fully automatic release: on every push to master, semantic-release reads the
+  # Fully automatic release: on pushes to master/next, semantic-release reads the
   # Conventional Commits since the last release, decides the next version (feat ->
   # minor, fix -> patch, BREAKING CHANGE -> major), updates CHANGELOG.md + the
   # package version, cuts a GitHub Release (auto notes + the available prebuilds
@@ -75,7 +77,7 @@ jobs:
   # commits exist, it does nothing. Requires the NPM_TOKEN secret.
   release:
     needs: build              # Windows + Linux only; macOS (build-macos) never gates the release
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    if: (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/next') && github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
       published: ${{ steps.semrel.outputs.new_release_published }}   # 'true' when a version was released
@@ -93,17 +95,22 @@ jobs:
           fetch-depth: 0      # semantic-release needs full history + tags
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.22.2
           # NOTE: deliberately NO registry-url here. setup-node's registry-url
           # writes an .npmrc with _authToken=${NODE_AUTH_TOKEN}, which collides
           # with @semantic-release/npm's own NPM_TOKEN auth and yields a 401
           # ("EINVALIDNPMTOKEN"). semantic-release configures the registry itself.
       - uses: actions/download-artifact@v4
         with:
-          pattern: prebuilds-*
-          merge-multiple: true
+          name: prebuilds-windows-2022
+          path: prebuilds/
+      - uses: actions/download-artifact@v4
+        with:
+          name: prebuilds-ubuntu-latest
           path: prebuilds/
       - run: npm ci --ignore-scripts
+      - run: npm run gen       # fresh checkout: package the same generated API the build jobs tested
+      - run: git diff --exit-code -- src/generated/
       - run: npm run build:ts
       - name: bundle the available prebuilds as a release asset
         run: tar -czf ctp-node-prebuilds.tgz prebuilds/

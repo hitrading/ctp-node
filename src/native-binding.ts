@@ -14,9 +14,13 @@ const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 // On Windows the CTP .dll must be on the search path; prepend the bundled dir
 // so it is found regardless of where the .node lives (build/ or prebuilds/).
 // Linux/macOS resolve their .so/.framework via the rpath baked at build time.
+// c8 cannot execute both OS arms in one process; Windows and Linux CI each run
+// the load smoke on their native arm.
+/* c8 ignore start -- mutually exclusive platform loader */
 if (process.platform === "win32") {
   process.env.PATH = `${join(pkgRoot, "ctpsdk", "windows")};${process.env.PATH ?? ""}`;
 }
+/* c8 ignore stop */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const loadAddon = require("node-gyp-build") as (root: string) => any;

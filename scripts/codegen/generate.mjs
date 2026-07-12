@@ -33,16 +33,29 @@ const tsTypeOf = (t) =>
   t.kind === "string" || t.kind === "char" ? "string" : "number";
 const jsdoc = (c) => (c ? c.replace(/\*\//g, "* /") : "");
 
-// Resolve structs: assign ids, camelCase fields, drop fields with unknown types
-// (their absence does not affect other fields' offsets, which are absolute).
+// Resolve structs: assign ids and camelCase fields. An SDK field whose typedef
+// is unknown is a generator error, never something to silently omit from the
+// protocol surface.
 const usedNames = new Map();
 const structs = structsRaw.map((s) => {
   let name = structTypeName(s.cName);
   if (usedNames.has(name)) name = `${name}_${usedNames.get(name) + 1}`;
   usedNames.set(structTypeName(s.cName), (usedNames.get(structTypeName(s.cName)) || 0) + 1);
   const fields = s.fields
-    .map((f) => ({ ...f, js: camelCase(f.cName), t: types.get(f.ctpType) }))
-    .filter((f) => f.t);
+    .map((f) => ({ ...f, js: camelCase(f.cName), t: types.get(f.ctpType) }));
+  const fieldNames = new Set();
+  for (const field of fields) {
+    if (fieldNames.has(field.js))
+      throw new Error(`${s.cName}: duplicate generated field name ${field.js}`);
+    fieldNames.add(field.js);
+  }
+  const unknown = fields.filter((f) => !f.t);
+  if (unknown.length) {
+    throw new Error(
+      `${s.cName}: unknown CTP field type(s): ` +
+      unknown.map((f) => `${f.cName}:${f.ctpType}`).join(", ")
+    );
+  }
   return { cName: s.cName, name, fields };
 });
 
@@ -60,8 +73,9 @@ for (const en of enums) {
   }
   usedEnumNames.add(cand);
   en.finalName = cand;
-  const t = types.get(en.ctpType);
-  if (t) t.enumName = cand;
+  for (const t of types.values())
+    if (t.kind === "enum" && t.enumCtpType === en.ctpType)
+      t.enumName = cand;
 }
 
 // ---------- enums.gen.ts ----------
@@ -71,7 +85,8 @@ for (const en of enums) {
   const seen = new Set();
   for (const m of en.members) {
     let mn = /^[0-9]/.test(m.name) ? "_" + m.name : m.name;
-    if (seen.has(mn)) continue;
+    if (seen.has(mn))
+      throw new Error(`${en.ctpType}: duplicate generated enum member ${mn}`);
     seen.add(mn);
     e += `  ${mn} = ${JSON.stringify(m.value)},\n`;
   }

@@ -37,6 +37,7 @@ const b = new Trader("./flow-b/", C.td);
 let bFront, bSess;
 b.on("rsp-user-login", (r) => { bFront = r.frontId; bSess = r.sessionId; });
 b.on("front-connected", async () => {
+  let failed = false;
   try {
     for (let i = 0; i < 30 && !aReady; i++) await sleep(300);
     await login(b);
@@ -61,8 +62,8 @@ b.on("front-connected", async () => {
     await sleep(1000);
     log(`\nVERDICT: A (front=${aFront} sess=${aSess}) saw ${aSawOrder} order + ${aSawTrade} trade returns from B (front=${bFront} sess=${bSess})`);
     log(aSawOrder > 0 || aSawTrade > 0 ? "=> CROSS-SESSION DELIVERY: YES (a session sees other sessions' orders/trades)" : "=> CROSS-SESSION DELIVERY: NO (only your own session's events)");
-  } catch (e) { log("FAILED:", e.message, e.errorId); }
-  finally { md.close(); a.close(); b.close(); process.exit(0); }
+  } catch (e) { failed = true; log("FAILED:", e.message, e.errorId); }
+  finally { md.close(); a.close(); b.close(); process.exit(failed ? 1 : 0); }
 });
 
 log("connecting...");

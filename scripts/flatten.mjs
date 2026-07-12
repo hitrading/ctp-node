@@ -1,8 +1,8 @@
 // Definitive live open->close cycle. Verifies:
 //   - syncMultipliers reliably applies the multiplier (cold-start retry)
 //   - reqOrderInsert RESOLVES on submit (no hang on a filled order)
-//   - positionCost from pure onTrade == price*vol*multiplier (31800, not 3180)
-//   - positionCost returns to 0 after the close; account ends flat
+//   - accountMargin from pure onTrade == price*vol*multiplier (31800, not 3180)
+//   - accountMargin returns to 0 after the close; account ends flat
 // Listens for every order event so any rejection is visible.
 import { MarketData, Trader } from "../dist/index.js";
 import { mkdirSync } from "node:fs";
@@ -51,7 +51,8 @@ td.on("front-connected", async () => {
     log("logged in");
     await sleep(1500);
     log(`syncMultipliers applied: ${await td.syncMultipliers([cfg.symbol])} contract(s)`);
-    log(`syncPositions: ${await td.syncPositions()} open position(s); positionCost=${td.positionCost().toFixed(0)} (expect 0)`);
+    await td.syncOrders();
+    log(`syncPositions: ${await td.syncPositions()} open position(s); accountMargin=${td.accountMargin.toFixed(0)} (expect 0)`);
 
     await sleep(1200);
     const buyPx = Math.round((last || 3200) + 80);
@@ -59,7 +60,7 @@ td.on("front-connected", async () => {
     await td.reqOrderInsert(order({ direction: "0", combOffsetFlag: "0", limitPrice: buyPx }));
     log("  -> open await RESOLVED (submitted, no hang)");
     await sleep(2500);
-    log(`positionCost after open (pure onTrade) = ${td.positionCost().toFixed(0)} (expect 31800 = 3180*1*10)`);
+    log(`accountMargin after open (pure onTrade) = ${td.accountMargin.toFixed(0)} (expect 31800 = 3180*1*10)`);
 
     await sleep(1000);
     const sellPx = Math.round((last || 3100) - 80);
@@ -67,7 +68,7 @@ td.on("front-connected", async () => {
     await td.reqOrderInsert(order({ direction: "1", combOffsetFlag: "3", limitPrice: sellPx }));
     log("  -> close await RESOLVED");
     await sleep(2500);
-    log(`positionCost after close (onTrade release) = ${td.positionCost().toFixed(0)} (expect 0)`);
+    log(`accountMargin after close (onTrade release) = ${td.accountMargin.toFixed(0)} (expect 0)`);
 
     await sleep(1200);
     log(`syncPositions confirm: ${await td.syncPositions()} open position(s) -> account flat`);

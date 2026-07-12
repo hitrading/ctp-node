@@ -16,7 +16,7 @@ if (Direction.Buy !== "0") throw new Error("Direction enum missing/wrong: " + Di
 if (OffsetFlag.Open === undefined) throw new Error("OffsetFlag enum missing");
 
 const md = new MarketData("./flow-smoke/", "tcp://127.0.0.1:1");
-const v = md.getApiVersion(); // forces the native addon (and CTP DLL) to load
+const v = md.apiVersion; // forces the native addon (and CTP DLL) to load
 md.close();
 
 console.log("CJS smoke OK — require() works; addon loaded; CTP api =", v, "| Direction.Buy =", Direction.Buy);

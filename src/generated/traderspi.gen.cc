@@ -1,17 +1,52 @@
 /* AUTO-GENERATED. Do not edit. */
 #include "traderspi.gen.h"
 #include "structids.gen.h"
+#include <string>
 
 namespace ctp {
 
 static int eid(CThostFtdcRspInfoField *e) { return e ? e->ErrorID : 0; }
 static const char *emsg(CThostFtdcRspInfoField *e) { return (e && e->ErrorID) ? e->ErrorMsg : ""; }
 
+static bool validSingleOffset(const char *flags, size_t capacity) {
+  return capacity > 0 && flags[0] >= '0' && flags[0] <= '6' &&
+         (capacity == 1 || flags[1] == '\0');
+}
+
+static bool validHedgeFlag(char flag) {
+  return flag == '1' || flag == '2' || flag == '3' || flag == '5' ||
+         flag == '6' || flag == '7';
+}
+
+static bool validSingleHedge(const char *flags, size_t capacity) {
+  return capacity > 0 && validHedgeFlag(flags[0]) &&
+         (capacity == 1 || flags[1] == '\0');
+}
+
+template <size_t N>
+static bool boundedField(const char (&field)[N], std::string &out) {
+  size_t length = 0;
+  while (length < N && field[length] != '\0')
+    ++length;
+  if (length == N)
+    return false;
+  out.assign(field, length);
+  return true;
+}
+
 void TraderSpi::OnFrontConnected() {
+  if (arm_)
+    arm_->clear();
+  if (risk_)
+    risk_->invalidateSession();
   ch_->push(ET_FrontConnected, 0, -1, 0, "", -1, nullptr, 0);
 }
 
 void TraderSpi::OnFrontDisconnected(int arg) {
+  if (arm_)
+    arm_->clear();
+  if (risk_)
+    risk_->invalidateSession();
   ch_->push(ET_FrontDisconnected, 0, -1, 0, "", -2, &arg, sizeof(arg));
 }
 
@@ -28,12 +63,16 @@ void TraderSpi::OnRtnPrivateSeqNo(int arg) {
 }
 
 void TraderSpi::OnRspUserLogin(CThostFtdcRspUserLoginField *p, CThostFtdcRspInfoField *e, int id, bool last) {
-  if (p && risk_)
-    risk_->setSession(p->FrontID, p->SessionID);
+  if (risk_ && last) {
+    if (!p || eid(e) != 0 || !risk_->acceptLoginSession(id, p->FrontID, p->SessionID, p->BrokerID, p->UserID))
+      risk_->finishSessionTransition(id);
+  }
   ch_->push(ET_RspUserLogin, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_RspUserLogin : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
 void TraderSpi::OnRspUserLogout(CThostFtdcUserLogoutField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  if (risk_ && last)
+    risk_->finishSessionTransition(id);
   ch_->push(ET_RspUserLogout, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_UserLogout : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -58,8 +97,11 @@ void TraderSpi::OnRspGenUserText(CThostFtdcRspGenUserTextField *p, CThostFtdcRsp
 }
 
 void TraderSpi::OnRspOrderInsert(CThostFtdcInputOrderField *p, CThostFtdcRspInfoField *e, int id, bool last) {
-  if (p && risk_)
-    risk_->releaseReservation(p->OrderRef);
+  if (risk_ && eid(e) != 0 && (!p || !validSingleOffset(p->CombOffsetFlag, sizeof(p->CombOffsetFlag)) || p->CombOffsetFlag[0] == '0')) {
+    std::string orderRef, broker, investor;
+    if (p) { boundedField(p->OrderRef, orderRef); boundedField(p->BrokerID, broker); boundedField(p->InvestorID, investor); }
+    risk_->rejectInsertByRequest(id, orderRef, broker, investor);
+  }
   ch_->push(ET_RspOrderInsert, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_InputOrder : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -152,10 +194,12 @@ void TraderSpi::OnRspQryTradingCode(CThostFtdcTradingCodeField *p, CThostFtdcRsp
 }
 
 void TraderSpi::OnRspQryInstrumentMarginRate(CThostFtdcInstrumentMarginRateField *p, CThostFtdcRspInfoField *e, int id, bool last) {
-  if (p && risk_) {
-    const double mr = p->LongMarginRatioByMoney > p->ShortMarginRatioByMoney ? p->LongMarginRatioByMoney : p->ShortMarginRatioByMoney;
-    risk_->setMarginRate(p->InstrumentID, mr);
+  if (p && risk_ && eid(e) == 0) {
+    std::string broker, investor, investUnit, instrument;
+    if (boundedField(p->BrokerID, broker) && boundedField(p->InvestorID, investor) && boundedField(p->InvestUnitID, investUnit) && boundedField(p->InstrumentID, instrument))
+      risk_->applyInvestorMarginSchedule(id, broker, investor, investUnit, instrument, p->HedgeFlag, p->LongMarginRatioByMoney, p->LongMarginRatioByVolume, p->ShortMarginRatioByMoney, p->ShortMarginRatioByVolume, p->IsRelative != 0);
   }
+  if (risk_ && last) risk_->finishMarginScheduleQuery(id, eid(e) == 0);
   ch_->push(ET_RspQryInstrumentMarginRate, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_InstrumentMarginRate : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -176,8 +220,13 @@ void TraderSpi::OnRspQryProduct(CThostFtdcProductField *p, CThostFtdcRspInfoFiel
 }
 
 void TraderSpi::OnRspQryInstrument(CThostFtdcInstrumentField *p, CThostFtdcRspInfoField *e, int id, bool last) {
-  if (p && risk_)
-    risk_->setMultiplier(p->InstrumentID, p->VolumeMultiple);
+  if (p && risk_ && eid(e) == 0) {
+    std::string instrument;
+    if (boundedField(p->InstrumentID, instrument))
+      risk_->setInstrument(instrument, p->VolumeMultiple, p->ProductClass);
+    else
+      risk_->invalidateInstrument("");
+  }
   ch_->push(ET_RspQryInstrument, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_Instrument : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -226,6 +275,12 @@ void TraderSpi::OnRspQryInvestorProductGroupMargin(CThostFtdcInvestorProductGrou
 }
 
 void TraderSpi::OnRspQryExchangeMarginRate(CThostFtdcExchangeMarginRateField *p, CThostFtdcRspInfoField *e, int id, bool last) {
+  if (p && risk_ && eid(e) == 0) {
+    std::string broker, instrument;
+    if (boundedField(p->BrokerID, broker) && boundedField(p->InstrumentID, instrument))
+      risk_->applyExchangeMarginSchedule(id, broker, instrument, p->HedgeFlag, p->LongMarginRatioByMoney, p->LongMarginRatioByVolume, p->ShortMarginRatioByMoney, p->ShortMarginRatioByVolume);
+  }
+  if (risk_ && last) risk_->finishMarginScheduleQuery(id, eid(e) == 0);
   ch_->push(ET_RspQryExchangeMarginRate, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_ExchangeMarginRate : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -322,20 +377,45 @@ void TraderSpi::OnRspError(CThostFtdcRspInfoField *e, int id, bool last) {
 }
 
 void TraderSpi::OnRtnOrder(CThostFtdcOrderField *p) {
-  if (p && risk_)
-    risk_->onOrderUpdate(p->FrontID, p->SessionID, p->OrderRef, p->InstrumentID, p->CombOffsetFlag[0] == '0', p->Direction == '0', p->OrderStatus, p->LimitPrice, p->VolumeTotalOriginal, p->VolumeTraded);
+  if (p && risk_) {
+    std::string day, broker, investor, exchange, instrument, orderSysId, orderRef;
+    const bool stringsValid = boundedField(p->TradingDay, day) && boundedField(p->BrokerID, broker) && boundedField(p->InvestorID, investor) && boundedField(p->ExchangeID, exchange) && boundedField(p->InstrumentID, instrument) && boundedField(p->OrderSysID, orderSysId) && boundedField(p->OrderRef, orderRef);
+    const std::string sys = stringsValid && !day.empty() && !broker.empty() && !investor.empty() && !exchange.empty() && !instrument.empty() && !orderSysId.empty() ? day + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|" + orderSysId : std::string();
+    if (stringsValid && !broker.empty() && !investor.empty() && validSingleOffset(p->CombOffsetFlag, sizeof(p->CombOffsetFlag)) && validSingleHedge(p->CombHedgeFlag, sizeof(p->CombHedgeFlag)) && (p->Direction == '0' || p->Direction == '1') && !instrument.empty() && !orderRef.empty()) {
+      risk_->onOrderUpdate(p->FrontID, p->SessionID, orderRef, instrument, p->CombOffsetFlag[0] == '0', p->Direction == '0', p->CombHedgeFlag[0], p->OrderStatus, p->LimitPrice, p->VolumeTotalOriginal, p->VolumeTraded, sys, broker, investor);
+    } else {
+      risk_->onUnsupportedOrderUpdate(p->FrontID, p->SessionID, orderRef, p->OrderStatus, sys, broker, investor);
+    }
+  }
   ch_->push(ET_RtnOrder, 0, -1, 0, "", p ? SID_Order : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
 void TraderSpi::OnRtnTrade(CThostFtdcTradeField *p) {
-  if (p && risk_)
-    risk_->onTrade(p->InstrumentID, p->Direction == '0', p->OffsetFlag == '0', p->Price, p->Volume);
+  if (p && risk_) {
+    std::string tradingDay, tradeDate, broker, investor, exchange, instrument, tradeId, orderSysId, orderRef;
+    const bool stringsValid = boundedField(p->TradingDay, tradingDay) && boundedField(p->TradeDate, tradeDate) && boundedField(p->BrokerID, broker) && boundedField(p->InvestorID, investor) && boundedField(p->ExchangeID, exchange) && boundedField(p->InstrumentID, instrument) && boundedField(p->TradeID, tradeId) && boundedField(p->OrderSysID, orderSysId) && boundedField(p->OrderRef, orderRef);
+    if (stringsValid && !instrument.empty() && !broker.empty() && !investor.empty() && (p->Direction == '0' || p->Direction == '1') && p->OffsetFlag >= '0' && p->OffsetFlag <= '6' && validHedgeFlag(p->HedgeFlag)) {
+      const std::string &day = !tradingDay.empty() ? tradingDay : tradeDate;
+      std::string key;
+      if (!day.empty() && !exchange.empty() && !tradeId.empty())
+        key = day + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|trade|" + tradeId;
+      else if (!day.empty() && !exchange.empty() && p->SequenceNo != 0)
+        key = day + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|sequence|" + std::to_string(p->SequenceNo);
+      const std::string sys = !tradingDay.empty() && !exchange.empty() && !orderSysId.empty() ? tradingDay + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|" + orderSysId : std::string();
+      risk_->onTrade(key, orderRef, sys, instrument, p->Direction == '0', p->OffsetFlag == '0', p->HedgeFlag, p->Price, p->Volume, broker, investor);
+    } else {
+      risk_->markTradeLedgerUncertain();
+    }
+  }
   ch_->push(ET_RtnTrade, 0, -1, 0, "", p ? SID_Trade : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
 void TraderSpi::OnErrRtnOrderInsert(CThostFtdcInputOrderField *p, CThostFtdcRspInfoField *e) {
-  if (p && risk_)
-    risk_->releaseReservation(p->OrderRef);
+  if (risk_ && (!p || !validSingleOffset(p->CombOffsetFlag, sizeof(p->CombOffsetFlag)) || p->CombOffsetFlag[0] == '0')) {
+    std::string orderRef, broker, investor;
+    if (p) { boundedField(p->OrderRef, orderRef); boundedField(p->BrokerID, broker); boundedField(p->InvestorID, investor); }
+    risk_->rejectInsertUnscoped(orderRef, broker, investor);
+  }
   ch_->push(ET_ErrRtnOrderInsert, 0, -1, eid(e), emsg(e), p ? SID_InputOrder : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -360,6 +440,8 @@ void TraderSpi::OnRtnErrorConditionalOrder(CThostFtdcErrorConditionalOrderField 
 }
 
 void TraderSpi::OnRtnExecOrder(CThostFtdcExecOrderField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnExecOrder, 0, -1, 0, "", p ? SID_ExecOrder : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -376,6 +458,8 @@ void TraderSpi::OnErrRtnForQuoteInsert(CThostFtdcInputForQuoteField *p, CThostFt
 }
 
 void TraderSpi::OnRtnQuote(CThostFtdcQuoteField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnQuote, 0, -1, 0, "", p ? SID_Quote : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -400,6 +484,8 @@ void TraderSpi::OnErrRtnBatchOrderAction(CThostFtdcBatchOrderActionField *p, CTh
 }
 
 void TraderSpi::OnRtnOptionSelfClose(CThostFtdcOptionSelfCloseField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnOptionSelfClose, 0, -1, 0, "", p ? SID_OptionSelfClose : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -412,6 +498,8 @@ void TraderSpi::OnErrRtnOptionSelfCloseAction(CThostFtdcOptionSelfCloseActionFie
 }
 
 void TraderSpi::OnRtnCombAction(CThostFtdcCombActionField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnCombAction, 0, -1, 0, "", p ? SID_CombAction : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -448,34 +536,50 @@ void TraderSpi::OnRspQueryCFMMCTradingAccountToken(CThostFtdcQueryCFMMCTradingAc
 }
 
 void TraderSpi::OnRtnFromBankToFutureByBank(CThostFtdcRspTransferField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnFromBankToFutureByBank, 0, -1, 0, "", p ? SID_RspTransfer : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
 void TraderSpi::OnRtnFromFutureToBankByBank(CThostFtdcRspTransferField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnFromFutureToBankByBank, 0, -1, 0, "", p ? SID_RspTransfer : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
 void TraderSpi::OnRtnRepealFromBankToFutureByBank(CThostFtdcRspRepealField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnRepealFromBankToFutureByBank, 0, -1, 0, "", p ? SID_RspRepeal : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
 void TraderSpi::OnRtnRepealFromFutureToBankByBank(CThostFtdcRspRepealField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnRepealFromFutureToBankByBank, 0, -1, 0, "", p ? SID_RspRepeal : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
 void TraderSpi::OnRtnFromBankToFutureByFuture(CThostFtdcRspTransferField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnFromBankToFutureByFuture, 0, -1, 0, "", p ? SID_RspTransfer : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
 void TraderSpi::OnRtnFromFutureToBankByFuture(CThostFtdcRspTransferField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnFromFutureToBankByFuture, 0, -1, 0, "", p ? SID_RspTransfer : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
 void TraderSpi::OnRtnRepealFromBankToFutureByFutureManual(CThostFtdcRspRepealField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnRepealFromBankToFutureByFutureManual, 0, -1, 0, "", p ? SID_RspRepeal : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
 void TraderSpi::OnRtnRepealFromFutureToBankByFutureManual(CThostFtdcRspRepealField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnRepealFromFutureToBankByFutureManual, 0, -1, 0, "", p ? SID_RspRepeal : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -504,10 +608,14 @@ void TraderSpi::OnErrRtnQueryBankBalanceByFuture(CThostFtdcReqQueryAccountField 
 }
 
 void TraderSpi::OnRtnRepealFromBankToFutureByFuture(CThostFtdcRspRepealField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnRepealFromBankToFutureByFuture, 0, -1, 0, "", p ? SID_RspRepeal : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
 void TraderSpi::OnRtnRepealFromFutureToBankByFuture(CThostFtdcRspRepealField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnRepealFromFutureToBankByFuture, 0, -1, 0, "", p ? SID_RspRepeal : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -668,6 +776,8 @@ void TraderSpi::OnRspCancelOffsetSetting(CThostFtdcInputOffsetSettingField *p, C
 }
 
 void TraderSpi::OnRtnOffsetSetting(CThostFtdcOffsetSettingField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnOffsetSetting, 0, -1, 0, "", p ? SID_OffsetSetting : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -700,6 +810,8 @@ void TraderSpi::OnRspQrySpdApply(CThostFtdcSpdApplyField *p, CThostFtdcRspInfoFi
 }
 
 void TraderSpi::OnRtnSpdApply(CThostFtdcSpdApplyField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnSpdApply, 0, -1, 0, "", p ? SID_SpdApply : -1, p, p ? (int)sizeof(*p) : 0);
 }
 
@@ -724,6 +836,8 @@ void TraderSpi::OnRspQryHedgeCfm(CThostFtdcHedgeCfmField *p, CThostFtdcRspInfoFi
 }
 
 void TraderSpi::OnRtnHedgeCfm(CThostFtdcHedgeCfmField *p) {
+  if (p && risk_)
+    risk_->recordUnsupportedRiskMutation();
   ch_->push(ET_RtnHedgeCfm, 0, -1, 0, "", p ? SID_HedgeCfm : -1, p, p ? (int)sizeof(*p) : 0);
 }
 

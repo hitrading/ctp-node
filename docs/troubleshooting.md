@@ -49,7 +49,7 @@ silent even when subscribed.
 | `reqAuthenticate` fails | wrong appId / authCode (terminal authentication) | SimNow: `appId: "simnow_client_test"`, `authCode: "0000000000000000"`. Real accounts use the broker-issued values. |
 | "CTP:还没有初始化" | called a request before `front-connected` | do login/queries inside the `front-connected` handler. |
 | orders rejected right after login on a real account | settlement statement not confirmed | call `reqSettlementInfoConfirm(...)` (or just use `session()`, which does it). |
-| first query after login is empty / rejected | queried too soon (cold start) | use the `sync*` helpers (they retry through flow control), or wait ~1s. |
+| first query after login is empty / rejected | account/front not ready yet | use the `sync*` helpers (they retry transient flow-control/empty readiness); raw queries are paced but not automatically retried. |
 
 `session()` does authenticate → login → confirm → sync in the right order with
 the right retries — prefer it over hand-rolling unless you need fine control.
@@ -68,11 +68,18 @@ td.on("front-connected", () => td.session({
 CTP throttles **queries to ~1 per second** per session. Issuing them too fast (or
 too soon after login) returns empty or rejects with a flow-control error.
 
-- Use `syncMultipliers()` / `syncPositions()` / `syncOrders()` — they retry with
-  back-off built in.
-- For raw `reqQry*`, space calls ≥ ~1.1 s apart.
+- Use `syncMultipliers()` / `syncOrders()` / `syncPositions()` — they retry
+  transient `-2`/`-3` flow-control failures and required empty cold-start data.
+- Do **not** add `setTimeout(1000)` around raw `reqQry*` / `reqQuery*` calls.
+  Every query on the same client is snapshotted at invocation and enters one
+  FIFO scheduler: at most one is in flight and attempted sends are at least
+  1100 ms apart. A disconnect/login/logout invalidates unsent old-session work.
+- Scheduling is per `Trader`/`MarketData` instance, not process-global. If
+  several instances share a broker/account-wide quota, coordinate those at the
+  application gateway. The queue is bounded at 256; await earlier work rather
+  than creating an hours-long `Promise.all` backlog.
 - Send-side flow control also applies to **orders**: CTP caps the send rate.
-  Configure `riskSet({ maxOrdersPerSec, orderBurst })` so the C++ token bucket
+  Configure `setRiskLimits({ maxOrdersPerSec, orderBurst })` so the C++ token bucket
   paces you under the limit instead of getting exchange rejections.
 
 The send-return codes for this: `-2` = too many unhandled requests in flight,
@@ -99,7 +106,7 @@ changes arrive as `rtn-order`. Watch both.
 
 If your own pre-trade risk blocked it, the **rejected Promise** message says so
 (`blocked by pre-trade risk: ...`, `rate limited`, `position ... limit`) — that's
-your `riskSet`/`setMaxPosition`/`halt`, not the exchange.
+your `setRiskLimits`/`setInstrumentPositionLimit`/risk mode, not the exchange.
 
 ---
 
@@ -115,8 +122,8 @@ empty side with the sentinel `DBL_MAX` (`Number.MAX_VALUE`, ~1.8e308), **not** 0
   `lastPrice`, check `px > 0 && px < 1e300`. The risk engine's reference-price,
   cost, and notional paths already reject the sentinel.
 - **Cancelling at limit-down works** — `reqOrderAction` isn't price-gated, and
-  the kill-switch (`halt()`) deliberately leaves cancels open so you can always
-  pull resting orders even while halted.
+  both `reduceOnly()` and `haltAll()` deliberately leave cancels open so you can
+  always pull resting orders while new inserts are restricted.
 
 ```ts
 md.on("rtn-depth-market-data", (t) => {
@@ -129,19 +136,60 @@ md.on("rtn-depth-market-data", (t) => {
 
 ## Performance & memory
 
-Subscribing the **entire market** is fine. Measured live (SimNow, 18,111
-instruments, per-tick SMA on every one + timer-driven order/cancel): RSS
-plateaued ~124 MB, CPU 0–2%, **0 dropped records**, ~3 µs/tick strategy cost,
-event-loop lag normal. The decoder sustains ~8 M ticks/s, so a full-market feed
-has large headroom.
+In one historical live sample (not continuous soak coverage), subscribing the
+**entire market** (SimNow, 18,111 instruments, per-tick SMA on every one +
+timer-driven order/cancel) plateaued at ~124 MB RSS, CPU 0–2%, **0 dropped
+records**, ~3 µs/tick strategy cost and normal event-loop lag.
+
+The exact `3.0.0-rc.1` candidate also has a reproducible offline probe:
+
+```bash
+npm run bench:fullmarket
+```
+
+On 2026-07-11, Node 24.18.0 / Windows 11 / Intel Core Ultra 9 285K (24 logical
+CPUs, 96 GiB RAM), the full path used a native background callback thread and
+the real `MdSpi`: 18,111 distinct `InstrumentID` values, the native snapshot
+lock/cache, channel, generated 46-field decoder, EventEmitter, and 18,111
+string-keyed 20-tick rolling states looked up through each real
+`tick.instrumentId`.
+
+- 50k/s for 5 s: 250,000/250,000 delivered, 0 drops, 129 MiB peak RSS, 1.55%
+  of one CPU core, 6.1% event-loop utilization.
+- 500k/s for 30 s: 15,000,000/15,000,000 delivered, 0 drops, 247 MiB peak RSS,
+  6.62% of one CPU core (0.28% of the 24-core machine), 26.2% ELU. The run
+  stayed below that RSS ceiling; 30 seconds is not a proof against a longer-term leak.
+- 1M/s for 3 s: 2,994,819 delivered and 5,181 keep-newest drops (0.173%),
+  242 MiB peak RSS, 73.8% of one core and 64.3% ELU. This is beyond the measured
+  zero-loss envelope.
+- One back-to-back callback storm containing one tick for every 18,111 symbol:
+  18,111/18,111 delivered, 0 drops, drained in about 10.9 ms.
+
+This verifies at least 10x zero-loss throughput over a 50k/s reference load on
+that host; it does not promise the same margin on other CPUs or with a heavier
+handler. The producer includes the binding's native callback loop but not CTP
+network parsing. A CTP callback stream is serial, so “simultaneous” instruments
+are modeled as the tight back-to-back callback storm above. The historical live
+run is supporting evidence, not a current-candidate soak. Re-run
+`scripts/stress-fullmarket.mjs` for 30–60 minutes during an opening/auction with
+the exact packaged artifact before production acceptance.
 
 - **`droppedRecords > 0` and climbing** = your JS handlers can't keep up and the
   market-data ring is shedding the oldest ticks ("行情挤压"). Move heavy work off
-  the tick path (batch it, or offload to a worker); the trader ring is reliable
-  (drop-newest) so order/trade returns are never dropped.
-- **Memory grows unbounded** = you're retaining objects (e.g. pushing every tick
-  into an array forever). The binding itself decodes into transient objects and a
-  fixed-size ring; it does not leak. Keep only bounded per-instrument state.
+  the tick path (batch it, or offload to a worker). Trader callbacks spill into
+  an ordered lossless queue; prolonged handler stalls therefore grow memory
+  instead of dropping order/trade returns.
+- **Memory grows unbounded** usually means the app retains objects. It can also
+  mean the Trader event loop is continuously slower than callback production:
+  its correctness-first overflow queue is lossless and intentionally unbounded.
+  Keep handlers and retained state bounded.
+- The fixed MD ring is ~21.2 MiB and its bounded keep-newest tick staging can
+  temporarily hold roughly another ring of payloads; non-droppable MD control
+  responses are lossless and therefore are not part of that tick bound. The
+  fixed Trader ring is ~10.6 MiB. MD tick overload remains bounded by dropping
+  oldest ticks and retaining the freshest;
+  the Trader's lossless overflow is intentionally unbounded and can reach GiB
+  if JS stops consuming for long enough.
 - **The big `reqQryInstrument({})`** (all ~18k instruments) streams over ~30–50 s
   and resolves as one array — expected; budget for that cold-start time.
 
@@ -186,10 +234,15 @@ methods like `reqOrderInsert` a non-zero one rejects the Promise):
 | `-1` | network send failed (not connected, or CTP refused the send) |
 | `-2` | too many unhandled requests in flight |
 | `-3` | per-second send rate exceeded (CTP flow control) |
-| `-10001` | blocked by this binding's pre-trade risk (`lastRiskReason()` / message has the cause) |
-| `-10002` | blocked by the rate limiter (`maxOrdersPerSec`) |
-| `-10003` | blocked by the position **margin** cap (`riskSet({ maxMargin })`, the Σ price×vol×multiplier×marginRate cap — `maxPositionCost` is a deprecated alias; or per-instrument `setMaxPositionCost`) |
-| `-10004` | blocked by a position-**volume** cap (`setMaxPosition`) |
+| `-10001` | blocked by this binding's pre-trade risk (the rejection message carries the specific cause) |
+| `-10002` | blocked by the configured open or close rate limiter |
+| `-10003` | blocked by a margin cap (`maxAccountMargin` / `setInstrumentMarginLimit`; by-money + by-volume schedule) |
+| `-10004` | blocked by a position-**volume** cap (`setInstrumentPositionLimit`) |
+| `-10005` | duplicate `OrderRef` in this front/session |
+| `-10006` | complex insert cannot traverse configured local risk and failed closed |
+| `-10007` | required price/multiplier/margin metadata missing or relative |
+| `-10008` | invalid order direction or offset flag |
+| `-10009` | market-data login/logout refused: a session transition is already in flight or ambiguous (await it, or reconnect after a timeout) |
 
 **Exchange/broker errors** arrive as `rspInfo` (`{ errorId, errorMsg }`) on the
 relevant event, and on a rejected request Promise as `err.errorId` /

@@ -4,13000 +4,13000 @@ import * as enums from "./enums.gen.js";
 
 /** CThostFtdcDisseminationField */
 export interface Dissemination {
-  /** ����ϵ�к� */
+  /** 序列系列号 */
   sequenceSeries: number;
-  /** ���к� */
+  /** 序列号 */
   sequenceNo: number;
 }
 
 /** CThostFtdcReqUserLoginField */
 export interface ReqUserLogin {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���� */
+  /** 密码 */
   password: string;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** �ӿڶ˲�Ʒ��Ϣ */
+  /** 接口端产品信息 */
   interfaceProductInfo: string;
-  /** Э����Ϣ */
+  /** 协议信息 */
   protocolInfo: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��̬���� */
+  /** 动态密码 */
   oneTimePassword: string;
-  /** ��¼��ע */
+  /** 登录备注 */
   loginRemark: string;
-  /** �ն�IP�˿� */
+  /** 终端IP端口 */
   clientIpPort: number;
-  /** �ն�IP��ַ */
+  /** 终端IP地址 */
   clientIpAddress: string;
-  /** ������֤�� */
+  /** 短信验证码 */
   smsCode: string;
 }
 
 /** CThostFtdcRspUserLoginField */
 export interface RspUserLogin {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ��¼�ɹ�ʱ�� */
+  /** 登录成功时间 */
   loginTime: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ����ϵͳ���� */
+  /** 交易系统名称 */
   systemName: string;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ��󱨵����� */
+  /** 最大报单引用 */
   maxOrderRef: string;
-  /** ������ʱ�� */
+  /** 上期所时间 */
   shfeTime: string;
-  /** ������ʱ�� */
+  /** 大商所时间 */
   dceTime: string;
-  /** ֣����ʱ�� */
+  /** 郑商所时间 */
   czceTime: string;
-  /** �н���ʱ�� */
+  /** 中金所时间 */
   ffexTime: string;
-  /** ��Դ����ʱ�� */
+  /** 能源中心时间 */
   ineTime: string;
-  /** ��̨�汾��Ϣ */
+  /** 后台版本信息 */
   sysVersion: string;
-  /** ������ʱ�� */
+  /** 广期所时间 */
   gfexTime: string;
-  /** ��ǰ��¼���ĺ� */
+  /** 当前登录中心号 */
   loginDrIdentityId: number;
-  /** �û��������ĺ� */
+  /** 用户所属中心号 */
   userDrIdentityId: number;
-  /** �ϴε�½ʱ�� */
+  /** 上次登陆时间 */
   lastLoginTime: string;
-  /** Ԥ����Ϣ */
+  /** 预留信息 */
   reserveInfo: string;
 }
 
 /** CThostFtdcUserLogoutField */
 export interface UserLogout {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
 }
 
 /** CThostFtdcForceUserLogoutField */
 export interface ForceUserLogout {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
 }
 
 /** CThostFtdcReqAuthenticateField */
 export interface ReqAuthenticate {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** ��֤�� */
+  /** 认证码 */
   authCode: string;
-  /** App���� */
+  /** App代码 */
   appId: string;
 }
 
 /** CThostFtdcRspAuthenticateField */
 export interface RspAuthenticate {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** App���� */
+  /** App代码 */
   appId: string;
-  /** App���� */
+  /** App类型 */
   appType: `${enums.AppType}`;
 }
 
 /** CThostFtdcAuthenticationInfoField */
 export interface AuthenticationInfo {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** ��֤��Ϣ */
+  /** 认证信息 */
   authInfo: string;
-  /** �Ƿ�Ϊ��֤��� */
+  /** 是否为认证结果 */
   isResult: number;
-  /** App���� */
+  /** App代码 */
   appId: string;
-  /** App���� */
+  /** App类型 */
   appType: `${enums.AppType}`;
-  /** �ն�IP��ַ */
+  /** 终端IP地址 */
   clientIpAddress: string;
 }
 
 /** CThostFtdcRspUserLogin2Field */
 export interface RspUserLogin2 {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ��¼�ɹ�ʱ�� */
+  /** 登录成功时间 */
   loginTime: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ����ϵͳ���� */
+  /** 交易系统名称 */
   systemName: string;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ��󱨵����� */
+  /** 最大报单引用 */
   maxOrderRef: string;
-  /** ������ʱ�� */
+  /** 上期所时间 */
   shfeTime: string;
-  /** ������ʱ�� */
+  /** 大商所时间 */
   dceTime: string;
-  /** ֣����ʱ�� */
+  /** 郑商所时间 */
   czceTime: string;
-  /** �н���ʱ�� */
+  /** 中金所时间 */
   ffexTime: string;
-  /** ��Դ����ʱ�� */
+  /** 能源中心时间 */
   ineTime: string;
-  /** ����� */
+  /** 随机串 */
   randomString: string;
 }
 
 /** CThostFtdcTransferHeaderField */
 export interface TransferHeader {
-  /** �汾�ţ�������1.0 */
+  /** 版本号，常量，1.0 */
   version: string;
-  /** ���״��룬���� */
+  /** 交易代码，必填 */
   tradeCode: string;
-  /** �������ڣ������ʽ��yyyymmdd */
+  /** 交易日期，必填，格式：yyyymmdd */
   tradeDate: string;
-  /** ����ʱ�䣬�����ʽ��hhmmss */
+  /** 交易时间，必填，格式：hhmmss */
   tradeTime: string;
-  /** ������ˮ�ţ�N/A */
+  /** 发起方流水号，N/A */
   tradeSerial: string;
-  /** �ڻ���˾���룬���� */
+  /** 期货公司代码，必填 */
   futureId: string;
-  /** ���д��룬���ݲ�ѯ���еõ������� */
+  /** 银行代码，根据查询银行得到，必填 */
   bankId: string;
-  /** ���з����Ĵ��룬���ݲ�ѯ���еõ������� */
+  /** 银行分中心代码，根据查询银行得到，必填 */
   bankBrchId: string;
-  /** ����Ա��N/A */
+  /** 操作员，N/A */
   operNo: string;
-  /** �����豸���ͣ�N/A */
+  /** 交易设备类型，N/A */
   deviceId: string;
-  /** ��¼����N/A */
+  /** 记录数，N/A */
   recordNum: string;
-  /** �Ự��ţ�N/A */
+  /** 会话编号，N/A */
   sessionId: number;
-  /** �����ţ�N/A */
+  /** 请求编号，N/A */
   requestId: number;
 }
 
 /** CThostFtdcTransferBankToFutureReqField */
 export interface TransferBankToFutureReq {
-  /** �ڻ��ʽ��˻� */
+  /** 期货资金账户 */
   futureAccount: string;
-  /** �����־ */
+  /** 密码标志 */
   futurePwdFlag: `${enums.FuturePwdFlag}`;
-  /** ���� */
+  /** 密码 */
   futureAccPwd: string;
-  /** ת�˽�� */
+  /** 转账金额 */
   tradeAmt: number;
-  /** �ͻ������� */
+  /** 客户手续费 */
   custFee: number;
-  /** ���֣�RMB-����� USD-��Բ HKD-��Ԫ */
+  /** 币种：RMB-人民币 USD-美圆 HKD-港元 */
   currencyCode: string;
 }
 
 /** CThostFtdcTransferBankToFutureRspField */
 export interface TransferBankToFutureRsp {
-  /** ��Ӧ���� */
+  /** 响应代码 */
   retCode: string;
-  /** ��Ӧ��Ϣ */
+  /** 响应信息 */
   retInfo: string;
-  /** �ʽ��˻� */
+  /** 资金账户 */
   futureAccount: string;
-  /** ת�ʽ�� */
+  /** 转帐金额 */
   tradeAmt: number;
-  /** Ӧ�տͻ������� */
+  /** 应收客户手续费 */
   custFee: number;
-  /** ���� */
+  /** 币种 */
   currencyCode: string;
 }
 
 /** CThostFtdcTransferFutureToBankReqField */
 export interface TransferFutureToBankReq {
-  /** �ڻ��ʽ��˻� */
+  /** 期货资金账户 */
   futureAccount: string;
-  /** �����־ */
+  /** 密码标志 */
   futurePwdFlag: `${enums.FuturePwdFlag}`;
-  /** ���� */
+  /** 密码 */
   futureAccPwd: string;
-  /** ת�˽�� */
+  /** 转账金额 */
   tradeAmt: number;
-  /** �ͻ������� */
+  /** 客户手续费 */
   custFee: number;
-  /** ���֣�RMB-����� USD-��Բ HKD-��Ԫ */
+  /** 币种：RMB-人民币 USD-美圆 HKD-港元 */
   currencyCode: string;
 }
 
 /** CThostFtdcTransferFutureToBankRspField */
 export interface TransferFutureToBankRsp {
-  /** ��Ӧ���� */
+  /** 响应代码 */
   retCode: string;
-  /** ��Ӧ��Ϣ */
+  /** 响应信息 */
   retInfo: string;
-  /** �ʽ��˻� */
+  /** 资金账户 */
   futureAccount: string;
-  /** ת�ʽ�� */
+  /** 转帐金额 */
   tradeAmt: number;
-  /** Ӧ�տͻ������� */
+  /** 应收客户手续费 */
   custFee: number;
-  /** ���� */
+  /** 币种 */
   currencyCode: string;
 }
 
 /** CThostFtdcTransferQryBankReqField */
 export interface TransferQryBankReq {
-  /** �ڻ��ʽ��˻� */
+  /** 期货资金账户 */
   futureAccount: string;
-  /** �����־ */
+  /** 密码标志 */
   futurePwdFlag: `${enums.FuturePwdFlag}`;
-  /** ���� */
+  /** 密码 */
   futureAccPwd: string;
-  /** ���֣�RMB-����� USD-��Բ HKD-��Ԫ */
+  /** 币种：RMB-人民币 USD-美圆 HKD-港元 */
   currencyCode: string;
 }
 
 /** CThostFtdcTransferQryBankRspField */
 export interface TransferQryBankRsp {
-  /** ��Ӧ���� */
+  /** 响应代码 */
   retCode: string;
-  /** ��Ӧ��Ϣ */
+  /** 响应信息 */
   retInfo: string;
-  /** �ʽ��˻� */
+  /** 资金账户 */
   futureAccount: string;
-  /** ������� */
+  /** 银行余额 */
   tradeAmt: number;
-  /** ���п������ */
+  /** 银行可用余额 */
   useAmt: number;
-  /** ���п�ȡ��� */
+  /** 银行可取余额 */
   fetchAmt: number;
-  /** ���� */
+  /** 币种 */
   currencyCode: string;
 }
 
 /** CThostFtdcTransferQryDetailReqField */
 export interface TransferQryDetailReq {
-  /** �ڻ��ʽ��˻� */
+  /** 期货资金账户 */
   futureAccount: string;
 }
 
 /** CThostFtdcTransferQryDetailRspField */
 export interface TransferQryDetailRsp {
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ���״��� */
+  /** 交易代码 */
   tradeCode: string;
-  /** �ڻ���ˮ�� */
+  /** 期货流水号 */
   futureSerial: number;
-  /** �ڻ���˾���� */
+  /** 期货公司代码 */
   futureId: string;
-  /** �ʽ��ʺ� */
+  /** 资金帐号 */
   futureAccount: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: number;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з����Ĵ��� */
+  /** 银行分中心代码 */
   bankBrchId: string;
-  /** �����˺� */
+  /** 银行账号 */
   bankAccount: string;
-  /** ֤������ */
+  /** 证件号码 */
   certCode: string;
-  /** ���Ҵ��� */
+  /** 货币代码 */
   currencyCode: string;
-  /** ������� */
+  /** 发生金额 */
   txAmount: number;
-  /** ��Ч��־ */
+  /** 有效标志 */
   flag: `${enums.TransferValidFlag}`;
 }
 
 /** CThostFtdcRspInfoField */
 export interface RspInfo {
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
 }
 
 /** CThostFtdcExchangeField */
 export interface Exchange {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���������� */
+  /** 交易所名称 */
   exchangeName: string;
-  /** ���������� */
+  /** 交易所属性 */
   exchangeProperty: `${enums.ExchangeProperty}`;
 }
 
 /** CThostFtdcProductField */
 export interface Product {
-  /** ��Ʒ���� */
+  /** 产品名称 */
   productName: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ���� */
+  /** 产品类型 */
   productClass: `${enums.ProductClass}`;
-  /** ��Լ�������� */
+  /** 合约数量乘数 */
   volumeMultiple: number;
-  /** ��С�䶯��λ */
+  /** 最小变动价位 */
   priceTick: number;
-  /** �м۵�����µ��� */
+  /** 市价单最大下单量 */
   maxMarketOrderVolume: number;
-  /** �м۵���С�µ��� */
+  /** 市价单最小下单量 */
   minMarketOrderVolume: number;
-  /** �޼۵�����µ��� */
+  /** 限价单最大下单量 */
   maxLimitOrderVolume: number;
-  /** �޼۵���С�µ��� */
+  /** 限价单最小下单量 */
   minLimitOrderVolume: number;
-  /** �ֲ����� */
+  /** 持仓类型 */
   positionType: `${enums.PositionType}`;
-  /** �ֲ��������� */
+  /** 持仓日期类型 */
   positionDateType: `${enums.PositionDateType}`;
-  /** ƽ�ִ������� */
+  /** 平仓处理类型 */
   closeDealType: `${enums.CloseDealType}`;
-  /** ���ױ������� */
+  /** 交易币种类型 */
   tradeCurrencyId: string;
-  /** ��Ѻ�ʽ���÷�Χ */
+  /** 质押资金可用范围 */
   mortgageFundUseRange: `${enums.MortgageFundUseRange}`;
-  /** ��Լ������Ʒ���� */
+  /** 合约基础商品乘数 */
   underlyingMultiple: number;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** ��������Ʒ���� */
+  /** 交易所产品代码 */
   exchangeProductId: string;
-  /** �������������� */
+  /** 开仓量限制粒度 */
   openLimitControlLevel: `${enums.OpenLimitControlLevel}`;
-  /** ����Ƶ�ʿ������� */
+  /** 报单频率控制粒度 */
   orderFreqControlLevel: `${enums.OrderFreqControlLevel}`;
 }
 
 /** CThostFtdcInstrumentField */
 export interface Instrument {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约名称 */
   instrumentName: string;
-  /** ��Ʒ���� */
+  /** 产品类型 */
   productClass: `${enums.ProductClass}`;
-  /** ������� */
+  /** 交割年份 */
   deliveryYear: number;
-  /** ������ */
+  /** 交割月 */
   deliveryMonth: number;
-  /** �м۵�����µ��� */
+  /** 市价单最大下单量 */
   maxMarketOrderVolume: number;
-  /** �м۵���С�µ��� */
+  /** 市价单最小下单量 */
   minMarketOrderVolume: number;
-  /** �޼۵�����µ��� */
+  /** 限价单最大下单量 */
   maxLimitOrderVolume: number;
-  /** �޼۵���С�µ��� */
+  /** 限价单最小下单量 */
   minLimitOrderVolume: number;
-  /** ��Լ�������� */
+  /** 合约数量乘数 */
   volumeMultiple: number;
-  /** ��С�䶯��λ */
+  /** 最小变动价位 */
   priceTick: number;
-  /** ������ */
+  /** 创建日 */
   createDate: string;
-  /** ������ */
+  /** 上市日 */
   openDate: string;
-  /** ������ */
+  /** 到期日 */
   expireDate: string;
-  /** ��ʼ������ */
+  /** 开始交割日 */
   startDelivDate: string;
-  /** ���������� */
+  /** 结束交割日 */
   endDelivDate: string;
-  /** ��Լ��������״̬ */
+  /** 合约生命周期状态 */
   instLifePhase: `${enums.InstLifePhase}`;
-  /** ��ǰ�Ƿ��� */
+  /** 当前是否交易 */
   isTrading: number;
-  /** �ֲ����� */
+  /** 持仓类型 */
   positionType: `${enums.PositionType}`;
-  /** �ֲ��������� */
+  /** 持仓日期类型 */
   positionDateType: `${enums.PositionDateType}`;
-  /** ��ͷ��֤���� */
+  /** 多头保证金率 */
   longMarginRatio: number;
-  /** ��ͷ��֤���� */
+  /** 空头保证金率 */
   shortMarginRatio: number;
-  /** �Ƿ�ʹ�ô��߱�֤���㷨 */
+  /** 是否使用大额单边保证金算法 */
   maxMarginSideAlgorithm: `${enums.MaxMarginSideAlgorithm}`;
-  /** ִ�м� */
+  /** 执行价 */
   strikePrice: number;
-  /** ��Ȩ���� */
+  /** 期权类型 */
   optionsType: `${enums.OptionsType}`;
-  /** ��Լ������Ʒ���� */
+  /** 合约基础商品乘数 */
   underlyingMultiple: number;
-  /** ������� */
+  /** 组合类型 */
   combinationType: `${enums.CombinationType}`;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** ������Ʒ���� */
+  /** 基础商品代码 */
   underlyingInstrId: string;
 }
 
 /** CThostFtdcBrokerField */
 export interface Broker {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���͹�˾��� */
+  /** 经纪公司简称 */
   brokerAbbr: string;
-  /** ���͹�˾���� */
+  /** 经纪公司名称 */
   brokerName: string;
-  /** �Ƿ��Ծ */
+  /** 是否活跃 */
   isActive: number;
 }
 
 /** CThostFtdcTraderField */
 export interface Trader {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** ���� */
+  /** 密码 */
   password: string;
-  /** ��װ���� */
+  /** 安装数量 */
   installCount: number;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ����ʱѡ��ϯλ�㷨 */
+  /** 撤单时选择席位算法 */
   orderCancelAlg: `${enums.OrderCancelAlg}`;
-  /** ���ױ��̰�װ���� */
+  /** 交易报盘安装数量 */
   tradeInstallCount: number;
-  /** ���鱨�̰�װ���� */
+  /** 行情报盘安装数量 */
   mdInstallCount: number;
 }
 
 /** CThostFtdcInvestorField */
 export interface Investor {
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���߷������ */
+  /** 投资者分组代码 */
   investorGroupId: string;
-  /** Ͷ�������� */
+  /** 投资者名称 */
   investorName: string;
-  /** ֤������ */
+  /** 证件类型 */
   identifiedCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �Ƿ��Ծ */
+  /** 是否活跃 */
   isActive: number;
-  /** ��ϵ�绰 */
+  /** 联系电话 */
   telephone: string;
-  /** ͨѶ��ַ */
+  /** 通讯地址 */
   address: string;
-  /** �������� */
+  /** 开户日期 */
   openDate: string;
-  /** �ֻ� */
+  /** 手机 */
   mobile: string;
-  /** ��������ģ����� */
+  /** 手续费率模板代码 */
   commModelId: string;
-  /** ��֤����ģ����� */
+  /** 保证金率模板代码 */
   marginModelId: string;
-  /** �Ƿ�Ƶ�ʿ��� */
+  /** 是否频率控制 */
   isOrderFreq: `${enums.EnumBool}`;
-  /** �Ƿ񿪲����� */
+  /** 是否开仓限制 */
   isOpenVolLimit: `${enums.EnumBool}`;
 }
 
 /** CThostFtdcTradingCodeField */
 export interface TradingCode {
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** �Ƿ��Ծ */
+  /** 是否活跃 */
   isActive: number;
-  /** ���ױ������� */
+  /** 交易编码类型 */
   clientIdType: `${enums.ClientIDType}`;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** ҵ������ */
+  /** 业务类型 */
   bizType: `${enums.BizType}`;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
 }
 
 /** CThostFtdcPartBrokerField */
 export interface PartBroker {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �Ƿ��Ծ */
+  /** 是否活跃 */
   isActive: number;
 }
 
 /** CThostFtdcSuperUserField */
 export interface SuperUser {
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �û����� */
+  /** 用户名称 */
   userName: string;
-  /** ���� */
+  /** 密码 */
   password: string;
-  /** �Ƿ��Ծ */
+  /** 是否活跃 */
   isActive: number;
 }
 
 /** CThostFtdcSuperUserFunctionField */
 export interface SuperUserFunction {
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���ܴ��� */
+  /** 功能代码 */
   functionCode: `${enums.FunctionCode}`;
 }
 
 /** CThostFtdcInvestorGroupField */
 export interface InvestorGroup {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���߷������ */
+  /** 投资者分组代码 */
   investorGroupId: string;
-  /** Ͷ���߷������� */
+  /** 投资者分组名称 */
   investorGroupName: string;
 }
 
 /** CThostFtdcTradingAccountField */
 export interface TradingAccount {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ϴ���Ѻ��� */
+  /** 上次质押金额 */
   preMortgage: number;
-  /** �ϴ����ö�� */
+  /** 上次信用额度 */
   preCredit: number;
-  /** �ϴδ��� */
+  /** 上次存款额 */
   preDeposit: number;
-  /** �ϴν���׼���� */
+  /** 上次结算准备金 */
   preBalance: number;
-  /** �ϴ�ռ�õı�֤�� */
+  /** 上次占用的保证金 */
   preMargin: number;
-  /** ��Ϣ���� */
+  /** 利息基数 */
   interestBase: number;
-  /** ��Ϣ���� */
+  /** 利息收入 */
   interest: number;
-  /** ����� */
+  /** 入金金额 */
   deposit: number;
-  /** ������ */
+  /** 出金金额 */
   withdraw: number;
-  /** ����ı�֤�� */
+  /** 冻结的保证金 */
   frozenMargin: number;
-  /** ������ʽ� */
+  /** 冻结的资金 */
   frozenCash: number;
-  /** ����������� */
+  /** 冻结的手续费 */
   frozenCommission: number;
-  /** ��ǰ��֤���ܶ� */
+  /** 当前保证金总额 */
   currMargin: number;
-  /** �ʽ��� */
+  /** 资金差额 */
   cashIn: number;
-  /** ������ */
+  /** 手续费 */
   commission: number;
-  /** ƽ��ӯ�� */
+  /** 平仓盈亏 */
   closeProfit: number;
-  /** �ֲ�ӯ�� */
+  /** 持仓盈亏 */
   positionProfit: number;
-  /** �ڻ�����׼���� */
+  /** 期货结算准备金 */
   balance: number;
-  /** �����ʽ� */
+  /** 可用资金 */
   available: number;
-  /** ��ȡ�ʽ� */
+  /** 可取资金 */
   withdrawQuota: number;
-  /** ����׼���� */
+  /** 基本准备金 */
   reserve: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ���ö�� */
+  /** 信用额度 */
   credit: number;
-  /** ��Ѻ��� */
+  /** 质押金额 */
   mortgage: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchangeMargin: number;
-  /** Ͷ���߽��֤�� */
+  /** 投资者交割保证金 */
   deliveryMargin: number;
-  /** ���������֤�� */
+  /** 交易所交割保证金 */
   exchangeDeliveryMargin: number;
-  /** �����ڻ�����׼���� */
+  /** 保底期货结算准备金 */
   reserveBalance: number;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** �ϴλ��������� */
+  /** 上次货币质入金额 */
   preFundMortgageIn: number;
-  /** �ϴλ����ʳ���� */
+  /** 上次货币质出金额 */
   preFundMortgageOut: number;
-  /** ���������� */
+  /** 货币质入金额 */
   fundMortgageIn: number;
-  /** �����ʳ���� */
+  /** 货币质出金额 */
   fundMortgageOut: number;
-  /** ������Ѻ��� */
+  /** 货币质押余额 */
   fundMortgageAvailable: number;
-  /** ����Ѻ���ҽ�� */
+  /** 可质押货币金额 */
   mortgageableFund: number;
-  /** �����Ʒռ�ñ�֤�� */
+  /** 特殊产品占用保证金 */
   specProductMargin: number;
-  /** �����Ʒ���ᱣ֤�� */
+  /** 特殊产品冻结保证金 */
   specProductFrozenMargin: number;
-  /** �����Ʒ������ */
+  /** 特殊产品手续费 */
   specProductCommission: number;
-  /** �����Ʒ���������� */
+  /** 特殊产品冻结手续费 */
   specProductFrozenCommission: number;
-  /** �����Ʒ�ֲ�ӯ�� */
+  /** 特殊产品持仓盈亏 */
   specProductPositionProfit: number;
-  /** �����Ʒƽ��ӯ�� */
+  /** 特殊产品平仓盈亏 */
   specProductCloseProfit: number;
-  /** ���ݳֲ�ӯ���㷨����������Ʒ�ֲ�ӯ�� */
+  /** 根据持仓盈亏算法计算的特殊产品持仓盈亏 */
   specProductPositionProfitByAlg: number;
-  /** �����Ʒ��������֤�� */
+  /** 特殊产品交易所保证金 */
   specProductExchangeMargin: number;
-  /** ҵ������ */
+  /** 业务类型 */
   bizType: `${enums.BizType}`;
-  /** ��ʱ���㶳���� */
+  /** 延时换汇冻结金额 */
   frozenSwap: number;
-  /** ʣ�໻���� */
+  /** 剩余换汇额度 */
   remainSwap: number;
-  /** ��Ȩ��ֵ */
+  /** 期权市值 */
   optionValue: number;
 }
 
 /** CThostFtdcInvestorPositionField */
 export interface InvestorPosition {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �ֲֶ�շ��� */
+  /** 持仓多空方向 */
   posiDirection: `${enums.PosiDirection}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** �ֲ����� */
+  /** 持仓日期 */
   positionDate: `${enums.PositionDate}`;
-  /** ���ճֲ� */
+  /** 上日持仓 */
   ydPosition: number;
-  /** ���ճֲ� */
+  /** 今日持仓 */
   position: number;
-  /** ��ͷ���� */
+  /** 多头冻结 */
   longFrozen: number;
-  /** ��ͷ���� */
+  /** 空头冻结 */
   shortFrozen: number;
-  /** ���ֶ����� */
+  /** 开仓冻结金额 */
   longFrozenAmount: number;
-  /** ���ֶ����� */
+  /** 开仓冻结金额 */
   shortFrozenAmount: number;
-  /** ������ */
+  /** 开仓量 */
   openVolume: number;
-  /** ƽ���� */
+  /** 平仓量 */
   closeVolume: number;
-  /** ���ֽ�� */
+  /** 开仓金额 */
   openAmount: number;
-  /** ƽ�ֽ�� */
+  /** 平仓金额 */
   closeAmount: number;
-  /** �ֲֳɱ� */
+  /** 持仓成本 */
   positionCost: number;
-  /** �ϴ�ռ�õı�֤�� */
+  /** 上次占用的保证金 */
   preMargin: number;
-  /** ռ�õı�֤�� */
+  /** 占用的保证金 */
   useMargin: number;
-  /** ����ı�֤�� */
+  /** 冻结的保证金 */
   frozenMargin: number;
-  /** ������ʽ� */
+  /** 冻结的资金 */
   frozenCash: number;
-  /** ����������� */
+  /** 冻结的手续费 */
   frozenCommission: number;
-  /** �ʽ��� */
+  /** 资金差额 */
   cashIn: number;
-  /** ������ */
+  /** 手续费 */
   commission: number;
-  /** ƽ��ӯ�� */
+  /** 平仓盈亏 */
   closeProfit: number;
-  /** �ֲ�ӯ�� */
+  /** 持仓盈亏 */
   positionProfit: number;
-  /** �ϴν���� */
+  /** 上次结算价 */
   preSettlementPrice: number;
-  /** ���ν���� */
+  /** 本次结算价 */
   settlementPrice: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ���ֳɱ� */
+  /** 开仓成本 */
   openCost: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchangeMargin: number;
-  /** ��ϳɽ��γɵĳֲ� */
+  /** 组合成交形成的持仓 */
   combPosition: number;
-  /** ��϶�ͷ���� */
+  /** 组合多头冻结 */
   combLongFrozen: number;
-  /** ��Ͽ�ͷ���� */
+  /** 组合空头冻结 */
   combShortFrozen: number;
-  /** ���ն���ƽ��ӯ�� */
+  /** 逐日盯市平仓盈亏 */
   closeProfitByDate: number;
-  /** ��ʶԳ�ƽ��ӯ�� */
+  /** 逐笔对冲平仓盈亏 */
   closeProfitByTrade: number;
-  /** ���ճֲ� */
+  /** 今日持仓 */
   todayPosition: number;
-  /** ��֤���� */
+  /** 保证金率 */
   marginRateByMoney: number;
-  /** ��֤����(������) */
+  /** 保证金率(按手数) */
   marginRateByVolume: number;
-  /** ִ�ж��� */
+  /** 执行冻结 */
   strikeFrozen: number;
-  /** ִ�ж����� */
+  /** 执行冻结金额 */
   strikeFrozenAmount: number;
-  /** ����ִ�ж��� */
+  /** 放弃执行冻结 */
   abandonFrozen: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ִ�ж������� */
+  /** 执行冻结的昨仓 */
   ydStrikeFrozen: number;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** �ֲֳɱ���ֵ */
+  /** 持仓成本差值 */
   positionCostOffset: number;
-  /** tas�ֲ����� */
+  /** tas持仓手数 */
   tasPosition: number;
-  /** tas�ֲֳɱ� */
+  /** tas持仓成本 */
   tasPositionCost: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Ȩ��ֵ */
+  /** 期权市值 */
   optionValue: number;
 }
 
 /** CThostFtdcInstrumentMarginRateField */
 export interface InstrumentMarginRate {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��ͷ��֤���� */
+  /** 多头保证金率 */
   longMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 多头保证金费 */
   longMarginRatioByVolume: number;
-  /** ��ͷ��֤���� */
+  /** 空头保证金率 */
   shortMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 空头保证金费 */
   shortMarginRatioByVolume: number;
-  /** �Ƿ���Խ�������ȡ */
+  /** 是否相对交易所收取 */
   isRelative: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcInstrumentCommissionRateField */
 export interface InstrumentCommissionRate {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������������ */
+  /** 开仓手续费率 */
   openRatioByMoney: number;
-  /** ���������� */
+  /** 开仓手续费 */
   openRatioByVolume: number;
-  /** ƽ���������� */
+  /** 平仓手续费率 */
   closeRatioByMoney: number;
-  /** ƽ�������� */
+  /** 平仓手续费 */
   closeRatioByVolume: number;
-  /** ƽ���������� */
+  /** 平今手续费率 */
   closeTodayRatioByMoney: number;
-  /** ƽ�������� */
+  /** 平今手续费 */
   closeTodayRatioByVolume: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ҵ������ */
+  /** 业务类型 */
   bizType: `${enums.BizType}`;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcDepthMarketDataField */
 export interface DepthMarketData {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���¼� */
+  /** 最新价 */
   lastPrice: number;
-  /** �ϴν���� */
+  /** 上次结算价 */
   preSettlementPrice: number;
-  /** ������ */
+  /** 昨收盘 */
   preClosePrice: number;
-  /** ��ֲ��� */
+  /** 昨持仓量 */
   preOpenInterest: number;
-  /** ���� */
+  /** 今开盘 */
   openPrice: number;
-  /** ��߼� */
+  /** 最高价 */
   highestPrice: number;
-  /** ��ͼ� */
+  /** 最低价 */
   lowestPrice: number;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** �ɽ���� */
+  /** 成交金额 */
   turnover: number;
-  /** �ֲ��� */
+  /** 持仓量 */
   openInterest: number;
-  /** ������ */
+  /** 今收盘 */
   closePrice: number;
-  /** ���ν���� */
+  /** 本次结算价 */
   settlementPrice: number;
-  /** ��ͣ��� */
+  /** 涨停板价 */
   upperLimitPrice: number;
-  /** ��ͣ��� */
+  /** 跌停板价 */
   lowerLimitPrice: number;
-  /** ����ʵ�� */
+  /** 昨虚实度 */
   preDelta: number;
-  /** ����ʵ�� */
+  /** 今虚实度 */
   currDelta: number;
-  /** ����޸�ʱ�� */
+  /** 最后修改时间 */
   updateTime: string;
-  /** ����޸ĺ��� */
+  /** 最后修改毫秒 */
   updateMillisec: number;
-  /** �����һ */
+  /** 申买价一 */
   bidPrice1: number;
-  /** ������һ */
+  /** 申买量一 */
   bidVolume1: number;
-  /** ������һ */
+  /** 申卖价一 */
   askPrice1: number;
-  /** ������һ */
+  /** 申卖量一 */
   askVolume1: number;
-  /** ����۶� */
+  /** 申买价二 */
   bidPrice2: number;
-  /** �������� */
+  /** 申买量二 */
   bidVolume2: number;
-  /** �����۶� */
+  /** 申卖价二 */
   askPrice2: number;
-  /** �������� */
+  /** 申卖量二 */
   askVolume2: number;
-  /** ������� */
+  /** 申买价三 */
   bidPrice3: number;
-  /** �������� */
+  /** 申买量三 */
   bidVolume3: number;
-  /** �������� */
+  /** 申卖价三 */
   askPrice3: number;
-  /** �������� */
+  /** 申卖量三 */
   askVolume3: number;
-  /** ������� */
+  /** 申买价四 */
   bidPrice4: number;
-  /** �������� */
+  /** 申买量四 */
   bidVolume4: number;
-  /** �������� */
+  /** 申卖价四 */
   askPrice4: number;
-  /** �������� */
+  /** 申卖量四 */
   askVolume4: number;
-  /** ������� */
+  /** 申买价五 */
   bidPrice5: number;
-  /** �������� */
+  /** 申买量五 */
   bidVolume5: number;
-  /** �������� */
+  /** 申卖价五 */
   askPrice5: number;
-  /** �������� */
+  /** 申卖量五 */
   askVolume5: number;
-  /** ���վ��� */
+  /** 当日均价 */
   averagePrice: number;
-  /** ҵ������ */
+  /** 业务日期 */
   actionDay: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** �ϴ��� */
+  /** 上带价 */
   bandingUpperPrice: number;
-  /** �´��� */
+  /** 下带价 */
   bandingLowerPrice: number;
 }
 
 /** CThostFtdcInstrumentTradingRightField */
 export interface InstrumentTradingRight {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ����Ȩ�� */
+  /** 交易权限 */
   tradingRight: `${enums.TradingRight}`;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcBrokerUserField */
 export interface BrokerUser {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �û����� */
+  /** 用户名称 */
   userName: string;
-  /** �û����� */
+  /** 用户类型 */
   userType: `${enums.UserType}`;
-  /** �Ƿ��Ծ */
+  /** 是否活跃 */
   isActive: number;
-  /** �Ƿ�ʹ������ */
+  /** 是否使用令牌 */
   isUsingOtp: number;
-  /** �Ƿ�ǿ���ն���֤ */
+  /** 是否强制终端认证 */
   isAuthForce: number;
 }
 
 /** CThostFtdcBrokerUserPasswordField */
 export interface BrokerUserPassword {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���� */
+  /** 密码 */
   password: string;
-  /** �ϴ��޸�ʱ�� */
+  /** 上次修改时间 */
   lastUpdateTime: string;
-  /** �ϴε�½ʱ�� */
+  /** 上次登陆时间 */
   lastLoginTime: string;
-  /** �������ʱ�� */
+  /** 密码过期时间 */
   expireDate: string;
-  /** ���������ʱ�� */
+  /** 弱密码过期时间 */
   weakExpireDate: string;
 }
 
 /** CThostFtdcBrokerUserFunctionField */
 export interface BrokerUserFunction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���͹�˾���ܴ��� */
+  /** 经纪公司功能代码 */
   brokerFunctionCode: `${enums.BrokerFunctionCode}`;
 }
 
 /** CThostFtdcTraderOfferField */
 export interface TraderOffer {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** ���� */
+  /** 密码 */
   password: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** ����������Ա����״̬ */
+  /** 交易所交易员连接状态 */
   traderConnectStatus: `${enums.TraderConnectStatus}`;
-  /** ����������������� */
+  /** 发出连接请求的日期 */
   connectRequestDate: string;
-  /** �������������ʱ�� */
+  /** 发出连接请求的时间 */
   connectRequestTime: string;
-  /** �ϴα������� */
+  /** 上次报告日期 */
   lastReportDate: string;
-  /** �ϴα���ʱ�� */
+  /** 上次报告时间 */
   lastReportTime: string;
-  /** ����������� */
+  /** 完成连接日期 */
   connectDate: string;
-  /** �������ʱ�� */
+  /** 完成连接时间 */
   connectTime: string;
-  /** �������� */
+  /** 启动日期 */
   startDate: string;
-  /** ����ʱ�� */
+  /** 启动时间 */
   startTime: string;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ��ϯλ���ɽ���� */
+  /** 本席位最大成交编号 */
   maxTradeId: string;
-  /** ��ϯλ��󱨵����� */
+  /** 本席位最大报单备拷 */
   maxOrderMessageReference: string;
-  /** ����ʱѡ��ϯλ�㷨 */
+  /** 撤单时选择席位算法 */
   orderCancelAlg: `${enums.OrderCancelAlg}`;
 }
 
 /** CThostFtdcSettlementInfoField */
 export interface SettlementInfo {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** ��Ϣ���� */
+  /** 消息正文 */
   content: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
 }
 
 /** CThostFtdcInstrumentMarginRateAdjustField */
 export interface InstrumentMarginRateAdjust {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��ͷ��֤���� */
+  /** 多头保证金率 */
   longMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 多头保证金费 */
   longMarginRatioByVolume: number;
-  /** ��ͷ��֤���� */
+  /** 空头保证金率 */
   shortMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 空头保证金费 */
   shortMarginRatioByVolume: number;
-  /** �Ƿ���Խ�������ȡ */
+  /** 是否相对交易所收取 */
   isRelative: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcExchangeMarginRateField */
 export interface ExchangeMarginRate {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��ͷ��֤���� */
+  /** 多头保证金率 */
   longMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 多头保证金费 */
   longMarginRatioByVolume: number;
-  /** ��ͷ��֤���� */
+  /** 空头保证金率 */
   shortMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 空头保证金费 */
   shortMarginRatioByVolume: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcExchangeMarginRateAdjustField */
 export interface ExchangeMarginRateAdjust {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ���潻����Ͷ���߶�ͷ��֤���� */
+  /** 跟随交易所投资者多头保证金率 */
   longMarginRatioByMoney: number;
-  /** ���潻����Ͷ���߶�ͷ��֤��� */
+  /** 跟随交易所投资者多头保证金费 */
   longMarginRatioByVolume: number;
-  /** ���潻����Ͷ���߿�ͷ��֤���� */
+  /** 跟随交易所投资者空头保证金率 */
   shortMarginRatioByMoney: number;
-  /** ���潻����Ͷ���߿�ͷ��֤��� */
+  /** 跟随交易所投资者空头保证金费 */
   shortMarginRatioByVolume: number;
-  /** ��������ͷ��֤���� */
+  /** 交易所多头保证金率 */
   exchLongMarginRatioByMoney: number;
-  /** ��������ͷ��֤��� */
+  /** 交易所多头保证金费 */
   exchLongMarginRatioByVolume: number;
-  /** ��������ͷ��֤���� */
+  /** 交易所空头保证金率 */
   exchShortMarginRatioByMoney: number;
-  /** ��������ͷ��֤��� */
+  /** 交易所空头保证金费 */
   exchShortMarginRatioByVolume: number;
-  /** �����潻����Ͷ���߶�ͷ��֤���� */
+  /** 不跟随交易所投资者多头保证金率 */
   noLongMarginRatioByMoney: number;
-  /** �����潻����Ͷ���߶�ͷ��֤��� */
+  /** 不跟随交易所投资者多头保证金费 */
   noLongMarginRatioByVolume: number;
-  /** �����潻����Ͷ���߿�ͷ��֤���� */
+  /** 不跟随交易所投资者空头保证金率 */
   noShortMarginRatioByMoney: number;
-  /** �����潻����Ͷ���߿�ͷ��֤��� */
+  /** 不跟随交易所投资者空头保证金费 */
   noShortMarginRatioByVolume: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcExchangeRateField */
 export interface ExchangeRate {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Դ���� */
+  /** 源币种 */
   fromCurrencyId: string;
-  /** Դ���ֵ�λ���� */
+  /** 源币种单位数量 */
   fromCurrencyUnit: number;
-  /** Ŀ����� */
+  /** 目标币种 */
   toCurrencyId: string;
-  /** ���� */
+  /** 汇率 */
   exchangeRate: number;
 }
 
 /** CThostFtdcSettlementRefField */
 export interface SettlementRef {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
 }
 
 /** CThostFtdcCurrentTimeField */
 export interface CurrentTime {
-  /** ��ǰ������ */
+  /** 当前交易日 */
   currDate: string;
-  /** ��ǰʱ�� */
+  /** 当前时间 */
   currTime: string;
-  /** ��ǰʱ�䣨���룩 */
+  /** 当前时间（毫秒） */
   currMillisec: number;
-  /** ��Ȼ���� */
+  /** 自然日期 */
   actionDay: string;
 }
 
 /** CThostFtdcCommPhaseField */
 export interface CommPhase {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ͨѶʱ�α�� */
+  /** 通讯时段编号 */
   commPhaseNo: number;
-  /** ϵͳ��� */
+  /** 系统编号 */
   systemId: string;
 }
 
 /** CThostFtdcLoginInfoField */
 export interface LoginInfo {
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ��¼���� */
+  /** 登录日期 */
   loginDate: string;
-  /** ��¼ʱ�� */
+  /** 登录时间 */
   loginTime: string;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** �ӿڶ˲�Ʒ��Ϣ */
+  /** 接口端产品信息 */
   interfaceProductInfo: string;
-  /** Э����Ϣ */
+  /** 协议信息 */
   protocolInfo: string;
-  /** ϵͳ���� */
+  /** 系统名称 */
   systemName: string;
-  /** ����,������ */
+  /** 密码,已弃用 */
   passwordDeprecated: string;
-  /** ��󱨵����� */
+  /** 最大报单引用 */
   maxOrderRef: string;
-  /** ������ʱ�� */
+  /** 上期所时间 */
   shfeTime: string;
-  /** ������ʱ�� */
+  /** 大商所时间 */
   dceTime: string;
-  /** ֣����ʱ�� */
+  /** 郑商所时间 */
   czceTime: string;
-  /** �н���ʱ�� */
+  /** 中金所时间 */
   ffexTime: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��̬���� */
+  /** 动态密码 */
   oneTimePassword: string;
-  /** ��Դ����ʱ�� */
+  /** 能源中心时间 */
   ineTime: string;
-  /** ��ѯʱ�Ƿ���Ҫ���� */
+  /** 查询时是否需要流控 */
   isQryControl: number;
-  /** ��¼��ע */
+  /** 登录备注 */
   loginRemark: string;
-  /** ���� */
+  /** 密码 */
   password: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcLogoutAllField */
 export interface LogoutAll {
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ϵͳ���� */
+  /** 系统名称 */
   systemName: string;
 }
 
 /** CThostFtdcFrontStatusField */
 export interface FrontStatus {
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �ϴα������� */
+  /** 上次报告日期 */
   lastReportDate: string;
-  /** �ϴα���ʱ�� */
+  /** 上次报告时间 */
   lastReportTime: string;
-  /** �Ƿ��Ծ */
+  /** 是否活跃 */
   isActive: number;
 }
 
 /** CThostFtdcUserPasswordUpdateField */
 export interface UserPasswordUpdate {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ԭ���Ŀ��� */
+  /** 原来的口令 */
   oldPassword: string;
-  /** �µĿ��� */
+  /** 新的口令 */
   newPassword: string;
 }
 
 /** CThostFtdcInputOrderField */
 export interface InputOrder {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �����۸����� */
+  /** 报单价格条件 */
   orderPriceType: `${enums.OrderPriceType}`;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ��Ͽ�ƽ��־ */
+  /** 组合开平标志 */
   combOffsetFlag: string;
-  /** ���Ͷ���ױ���־ */
+  /** 组合投机套保标志 */
   combHedgeFlag: string;
-  /** �۸� */
+  /** 价格 */
   limitPrice: number;
-  /** ���� */
+  /** 数量 */
   volumeTotalOriginal: number;
-  /** ��Ч������ */
+  /** 有效期类型 */
   timeCondition: `${enums.TimeCondition}`;
-  /** GTD���� */
+  /** GTD日期 */
   gtdDate: string;
-  /** �ɽ������� */
+  /** 成交量类型 */
   volumeCondition: `${enums.VolumeCondition}`;
-  /** ��С�ɽ��� */
+  /** 最小成交量 */
   minVolume: number;
-  /** �������� */
+  /** 触发条件 */
   contingentCondition: `${enums.ContingentCondition}`;
-  /** ֹ��� */
+  /** 止损价 */
   stopPrice: number;
-  /** ǿƽԭ�� */
+  /** 强平原因 */
   forceCloseReason: `${enums.ForceCloseReason}`;
-  /** �Զ������־ */
+  /** 自动挂起标志 */
   isAutoSuspend: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** �û�ǿƽ��־ */
+  /** 用户强平标志 */
   userForceClose: number;
-  /** ��������־ */
+  /** 互换单标志 */
   isSwapOrder: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** �ʽ��˺� */
+  /** 资金账号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ���ױ��� */
+  /** 交易编码 */
   clientId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** ���������ֶ� */
+  /** 报单回显字段 */
   orderMemo: string;
-  /** session��������� api�Զ�ά�� */
+  /** session上请求计数 api自动维护 */
   sessionReqSeq: number;
 }
 
 /** CThostFtdcOrderField */
 export interface Order {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �����۸����� */
+  /** 报单价格条件 */
   orderPriceType: `${enums.OrderPriceType}`;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ��Ͽ�ƽ��־ */
+  /** 组合开平标志 */
   combOffsetFlag: string;
-  /** ���Ͷ���ױ���־ */
+  /** 组合投机套保标志 */
   combHedgeFlag: string;
-  /** �۸� */
+  /** 价格 */
   limitPrice: number;
-  /** ���� */
+  /** 数量 */
   volumeTotalOriginal: number;
-  /** ��Ч������ */
+  /** 有效期类型 */
   timeCondition: `${enums.TimeCondition}`;
-  /** GTD���� */
+  /** GTD日期 */
   gtdDate: string;
-  /** �ɽ������� */
+  /** 成交量类型 */
   volumeCondition: `${enums.VolumeCondition}`;
-  /** ��С�ɽ��� */
+  /** 最小成交量 */
   minVolume: number;
-  /** �������� */
+  /** 触发条件 */
   contingentCondition: `${enums.ContingentCondition}`;
-  /** ֹ��� */
+  /** 止损价 */
   stopPrice: number;
-  /** ǿƽԭ�� */
+  /** 强平原因 */
   forceCloseReason: `${enums.ForceCloseReason}`;
-  /** �Զ������־ */
+  /** 自动挂起标志 */
   isAutoSuspend: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �����ύ״̬ */
+  /** 报单提交状态 */
   orderSubmitStatus: `${enums.OrderSubmitStatus}`;
-  /** ������ʾ��� */
+  /** 报单提示序号 */
   notifySequence: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ������Դ */
+  /** 报单来源 */
   orderSource: `${enums.OrderSource}`;
-  /** ����״̬ */
+  /** 报单状态 */
   orderStatus: `${enums.OrderStatus}`;
-  /** �������� */
+  /** 报单类型 */
   orderType: `${enums.OrderType}`;
-  /** ��ɽ����� */
+  /** 今成交数量 */
   volumeTraded: number;
-  /** ʣ������ */
+  /** 剩余数量 */
   volumeTotal: number;
-  /** �������� */
+  /** 报单日期 */
   insertDate: string;
-  /** ί��ʱ�� */
+  /** 委托时间 */
   insertTime: string;
-  /** ����ʱ�� */
+  /** 激活时间 */
   activeTime: string;
-  /** ����ʱ�� */
+  /** 挂起时间 */
   suspendTime: string;
-  /** ����޸�ʱ�� */
+  /** 最后修改时间 */
   updateTime: string;
-  /** ����ʱ�� */
+  /** 撤销时间 */
   cancelTime: string;
-  /** ����޸Ľ���������Ա���� */
+  /** 最后修改交易所交易员代码 */
   activeTraderId: string;
-  /** �����Ա��� */
+  /** 结算会员编号 */
   clearingPartId: string;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** �û�ǿƽ��־ */
+  /** 用户强平标志 */
   userForceClose: number;
-  /** �����û����� */
+  /** 操作用户代码 */
   activeUserId: string;
-  /** ���͹�˾������� */
+  /** 经纪公司报单编号 */
   brokerOrderSeq: number;
-  /** ��ر��� */
+  /** 相关报单 */
   relativeOrderSysId: string;
-  /** ֣�����ɽ����� */
+  /** 郑商所成交数量 */
   zceTotalTradedVolume: number;
-  /** ��������־ */
+  /** 互换单标志 */
   isSwapOrder: number;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** �ʽ��˺� */
+  /** 资金账号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** ���������ֶ� */
+  /** 报单回显字段 */
   orderMemo: string;
-  /** session��������� api�Զ�ά�� */
+  /** session上请求计数 api自动维护 */
   sessionReqSeq: number;
 }
 
 /** CThostFtdcExchangeOrderField */
 export interface ExchangeOrder {
-  /** �����۸����� */
+  /** 报单价格条件 */
   orderPriceType: `${enums.OrderPriceType}`;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ��Ͽ�ƽ��־ */
+  /** 组合开平标志 */
   combOffsetFlag: string;
-  /** ���Ͷ���ױ���־ */
+  /** 组合投机套保标志 */
   combHedgeFlag: string;
-  /** �۸� */
+  /** 价格 */
   limitPrice: number;
-  /** ���� */
+  /** 数量 */
   volumeTotalOriginal: number;
-  /** ��Ч������ */
+  /** 有效期类型 */
   timeCondition: `${enums.TimeCondition}`;
-  /** GTD���� */
+  /** GTD日期 */
   gtdDate: string;
-  /** �ɽ������� */
+  /** 成交量类型 */
   volumeCondition: `${enums.VolumeCondition}`;
-  /** ��С�ɽ��� */
+  /** 最小成交量 */
   minVolume: number;
-  /** �������� */
+  /** 触发条件 */
   contingentCondition: `${enums.ContingentCondition}`;
-  /** ֹ��� */
+  /** 止损价 */
   stopPrice: number;
-  /** ǿƽԭ�� */
+  /** 强平原因 */
   forceCloseReason: `${enums.ForceCloseReason}`;
-  /** �Զ������־ */
+  /** 自动挂起标志 */
   isAutoSuspend: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �����ύ״̬ */
+  /** 报单提交状态 */
   orderSubmitStatus: `${enums.OrderSubmitStatus}`;
-  /** ������ʾ��� */
+  /** 报单提示序号 */
   notifySequence: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ������Դ */
+  /** 报单来源 */
   orderSource: `${enums.OrderSource}`;
-  /** ����״̬ */
+  /** 报单状态 */
   orderStatus: `${enums.OrderStatus}`;
-  /** �������� */
+  /** 报单类型 */
   orderType: `${enums.OrderType}`;
-  /** ��ɽ����� */
+  /** 今成交数量 */
   volumeTraded: number;
-  /** ʣ������ */
+  /** 剩余数量 */
   volumeTotal: number;
-  /** �������� */
+  /** 报单日期 */
   insertDate: string;
-  /** ί��ʱ�� */
+  /** 委托时间 */
   insertTime: string;
-  /** ����ʱ�� */
+  /** 激活时间 */
   activeTime: string;
-  /** ����ʱ�� */
+  /** 挂起时间 */
   suspendTime: string;
-  /** ����޸�ʱ�� */
+  /** 最后修改时间 */
   updateTime: string;
-  /** ����ʱ�� */
+  /** 撤销时间 */
   cancelTime: string;
-  /** ����޸Ľ���������Ա���� */
+  /** 最后修改交易所交易员代码 */
   activeTraderId: string;
-  /** �����Ա��� */
+  /** 结算会员编号 */
   clearingPartId: string;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcExchangeOrderInsertErrorField */
 export interface ExchangeOrderInsertError {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
 }
 
 /** CThostFtdcInputOrderActionField */
 export interface InputOrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������������ */
+  /** 报单操作引用 */
   orderActionRef: number;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionFlag: `${enums.ActionFlag}`;
-  /** �۸� */
+  /** 价格 */
   limitPrice: number;
-  /** �����仯 */
+  /** 数量变化 */
   volumeChange: number;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** ���������ֶ� */
+  /** 报单回显字段 */
   orderMemo: string;
-  /** session��������� api�Զ�ά�� */
+  /** session上请求计数 api自动维护 */
   sessionReqSeq: number;
 }
 
 /** CThostFtdcOrderActionField */
 export interface OrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������������ */
+  /** 报单操作引用 */
   orderActionRef: number;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionFlag: `${enums.ActionFlag}`;
-  /** �۸� */
+  /** 价格 */
   limitPrice: number;
-  /** �����仯 */
+  /** 数量变化 */
   volumeChange: number;
-  /** �������� */
+  /** 操作日期 */
   actionDate: string;
-  /** ����ʱ�� */
+  /** 操作时间 */
   actionTime: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** �������ر�� */
+  /** 操作本地编号 */
   actionLocalId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��������״̬ */
+  /** 报单操作状态 */
   orderActionStatus: `${enums.OrderActionStatus}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** ���������ֶ� */
+  /** 报单回显字段 */
   orderMemo: string;
-  /** session��������� api�Զ�ά�� */
+  /** session上请求计数 api自动维护 */
   sessionReqSeq: number;
 }
 
 /** CThostFtdcExchangeOrderActionField */
 export interface ExchangeOrderAction {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionFlag: `${enums.ActionFlag}`;
-  /** �۸� */
+  /** 价格 */
   limitPrice: number;
-  /** �����仯 */
+  /** 数量变化 */
   volumeChange: number;
-  /** �������� */
+  /** 操作日期 */
   actionDate: string;
-  /** ����ʱ�� */
+  /** 操作时间 */
   actionTime: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** �������ر�� */
+  /** 操作本地编号 */
   actionLocalId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��������״̬ */
+  /** 报单操作状态 */
   orderActionStatus: `${enums.OrderActionStatus}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcExchangeOrderActionErrorField */
 export interface ExchangeOrderActionError {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** �������ر�� */
+  /** 操作本地编号 */
   actionLocalId: string;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
 }
 
 /** CThostFtdcExchangeTradeField */
 export interface ExchangeTrade {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** �ɽ���� */
+  /** 成交编号 */
   tradeId: string;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ���׽�ɫ */
+  /** 交易角色 */
   tradingRole: `${enums.TradingRole}`;
-  /** ��ƽ��־ */
+  /** 开平标志 */
   offsetFlag: `${enums.OffsetFlag}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** �۸� */
+  /** 价格 */
   price: number;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** �ɽ�ʱ�� */
+  /** 成交时期 */
   tradeDate: string;
-  /** �ɽ�ʱ�� */
+  /** 成交时间 */
   tradeTime: string;
-  /** �ɽ����� */
+  /** 成交类型 */
   tradeType: `${enums.TradeType}`;
-  /** �ɽ�����Դ */
+  /** 成交价来源 */
   priceSource: `${enums.PriceSource}`;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** �����Ա��� */
+  /** 结算会员编号 */
   clearingPartId: string;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** �ɽ���Դ */
+  /** 成交来源 */
   tradeSource: `${enums.TradeSource}`;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
 }
 
 /** CThostFtdcTradeField */
 export interface Trade {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** �ɽ���� */
+  /** 成交编号 */
   tradeId: string;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ���׽�ɫ */
+  /** 交易角色 */
   tradingRole: `${enums.TradingRole}`;
-  /** ��ƽ��־ */
+  /** 开平标志 */
   offsetFlag: `${enums.OffsetFlag}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** �۸� */
+  /** 价格 */
   price: number;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** �ɽ�ʱ�� */
+  /** 成交时期 */
   tradeDate: string;
-  /** �ɽ�ʱ�� */
+  /** 成交时间 */
   tradeTime: string;
-  /** �ɽ����� */
+  /** 成交类型 */
   tradeType: `${enums.TradeType}`;
-  /** �ɽ�����Դ */
+  /** 成交价来源 */
   priceSource: `${enums.PriceSource}`;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** �����Ա��� */
+  /** 结算会员编号 */
   clearingPartId: string;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ���͹�˾������� */
+  /** 经纪公司报单编号 */
   brokerOrderSeq: number;
-  /** �ɽ���Դ */
+  /** 成交来源 */
   tradeSource: `${enums.TradeSource}`;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
 }
 
 /** CThostFtdcUserSessionField */
 export interface UserSession {
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ��¼���� */
+  /** 登录日期 */
   loginDate: string;
-  /** ��¼ʱ�� */
+  /** 登录时间 */
   loginTime: string;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** �ӿڶ˲�Ʒ��Ϣ */
+  /** 接口端产品信息 */
   interfaceProductInfo: string;
-  /** Э����Ϣ */
+  /** 协议信息 */
   protocolInfo: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��¼��ע */
+  /** 登录备注 */
   loginRemark: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryMaxOrderVolumeField */
 export interface QryMaxOrderVolume {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ��ƽ��־ */
+  /** 开平标志 */
   offsetFlag: `${enums.OffsetFlag}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��������������� */
+  /** 最大允许报单数量 */
   maxVolume: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcSettlementInfoConfirmField */
 export interface SettlementInfoConfirm {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ȷ������ */
+  /** 确认日期 */
   confirmDate: string;
-  /** ȷ��ʱ�� */
+  /** 确认时间 */
   confirmTime: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
 }
 
 /** CThostFtdcSyncDepositField */
 export interface SyncDeposit {
-  /** �������ˮ�� */
+  /** 出入金流水号 */
   depositSeqNo: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ����� */
+  /** 入金金额 */
   deposit: number;
-  /** �Ƿ�ǿ�ƽ��� */
+  /** 是否强制进行 */
   isForce: number;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** �Ƿ��Ǹ�����Ȩ��ת */
+  /** 是否是个股期权内转 */
   isFromSopt: number;
-  /** �ʽ����� */
+  /** 资金密码 */
   tradingPassword: string;
-  /** �Ƿ���������̵���ת */
+  /** 是否二级代理商的内转 */
   isSecAgentTranfer: number;
 }
 
 /** CThostFtdcSyncFundMortgageField */
 export interface SyncFundMortgage {
-  /** ������Ѻ��ˮ�� */
+  /** 货币质押流水号 */
   mortgageSeqNo: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Դ���� */
+  /** 源币种 */
   fromCurrencyId: string;
-  /** ��Ѻ��� */
+  /** 质押金额 */
   mortgageAmount: number;
-  /** Ŀ����� */
+  /** 目标币种 */
   toCurrencyId: string;
 }
 
 /** CThostFtdcBrokerSyncField */
 export interface BrokerSync {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
 }
 
 /** CThostFtdcSyncingInvestorField */
 export interface SyncingInvestor {
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���߷������ */
+  /** 投资者分组代码 */
   investorGroupId: string;
-  /** Ͷ�������� */
+  /** 投资者名称 */
   investorName: string;
-  /** ֤������ */
+  /** 证件类型 */
   identifiedCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �Ƿ��Ծ */
+  /** 是否活跃 */
   isActive: number;
-  /** ��ϵ�绰 */
+  /** 联系电话 */
   telephone: string;
-  /** ͨѶ��ַ */
+  /** 通讯地址 */
   address: string;
-  /** �������� */
+  /** 开户日期 */
   openDate: string;
-  /** �ֻ� */
+  /** 手机 */
   mobile: string;
-  /** ��������ģ����� */
+  /** 手续费率模板代码 */
   commModelId: string;
-  /** ��֤����ģ����� */
+  /** 保证金率模板代码 */
   marginModelId: string;
-  /** �Ƿ�Ƶ�ʿ��� */
+  /** 是否频率控制 */
   isOrderFreq: `${enums.EnumBool}`;
-  /** �Ƿ񿪲����� */
+  /** 是否开仓限制 */
   isOpenVolLimit: `${enums.EnumBool}`;
 }
 
 /** CThostFtdcSyncingTradingCodeField */
 export interface SyncingTradingCode {
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** �Ƿ��Ծ */
+  /** 是否活跃 */
   isActive: number;
-  /** ���ױ������� */
+  /** 交易编码类型 */
   clientIdType: `${enums.ClientIDType}`;
 }
 
 /** CThostFtdcSyncingInvestorGroupField */
 export interface SyncingInvestorGroup {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���߷������ */
+  /** 投资者分组代码 */
   investorGroupId: string;
-  /** Ͷ���߷������� */
+  /** 投资者分组名称 */
   investorGroupName: string;
 }
 
 /** CThostFtdcSyncingTradingAccountField */
 export interface SyncingTradingAccount {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ϴ���Ѻ��� */
+  /** 上次质押金额 */
   preMortgage: number;
-  /** �ϴ����ö�� */
+  /** 上次信用额度 */
   preCredit: number;
-  /** �ϴδ��� */
+  /** 上次存款额 */
   preDeposit: number;
-  /** �ϴν���׼���� */
+  /** 上次结算准备金 */
   preBalance: number;
-  /** �ϴ�ռ�õı�֤�� */
+  /** 上次占用的保证金 */
   preMargin: number;
-  /** ��Ϣ���� */
+  /** 利息基数 */
   interestBase: number;
-  /** ��Ϣ���� */
+  /** 利息收入 */
   interest: number;
-  /** ����� */
+  /** 入金金额 */
   deposit: number;
-  /** ������ */
+  /** 出金金额 */
   withdraw: number;
-  /** ����ı�֤�� */
+  /** 冻结的保证金 */
   frozenMargin: number;
-  /** ������ʽ� */
+  /** 冻结的资金 */
   frozenCash: number;
-  /** ����������� */
+  /** 冻结的手续费 */
   frozenCommission: number;
-  /** ��ǰ��֤���ܶ� */
+  /** 当前保证金总额 */
   currMargin: number;
-  /** �ʽ��� */
+  /** 资金差额 */
   cashIn: number;
-  /** ������ */
+  /** 手续费 */
   commission: number;
-  /** ƽ��ӯ�� */
+  /** 平仓盈亏 */
   closeProfit: number;
-  /** �ֲ�ӯ�� */
+  /** 持仓盈亏 */
   positionProfit: number;
-  /** �ڻ�����׼���� */
+  /** 期货结算准备金 */
   balance: number;
-  /** �����ʽ� */
+  /** 可用资金 */
   available: number;
-  /** ��ȡ�ʽ� */
+  /** 可取资金 */
   withdrawQuota: number;
-  /** ����׼���� */
+  /** 基本准备金 */
   reserve: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ���ö�� */
+  /** 信用额度 */
   credit: number;
-  /** ��Ѻ��� */
+  /** 质押金额 */
   mortgage: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchangeMargin: number;
-  /** Ͷ���߽��֤�� */
+  /** 投资者交割保证金 */
   deliveryMargin: number;
-  /** ���������֤�� */
+  /** 交易所交割保证金 */
   exchangeDeliveryMargin: number;
-  /** �����ڻ�����׼���� */
+  /** 保底期货结算准备金 */
   reserveBalance: number;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** �ϴλ��������� */
+  /** 上次货币质入金额 */
   preFundMortgageIn: number;
-  /** �ϴλ����ʳ���� */
+  /** 上次货币质出金额 */
   preFundMortgageOut: number;
-  /** ���������� */
+  /** 货币质入金额 */
   fundMortgageIn: number;
-  /** �����ʳ���� */
+  /** 货币质出金额 */
   fundMortgageOut: number;
-  /** ������Ѻ��� */
+  /** 货币质押余额 */
   fundMortgageAvailable: number;
-  /** ����Ѻ���ҽ�� */
+  /** 可质押货币金额 */
   mortgageableFund: number;
-  /** �����Ʒռ�ñ�֤�� */
+  /** 特殊产品占用保证金 */
   specProductMargin: number;
-  /** �����Ʒ���ᱣ֤�� */
+  /** 特殊产品冻结保证金 */
   specProductFrozenMargin: number;
-  /** �����Ʒ������ */
+  /** 特殊产品手续费 */
   specProductCommission: number;
-  /** �����Ʒ���������� */
+  /** 特殊产品冻结手续费 */
   specProductFrozenCommission: number;
-  /** �����Ʒ�ֲ�ӯ�� */
+  /** 特殊产品持仓盈亏 */
   specProductPositionProfit: number;
-  /** �����Ʒƽ��ӯ�� */
+  /** 特殊产品平仓盈亏 */
   specProductCloseProfit: number;
-  /** ���ݳֲ�ӯ���㷨����������Ʒ�ֲ�ӯ�� */
+  /** 根据持仓盈亏算法计算的特殊产品持仓盈亏 */
   specProductPositionProfitByAlg: number;
-  /** �����Ʒ��������֤�� */
+  /** 特殊产品交易所保证金 */
   specProductExchangeMargin: number;
-  /** ��ʱ���㶳���� */
+  /** 延时换汇冻结金额 */
   frozenSwap: number;
-  /** ʣ�໻���� */
+  /** 剩余换汇额度 */
   remainSwap: number;
-  /** ��Ȩ��ֵ */
+  /** 期权市值 */
   optionValue: number;
 }
 
 /** CThostFtdcSyncingInvestorPositionField */
 export interface SyncingInvestorPosition {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �ֲֶ�շ��� */
+  /** 持仓多空方向 */
   posiDirection: `${enums.PosiDirection}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** �ֲ����� */
+  /** 持仓日期 */
   positionDate: `${enums.PositionDate}`;
-  /** ���ճֲ� */
+  /** 上日持仓 */
   ydPosition: number;
-  /** ���ճֲ� */
+  /** 今日持仓 */
   position: number;
-  /** ��ͷ���� */
+  /** 多头冻结 */
   longFrozen: number;
-  /** ��ͷ���� */
+  /** 空头冻结 */
   shortFrozen: number;
-  /** ���ֶ����� */
+  /** 开仓冻结金额 */
   longFrozenAmount: number;
-  /** ���ֶ����� */
+  /** 开仓冻结金额 */
   shortFrozenAmount: number;
-  /** ������ */
+  /** 开仓量 */
   openVolume: number;
-  /** ƽ���� */
+  /** 平仓量 */
   closeVolume: number;
-  /** ���ֽ�� */
+  /** 开仓金额 */
   openAmount: number;
-  /** ƽ�ֽ�� */
+  /** 平仓金额 */
   closeAmount: number;
-  /** �ֲֳɱ� */
+  /** 持仓成本 */
   positionCost: number;
-  /** �ϴ�ռ�õı�֤�� */
+  /** 上次占用的保证金 */
   preMargin: number;
-  /** ռ�õı�֤�� */
+  /** 占用的保证金 */
   useMargin: number;
-  /** ����ı�֤�� */
+  /** 冻结的保证金 */
   frozenMargin: number;
-  /** ������ʽ� */
+  /** 冻结的资金 */
   frozenCash: number;
-  /** ����������� */
+  /** 冻结的手续费 */
   frozenCommission: number;
-  /** �ʽ��� */
+  /** 资金差额 */
   cashIn: number;
-  /** ������ */
+  /** 手续费 */
   commission: number;
-  /** ƽ��ӯ�� */
+  /** 平仓盈亏 */
   closeProfit: number;
-  /** �ֲ�ӯ�� */
+  /** 持仓盈亏 */
   positionProfit: number;
-  /** �ϴν���� */
+  /** 上次结算价 */
   preSettlementPrice: number;
-  /** ���ν���� */
+  /** 本次结算价 */
   settlementPrice: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ���ֳɱ� */
+  /** 开仓成本 */
   openCost: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchangeMargin: number;
-  /** ��ϳɽ��γɵĳֲ� */
+  /** 组合成交形成的持仓 */
   combPosition: number;
-  /** ��϶�ͷ���� */
+  /** 组合多头冻结 */
   combLongFrozen: number;
-  /** ��Ͽ�ͷ���� */
+  /** 组合空头冻结 */
   combShortFrozen: number;
-  /** ���ն���ƽ��ӯ�� */
+  /** 逐日盯市平仓盈亏 */
   closeProfitByDate: number;
-  /** ��ʶԳ�ƽ��ӯ�� */
+  /** 逐笔对冲平仓盈亏 */
   closeProfitByTrade: number;
-  /** ���ճֲ� */
+  /** 今日持仓 */
   todayPosition: number;
-  /** ��֤���� */
+  /** 保证金率 */
   marginRateByMoney: number;
-  /** ��֤����(������) */
+  /** 保证金率(按手数) */
   marginRateByVolume: number;
-  /** ִ�ж��� */
+  /** 执行冻结 */
   strikeFrozen: number;
-  /** ִ�ж����� */
+  /** 执行冻结金额 */
   strikeFrozenAmount: number;
-  /** ����ִ�ж��� */
+  /** 放弃执行冻结 */
   abandonFrozen: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ִ�ж������� */
+  /** 执行冻结的昨仓 */
   ydStrikeFrozen: number;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** �ֲֳɱ���ֵ */
+  /** 持仓成本差值 */
   positionCostOffset: number;
-  /** tas�ֲ����� */
+  /** tas持仓手数 */
   tasPosition: number;
-  /** tas�ֲֳɱ� */
+  /** tas持仓成本 */
   tasPositionCost: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcSyncingInstrumentMarginRateField */
 export interface SyncingInstrumentMarginRate {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��ͷ��֤���� */
+  /** 多头保证金率 */
   longMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 多头保证金费 */
   longMarginRatioByVolume: number;
-  /** ��ͷ��֤���� */
+  /** 空头保证金率 */
   shortMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 空头保证金费 */
   shortMarginRatioByVolume: number;
-  /** �Ƿ���Խ�������ȡ */
+  /** 是否相对交易所收取 */
   isRelative: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcSyncingInstrumentCommissionRateField */
 export interface SyncingInstrumentCommissionRate {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������������ */
+  /** 开仓手续费率 */
   openRatioByMoney: number;
-  /** ���������� */
+  /** 开仓手续费 */
   openRatioByVolume: number;
-  /** ƽ���������� */
+  /** 平仓手续费率 */
   closeRatioByMoney: number;
-  /** ƽ�������� */
+  /** 平仓手续费 */
   closeRatioByVolume: number;
-  /** ƽ���������� */
+  /** 平今手续费率 */
   closeTodayRatioByMoney: number;
-  /** ƽ�������� */
+  /** 平今手续费 */
   closeTodayRatioByVolume: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcSyncingInstrumentTradingRightField */
 export interface SyncingInstrumentTradingRight {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ����Ȩ�� */
+  /** 交易权限 */
   tradingRight: `${enums.TradingRight}`;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryOrderField */
 export interface QryOrder {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ��ʼʱ�� */
+  /** 开始时间 */
   insertTimeStart: string;
-  /** ����ʱ�� */
+  /** 结束时间 */
   insertTimeEnd: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryTradeField */
 export interface QryTrade {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** �ɽ���� */
+  /** 成交编号 */
   tradeId: string;
-  /** ��ʼʱ�� */
+  /** 开始时间 */
   tradeTimeStart: string;
-  /** ����ʱ�� */
+  /** 结束时间 */
   tradeTimeEnd: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryInvestorPositionField */
 export interface QryInvestorPosition {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryTradingAccountField */
 export interface QryTradingAccount {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ҵ������ */
+  /** 业务类型 */
   bizType: `${enums.BizType}`;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
 }
 
 /** CThostFtdcQryInvestorField */
 export interface QryInvestor {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
 }
 
 /** CThostFtdcQryTradingCodeField */
 export interface QryTradingCode {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ���ױ������� */
+  /** 交易编码类型 */
   clientIdType: `${enums.ClientIDType}`;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
 }
 
 /** CThostFtdcQryInvestorGroupField */
 export interface QryInvestorGroup {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
 }
 
 /** CThostFtdcQryInstrumentMarginRateField */
 export interface QryInstrumentMarginRate {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryInstrumentCommissionRateField */
 export interface QryInstrumentCommissionRate {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryInstrumentTradingRightField */
 export interface QryInstrumentTradingRight {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryBrokerField */
 export interface QryBroker {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
 }
 
 /** CThostFtdcQryTraderField */
 export interface QryTrader {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
 }
 
 /** CThostFtdcQrySuperUserFunctionField */
 export interface QrySuperUserFunction {
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
 }
 
 /** CThostFtdcQryUserSessionField */
 export interface QryUserSession {
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
 }
 
 /** CThostFtdcQryPartBrokerField */
 export interface QryPartBroker {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
 }
 
 /** CThostFtdcQryFrontStatusField */
 export interface QryFrontStatus {
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
 }
 
 /** CThostFtdcQryExchangeOrderField */
 export interface QryExchangeOrder {
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
 }
 
 /** CThostFtdcQryOrderActionField */
 export interface QryOrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
 }
 
 /** CThostFtdcQryExchangeOrderActionField */
 export interface QryExchangeOrderAction {
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
 }
 
 /** CThostFtdcQrySuperUserField */
 export interface QrySuperUser {
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
 }
 
 /** CThostFtdcQryExchangeField */
 export interface QryExchange {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
 }
 
 /** CThostFtdcQryProductField */
 export interface QryProduct {
-  /** ��Ʒ���� */
+  /** 产品类型 */
   productClass: `${enums.ProductClass}`;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
 }
 
 /** CThostFtdcQryInstrumentField */
 export interface QryInstrument {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
 }
 
 /** CThostFtdcQryDepthMarketDataField */
 export interface QryDepthMarketData {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Ʒ���� */
+  /** 产品类型 */
   productClass: `${enums.ProductClass}`;
 }
 
 /** CThostFtdcQryBrokerUserField */
 export interface QryBrokerUser {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
 }
 
 /** CThostFtdcQryBrokerUserFunctionField */
 export interface QryBrokerUserFunction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
 }
 
 /** CThostFtdcQryTraderOfferField */
 export interface QryTraderOffer {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
 }
 
 /** CThostFtdcQrySyncDepositField */
 export interface QrySyncDeposit {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �������ˮ�� */
+  /** 出入金流水号 */
   depositSeqNo: string;
 }
 
 /** CThostFtdcQrySettlementInfoField */
 export interface QrySettlementInfo {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
 }
 
 /** CThostFtdcQryExchangeMarginRateField */
 export interface QryExchangeMarginRate {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryExchangeMarginRateAdjustField */
 export interface QryExchangeMarginRateAdjust {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryExchangeRateField */
 export interface QryExchangeRate {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Դ���� */
+  /** 源币种 */
   fromCurrencyId: string;
-  /** Ŀ����� */
+  /** 目标币种 */
   toCurrencyId: string;
 }
 
 /** CThostFtdcQrySyncFundMortgageField */
 export interface QrySyncFundMortgage {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ������Ѻ��ˮ�� */
+  /** 货币质押流水号 */
   mortgageSeqNo: string;
 }
 
 /** CThostFtdcQryHisOrderField */
 export interface QryHisOrder {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ��ʼʱ�� */
+  /** 开始时间 */
   insertTimeStart: string;
-  /** ����ʱ�� */
+  /** 结束时间 */
   insertTimeEnd: string;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcOptionInstrMiniMarginField */
 export interface OptionInstrMiniMargin {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��λ���֣���Ȩ��Լ��С��֤�� */
+  /** 单位（手）期权合约最小保证金 */
   minMargin: number;
-  /** ȡֵ��ʽ */
+  /** 取值方式 */
   valueMethod: `${enums.ValueMethod}`;
-  /** �Ƿ���潻������ȡ */
+  /** 是否跟随交易所收取 */
   isRelative: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcOptionInstrMarginAdjustField */
 export interface OptionInstrMarginAdjust {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ����ͷ��֤�����ϵ�� */
+  /** 投机空头保证金调整系数 */
   sShortMarginRatioByMoney: number;
-  /** Ͷ����ͷ��֤�����ϵ�� */
+  /** 投机空头保证金调整系数 */
   sShortMarginRatioByVolume: number;
-  /** ��ֵ��ͷ��֤�����ϵ�� */
+  /** 保值空头保证金调整系数 */
   hShortMarginRatioByMoney: number;
-  /** ��ֵ��ͷ��֤�����ϵ�� */
+  /** 保值空头保证金调整系数 */
   hShortMarginRatioByVolume: number;
-  /** ������ͷ��֤�����ϵ�� */
+  /** 套利空头保证金调整系数 */
   aShortMarginRatioByMoney: number;
-  /** ������ͷ��֤�����ϵ�� */
+  /** 套利空头保证金调整系数 */
   aShortMarginRatioByVolume: number;
-  /** �Ƿ���潻������ȡ */
+  /** 是否跟随交易所收取 */
   isRelative: number;
-  /** �����̿�ͷ��֤�����ϵ�� */
+  /** 做市商空头保证金调整系数 */
   mShortMarginRatioByMoney: number;
-  /** �����̿�ͷ��֤�����ϵ�� */
+  /** 做市商空头保证金调整系数 */
   mShortMarginRatioByVolume: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcOptionInstrCommRateField */
 export interface OptionInstrCommRate {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������������ */
+  /** 开仓手续费率 */
   openRatioByMoney: number;
-  /** ���������� */
+  /** 开仓手续费 */
   openRatioByVolume: number;
-  /** ƽ���������� */
+  /** 平仓手续费率 */
   closeRatioByMoney: number;
-  /** ƽ�������� */
+  /** 平仓手续费 */
   closeRatioByVolume: number;
-  /** ƽ���������� */
+  /** 平今手续费率 */
   closeTodayRatioByMoney: number;
-  /** ƽ�������� */
+  /** 平今手续费 */
   closeTodayRatioByVolume: number;
-  /** ִ���������� */
+  /** 执行手续费率 */
   strikeRatioByMoney: number;
-  /** ִ�������� */
+  /** 执行手续费 */
   strikeRatioByVolume: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcOptionInstrTradeCostField */
 export interface OptionInstrTradeCost {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��Ȩ��Լ��֤�𲻱䲿�� */
+  /** 期权合约保证金不变部分 */
   fixedMargin: number;
-  /** ��Ȩ��Լ��С��֤�� */
+  /** 期权合约最小保证金 */
   miniMargin: number;
-  /** ��Ȩ��ԼȨ���� */
+  /** 期权合约权利金 */
   royalty: number;
-  /** ��������Ȩ��Լ��֤�𲻱䲿�� */
+  /** 交易所期权合约保证金不变部分 */
   exchFixedMargin: number;
-  /** ��������Ȩ��Լ��С��֤�� */
+  /** 交易所期权合约最小保证金 */
   exchMiniMargin: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryOptionInstrTradeCostField */
 export interface QryOptionInstrTradeCost {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��Ȩ��Լ���� */
+  /** 期权合约报价 */
   inputPrice: number;
-  /** ��ļ۸�,��0���������� */
+  /** 标的价格,填0则用昨结算价 */
   underlyingPrice: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryOptionInstrCommRateField */
 export interface QryOptionInstrCommRate {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcIndexPriceField */
 export interface IndexPrice {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ָ���ֻ����̼� */
+  /** 指数现货收盘价 */
   closePrice: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcInputExecOrderField */
 export interface InputExecOrder {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ִ���������� */
+  /** 执行宣告引用 */
   execOrderRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��ƽ��־ */
+  /** 开平标志 */
   offsetFlag: `${enums.OffsetFlag}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ִ������ */
+  /** 执行类型 */
   actionType: `${enums.ActionType}`;
-  /** ����ͷ������ĳֲַ��� */
+  /** 保留头寸申请的持仓方向 */
   posiDirection: `${enums.PosiDirection}`;
-  /** ��Ȩ��Ȩ���Ƿ����ڻ�ͷ��ı��,���ֶ��ѷ��� */
+  /** 期权行权后是否保留期货头寸的标记,该字段已废弃 */
   reservePositionFlag: `${enums.ExecOrderPositionFlag}`;
-  /** ��Ȩ��Ȩ�����ɵ�ͷ���Ƿ��Զ�ƽ�� */
+  /** 期权行权后生成的头寸是否自动平仓 */
   closeFlag: `${enums.ExecOrderCloseFlag}`;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** �ʽ��˺� */
+  /** 资金账号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ���ױ��� */
+  /** 交易编码 */
   clientId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcInputExecOrderActionField */
 export interface InputExecOrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ִ������������� */
+  /** 执行宣告操作引用 */
   execOrderActionRef: number;
-  /** ִ���������� */
+  /** 执行宣告引用 */
   execOrderRef: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ִ������������ */
+  /** 执行宣告操作编号 */
   execOrderSysId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionFlag: `${enums.ActionFlag}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcExecOrderField */
 export interface ExecOrder {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ִ���������� */
+  /** 执行宣告引用 */
   execOrderRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��ƽ��־ */
+  /** 开平标志 */
   offsetFlag: `${enums.OffsetFlag}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ִ������ */
+  /** 执行类型 */
   actionType: `${enums.ActionType}`;
-  /** ����ͷ������ĳֲַ��� */
+  /** 保留头寸申请的持仓方向 */
   posiDirection: `${enums.PosiDirection}`;
-  /** ��Ȩ��Ȩ���Ƿ����ڻ�ͷ��ı��,���ֶ��ѷ��� */
+  /** 期权行权后是否保留期货头寸的标记,该字段已废弃 */
   reservePositionFlag: `${enums.ExecOrderPositionFlag}`;
-  /** ��Ȩ��Ȩ�����ɵ�ͷ���Ƿ��Զ�ƽ�� */
+  /** 期权行权后生成的头寸是否自动平仓 */
   closeFlag: `${enums.ExecOrderCloseFlag}`;
-  /** ����ִ�������� */
+  /** 本地执行宣告编号 */
   execOrderLocalId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ִ�������ύ״̬ */
+  /** 执行宣告提交状态 */
   orderSubmitStatus: `${enums.OrderSubmitStatus}`;
-  /** ������ʾ��� */
+  /** 报单提示序号 */
   notifySequence: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ִ�������� */
+  /** 执行宣告编号 */
   execOrderSysId: string;
-  /** �������� */
+  /** 报单日期 */
   insertDate: string;
-  /** ����ʱ�� */
+  /** 插入时间 */
   insertTime: string;
-  /** ����ʱ�� */
+  /** 撤销时间 */
   cancelTime: string;
-  /** ִ�н�� */
+  /** 执行结果 */
   execResult: `${enums.ExecResult}`;
-  /** �����Ա��� */
+  /** 结算会员编号 */
   clearingPartId: string;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** �����û����� */
+  /** 操作用户代码 */
   activeUserId: string;
-  /** ���͹�˾������� */
+  /** 经纪公司报单编号 */
   brokerExecOrderSeq: number;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** �ʽ��˺� */
+  /** 资金账号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcExecOrderActionField */
 export interface ExecOrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ִ������������� */
+  /** 执行宣告操作引用 */
   execOrderActionRef: number;
-  /** ִ���������� */
+  /** 执行宣告引用 */
   execOrderRef: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ִ������������ */
+  /** 执行宣告操作编号 */
   execOrderSysId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionFlag: `${enums.ActionFlag}`;
-  /** �������� */
+  /** 操作日期 */
   actionDate: string;
-  /** ����ʱ�� */
+  /** 操作时间 */
   actionTime: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ����ִ�������� */
+  /** 本地执行宣告编号 */
   execOrderLocalId: string;
-  /** �������ر�� */
+  /** 操作本地编号 */
   actionLocalId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��������״̬ */
+  /** 报单操作状态 */
   orderActionStatus: `${enums.OrderActionStatus}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ִ������ */
+  /** 执行类型 */
   actionType: `${enums.ActionType}`;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryExecOrderField */
 export interface QryExecOrder {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ִ�������� */
+  /** 执行宣告编号 */
   execOrderSysId: string;
-  /** ��ʼʱ�� */
+  /** 开始时间 */
   insertTimeStart: string;
-  /** ����ʱ�� */
+  /** 结束时间 */
   insertTimeEnd: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcExchangeExecOrderField */
 export interface ExchangeExecOrder {
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��ƽ��־ */
+  /** 开平标志 */
   offsetFlag: `${enums.OffsetFlag}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ִ������ */
+  /** 执行类型 */
   actionType: `${enums.ActionType}`;
-  /** ����ͷ������ĳֲַ��� */
+  /** 保留头寸申请的持仓方向 */
   posiDirection: `${enums.PosiDirection}`;
-  /** ��Ȩ��Ȩ���Ƿ����ڻ�ͷ��ı��,���ֶ��ѷ��� */
+  /** 期权行权后是否保留期货头寸的标记,该字段已废弃 */
   reservePositionFlag: `${enums.ExecOrderPositionFlag}`;
-  /** ��Ȩ��Ȩ�����ɵ�ͷ���Ƿ��Զ�ƽ�� */
+  /** 期权行权后生成的头寸是否自动平仓 */
   closeFlag: `${enums.ExecOrderCloseFlag}`;
-  /** ����ִ�������� */
+  /** 本地执行宣告编号 */
   execOrderLocalId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ִ�������ύ״̬ */
+  /** 执行宣告提交状态 */
   orderSubmitStatus: `${enums.OrderSubmitStatus}`;
-  /** ������ʾ��� */
+  /** 报单提示序号 */
   notifySequence: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ִ�������� */
+  /** 执行宣告编号 */
   execOrderSysId: string;
-  /** �������� */
+  /** 报单日期 */
   insertDate: string;
-  /** ����ʱ�� */
+  /** 插入时间 */
   insertTime: string;
-  /** ����ʱ�� */
+  /** 撤销时间 */
   cancelTime: string;
-  /** ִ�н�� */
+  /** 执行结果 */
   execResult: `${enums.ExecResult}`;
-  /** �����Ա��� */
+  /** 结算会员编号 */
   clearingPartId: string;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryExchangeExecOrderField */
 export interface QryExchangeExecOrder {
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
 }
 
 /** CThostFtdcQryExecOrderActionField */
 export interface QryExecOrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
 }
 
 /** CThostFtdcExchangeExecOrderActionField */
 export interface ExchangeExecOrderAction {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ִ������������ */
+  /** 执行宣告操作编号 */
   execOrderSysId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionFlag: `${enums.ActionFlag}`;
-  /** �������� */
+  /** 操作日期 */
   actionDate: string;
-  /** ����ʱ�� */
+  /** 操作时间 */
   actionTime: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ����ִ�������� */
+  /** 本地执行宣告编号 */
   execOrderLocalId: string;
-  /** �������ر�� */
+  /** 操作本地编号 */
   actionLocalId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��������״̬ */
+  /** 报单操作状态 */
   orderActionStatus: `${enums.OrderActionStatus}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ִ������ */
+  /** 执行类型 */
   actionType: `${enums.ActionType}`;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
 }
 
 /** CThostFtdcQryExchangeExecOrderActionField */
 export interface QryExchangeExecOrderAction {
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
 }
 
 /** CThostFtdcErrExecOrderField */
 export interface ErrExecOrder {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ִ���������� */
+  /** 执行宣告引用 */
   execOrderRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��ƽ��־ */
+  /** 开平标志 */
   offsetFlag: `${enums.OffsetFlag}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ִ������ */
+  /** 执行类型 */
   actionType: `${enums.ActionType}`;
-  /** ����ͷ������ĳֲַ��� */
+  /** 保留头寸申请的持仓方向 */
   posiDirection: `${enums.PosiDirection}`;
-  /** ��Ȩ��Ȩ���Ƿ����ڻ�ͷ��ı��,���ֶ��ѷ��� */
+  /** 期权行权后是否保留期货头寸的标记,该字段已废弃 */
   reservePositionFlag: `${enums.ExecOrderPositionFlag}`;
-  /** ��Ȩ��Ȩ�����ɵ�ͷ���Ƿ��Զ�ƽ�� */
+  /** 期权行权后生成的头寸是否自动平仓 */
   closeFlag: `${enums.ExecOrderCloseFlag}`;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** �ʽ��˺� */
+  /** 资金账号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ���ױ��� */
+  /** 交易编码 */
   clientId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryErrExecOrderField */
 export interface QryErrExecOrder {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
 }
 
 /** CThostFtdcErrExecOrderActionField */
 export interface ErrExecOrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ִ������������� */
+  /** 执行宣告操作引用 */
   execOrderActionRef: number;
-  /** ִ���������� */
+  /** 执行宣告引用 */
   execOrderRef: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ִ������������ */
+  /** 执行宣告操作编号 */
   execOrderSysId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionFlag: `${enums.ActionFlag}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryErrExecOrderActionField */
 export interface QryErrExecOrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
 }
 
 /** CThostFtdcOptionInstrTradingRightField */
 export interface OptionInstrTradingRight {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ����Ȩ�� */
+  /** 交易权限 */
   tradingRight: `${enums.TradingRight}`;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryOptionInstrTradingRightField */
 export interface QryOptionInstrTradingRight {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcInputForQuoteField */
 export interface InputForQuote {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ѯ������ */
+  /** 询价引用 */
   forQuoteRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcForQuoteField */
 export interface ForQuote {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ѯ������ */
+  /** 询价引用 */
   forQuoteRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ����ѯ�۱�� */
+  /** 本地询价编号 */
   forQuoteLocalId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �������� */
+  /** 报单日期 */
   insertDate: string;
-  /** ����ʱ�� */
+  /** 插入时间 */
   insertTime: string;
-  /** ѯ��״̬ */
+  /** 询价状态 */
   forQuoteStatus: `${enums.ForQuoteStatus}`;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** �����û����� */
+  /** 操作用户代码 */
   activeUserId: string;
-  /** ���͹�˾ѯ�۱�� */
+  /** 经纪公司询价编号 */
   brokerForQutoSeq: number;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryForQuoteField */
 export interface QryForQuote {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��ʼʱ�� */
+  /** 开始时间 */
   insertTimeStart: string;
-  /** ����ʱ�� */
+  /** 结束时间 */
   insertTimeEnd: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcExchangeForQuoteField */
 export interface ExchangeForQuote {
-  /** ����ѯ�۱�� */
+  /** 本地询价编号 */
   forQuoteLocalId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �������� */
+  /** 报单日期 */
   insertDate: string;
-  /** ����ʱ�� */
+  /** 插入时间 */
   insertTime: string;
-  /** ѯ��״̬ */
+  /** 询价状态 */
   forQuoteStatus: `${enums.ForQuoteStatus}`;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryExchangeForQuoteField */
 export interface QryExchangeForQuote {
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
 }
 
 /** CThostFtdcInputQuoteField */
 export interface InputQuote {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �������� */
+  /** 报价引用 */
   quoteRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���۸� */
+  /** 卖价格 */
   askPrice: number;
-  /** ��۸� */
+  /** 买价格 */
   bidPrice: number;
-  /** ������ */
+  /** 卖数量 */
   askVolume: number;
-  /** ������ */
+  /** 买数量 */
   bidVolume: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ����ƽ��־ */
+  /** 卖开平标志 */
   askOffsetFlag: `${enums.OffsetFlag}`;
-  /** ��ƽ��־ */
+  /** 买开平标志 */
   bidOffsetFlag: `${enums.OffsetFlag}`;
-  /** ��Ͷ���ױ���־ */
+  /** 卖投机套保标志 */
   askHedgeFlag: `${enums.HedgeFlag}`;
-  /** ��Ͷ���ױ���־ */
+  /** 买投机套保标志 */
   bidHedgeFlag: `${enums.HedgeFlag}`;
-  /** �������������� */
+  /** 衍生卖报单引用 */
   askOrderRef: string;
-  /** �����򱨵����� */
+  /** 衍生买报单引用 */
   bidOrderRef: string;
-  /** Ӧ�۱�� */
+  /** 应价编号 */
   forQuoteSysId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ���ױ��� */
+  /** 交易编码 */
   clientId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** ��������� */
+  /** 被顶单编号 */
   replaceSysId: string;
-  /** ��Ч������ */
+  /** 有效期类型 */
   timeCondition: `${enums.TimeCondition}`;
-  /** ���������ֶ� */
+  /** 报单回显字段 */
   orderMemo: string;
-  /** session��������� api�Զ�ά�� */
+  /** session上请求计数 api自动维护 */
   sessionReqSeq: number;
 }
 
 /** CThostFtdcInputQuoteActionField */
 export interface InputQuoteAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���۲������� */
+  /** 报价操作引用 */
   quoteActionRef: number;
-  /** �������� */
+  /** 报价引用 */
   quoteRef: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���۲������ */
+  /** 报价操作编号 */
   quoteSysId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionFlag: `${enums.ActionFlag}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ���ױ��� */
+  /** 交易编码 */
   clientId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** ���������ֶ� */
+  /** 报单回显字段 */
   orderMemo: string;
-  /** session��������� api�Զ�ά�� */
+  /** session上请求计数 api自动维护 */
   sessionReqSeq: number;
 }
 
 /** CThostFtdcQuoteField */
 export interface Quote {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �������� */
+  /** 报价引用 */
   quoteRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���۸� */
+  /** 卖价格 */
   askPrice: number;
-  /** ��۸� */
+  /** 买价格 */
   bidPrice: number;
-  /** ������ */
+  /** 卖数量 */
   askVolume: number;
-  /** ������ */
+  /** 买数量 */
   bidVolume: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ����ƽ��־ */
+  /** 卖开平标志 */
   askOffsetFlag: `${enums.OffsetFlag}`;
-  /** ��ƽ��־ */
+  /** 买开平标志 */
   bidOffsetFlag: `${enums.OffsetFlag}`;
-  /** ��Ͷ���ױ���־ */
+  /** 卖投机套保标志 */
   askHedgeFlag: `${enums.HedgeFlag}`;
-  /** ��Ͷ���ױ���־ */
+  /** 买投机套保标志 */
   bidHedgeFlag: `${enums.HedgeFlag}`;
-  /** ���ر��۱�� */
+  /** 本地报价编号 */
   quoteLocalId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ������ʾ��� */
+  /** 报价提示序号 */
   notifySequence: number;
-  /** �����ύ״̬ */
+  /** 报价提交状态 */
   orderSubmitStatus: `${enums.OrderSubmitStatus}`;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ���۱�� */
+  /** 报价编号 */
   quoteSysId: string;
-  /** �������� */
+  /** 报单日期 */
   insertDate: string;
-  /** ����ʱ�� */
+  /** 插入时间 */
   insertTime: string;
-  /** ����ʱ�� */
+  /** 撤销时间 */
   cancelTime: string;
-  /** ����״̬ */
+  /** 报价状态 */
   quoteStatus: `${enums.OrderStatus}`;
-  /** �����Ա��� */
+  /** 结算会员编号 */
   clearingPartId: string;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** ����������� */
+  /** 卖方报单编号 */
   askOrderSysId: string;
-  /** �򷽱������ */
+  /** 买方报单编号 */
   bidOrderSysId: string;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** �����û����� */
+  /** 操作用户代码 */
   activeUserId: string;
-  /** ���͹�˾���۱�� */
+  /** 经纪公司报价编号 */
   brokerQuoteSeq: number;
-  /** �������������� */
+  /** 衍生卖报单引用 */
   askOrderRef: string;
-  /** �����򱨵����� */
+  /** 衍生买报单引用 */
   bidOrderRef: string;
-  /** Ӧ�۱�� */
+  /** 应价编号 */
   forQuoteSysId: string;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** �ʽ��˺� */
+  /** 资金账号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** ��������� */
+  /** 被顶单编号 */
   replaceSysId: string;
-  /** ��Ч������ */
+  /** 有效期类型 */
   timeCondition: `${enums.TimeCondition}`;
-  /** ���������ֶ� */
+  /** 报单回显字段 */
   orderMemo: string;
-  /** session��������� api�Զ�ά�� */
+  /** session上请求计数 api自动维护 */
   sessionReqSeq: number;
 }
 
 /** CThostFtdcQuoteActionField */
 export interface QuoteAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���۲������� */
+  /** 报价操作引用 */
   quoteActionRef: number;
-  /** �������� */
+  /** 报价引用 */
   quoteRef: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���۲������ */
+  /** 报价操作编号 */
   quoteSysId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionFlag: `${enums.ActionFlag}`;
-  /** �������� */
+  /** 操作日期 */
   actionDate: string;
-  /** ����ʱ�� */
+  /** 操作时间 */
   actionTime: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ���ر��۱�� */
+  /** 本地报价编号 */
   quoteLocalId: string;
-  /** �������ر�� */
+  /** 操作本地编号 */
   actionLocalId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��������״̬ */
+  /** 报单操作状态 */
   orderActionStatus: `${enums.OrderActionStatus}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** ���������ֶ� */
+  /** 报单回显字段 */
   orderMemo: string;
-  /** session��������� api�Զ�ά�� */
+  /** session上请求计数 api自动维护 */
   sessionReqSeq: number;
 }
 
 /** CThostFtdcQryQuoteField */
 export interface QryQuote {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���۱�� */
+  /** 报价编号 */
   quoteSysId: string;
-  /** ��ʼʱ�� */
+  /** 开始时间 */
   insertTimeStart: string;
-  /** ����ʱ�� */
+  /** 结束时间 */
   insertTimeEnd: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcExchangeQuoteField */
 export interface ExchangeQuote {
-  /** ���۸� */
+  /** 卖价格 */
   askPrice: number;
-  /** ��۸� */
+  /** 买价格 */
   bidPrice: number;
-  /** ������ */
+  /** 卖数量 */
   askVolume: number;
-  /** ������ */
+  /** 买数量 */
   bidVolume: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ����ƽ��־ */
+  /** 卖开平标志 */
   askOffsetFlag: `${enums.OffsetFlag}`;
-  /** ��ƽ��־ */
+  /** 买开平标志 */
   bidOffsetFlag: `${enums.OffsetFlag}`;
-  /** ��Ͷ���ױ���־ */
+  /** 卖投机套保标志 */
   askHedgeFlag: `${enums.HedgeFlag}`;
-  /** ��Ͷ���ױ���־ */
+  /** 买投机套保标志 */
   bidHedgeFlag: `${enums.HedgeFlag}`;
-  /** ���ر��۱�� */
+  /** 本地报价编号 */
   quoteLocalId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ������ʾ��� */
+  /** 报价提示序号 */
   notifySequence: number;
-  /** �����ύ״̬ */
+  /** 报价提交状态 */
   orderSubmitStatus: `${enums.OrderSubmitStatus}`;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ���۱�� */
+  /** 报价编号 */
   quoteSysId: string;
-  /** �������� */
+  /** 报单日期 */
   insertDate: string;
-  /** ����ʱ�� */
+  /** 插入时间 */
   insertTime: string;
-  /** ����ʱ�� */
+  /** 撤销时间 */
   cancelTime: string;
-  /** ����״̬ */
+  /** 报价状态 */
   quoteStatus: `${enums.OrderStatus}`;
-  /** �����Ա��� */
+  /** 结算会员编号 */
   clearingPartId: string;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** ����������� */
+  /** 卖方报单编号 */
   askOrderSysId: string;
-  /** �򷽱������ */
+  /** 买方报单编号 */
   bidOrderSysId: string;
-  /** Ӧ�۱�� */
+  /** 应价编号 */
   forQuoteSysId: string;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** ��Ч������ */
+  /** 有效期类型 */
   timeCondition: `${enums.TimeCondition}`;
 }
 
 /** CThostFtdcQryExchangeQuoteField */
 export interface QryExchangeQuote {
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
 }
 
 /** CThostFtdcQryQuoteActionField */
 export interface QryQuoteAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
 }
 
 /** CThostFtdcExchangeQuoteActionField */
 export interface ExchangeQuoteAction {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���۲������ */
+  /** 报价操作编号 */
   quoteSysId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionFlag: `${enums.ActionFlag}`;
-  /** �������� */
+  /** 操作日期 */
   actionDate: string;
-  /** ����ʱ�� */
+  /** 操作时间 */
   actionTime: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ���ر��۱�� */
+  /** 本地报价编号 */
   quoteLocalId: string;
-  /** �������ر�� */
+  /** 操作本地编号 */
   actionLocalId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��������״̬ */
+  /** 报单操作状态 */
   orderActionStatus: `${enums.OrderActionStatus}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryExchangeQuoteActionField */
 export interface QryExchangeQuoteAction {
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
 }
 
 /** CThostFtdcOptionInstrDeltaField */
 export interface OptionInstrDelta {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Deltaֵ */
+  /** Delta值 */
   delta: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcForQuoteRspField */
 export interface ForQuoteRsp {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ѯ�۱�� */
+  /** 询价编号 */
   forQuoteSysId: string;
-  /** ѯ��ʱ�� */
+  /** 询价时间 */
   forQuoteTime: string;
-  /** ҵ������ */
+  /** 业务日期 */
   actionDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcStrikeOffsetField */
 export interface StrikeOffset {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ִ��ƫ��ֵ */
+  /** 执行偏移值 */
   offset: number;
-  /** ִ��ƫ������ */
+  /** 执行偏移类型 */
   offsetType: `${enums.StrikeOffsetType}`;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryStrikeOffsetField */
 export interface QryStrikeOffset {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcInputBatchOrderActionField */
 export interface InputBatchOrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������������ */
+  /** 报单操作引用 */
   orderActionRef: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcBatchOrderActionField */
 export interface BatchOrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������������ */
+  /** 报单操作引用 */
   orderActionRef: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** �������� */
+  /** 操作日期 */
   actionDate: string;
-  /** ����ʱ�� */
+  /** 操作时间 */
   actionTime: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �������ر�� */
+  /** 操作本地编号 */
   actionLocalId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��������״̬ */
+  /** 报单操作状态 */
   orderActionStatus: `${enums.OrderActionStatus}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcExchangeBatchOrderActionField */
 export interface ExchangeBatchOrderAction {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** �������� */
+  /** 操作日期 */
   actionDate: string;
-  /** ����ʱ�� */
+  /** 操作时间 */
   actionTime: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �������ر�� */
+  /** 操作本地编号 */
   actionLocalId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��������״̬ */
+  /** 报单操作状态 */
   orderActionStatus: `${enums.OrderActionStatus}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryBatchOrderActionField */
 export interface QryBatchOrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
 }
 
 /** CThostFtdcCombInstrumentGuardField */
 export interface CombInstrumentGuard {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
   guarantRatio: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryCombInstrumentGuardField */
 export interface QryCombInstrumentGuard {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcInputCombActionField */
 export interface InputCombAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������� */
+  /** 组合引用 */
   combActionRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** ���ָ��� */
+  /** 组合指令方向 */
   combDirection: `${enums.CombDirection}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcCombActionField */
 export interface CombAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������� */
+  /** 组合引用 */
   combActionRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** ���ָ��� */
+  /** 组合指令方向 */
   combDirection: `${enums.CombDirection}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ����������ϱ�� */
+  /** 本地申请组合编号 */
   actionLocalId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ���״̬ */
+  /** 组合状态 */
   actionStatus: `${enums.OrderActionStatus}`;
-  /** ������ʾ��� */
+  /** 报单提示序号 */
   notifySequence: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��ϱ�� */
+  /** 组合编号 */
   comTradeId: string;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryCombActionField */
 export interface QryCombAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcExchangeCombActionField */
 export interface ExchangeCombAction {
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** ���ָ��� */
+  /** 组合指令方向 */
   combDirection: `${enums.CombDirection}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ����������ϱ�� */
+  /** 本地申请组合编号 */
   actionLocalId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ���״̬ */
+  /** 组合状态 */
   actionStatus: `${enums.OrderActionStatus}`;
-  /** ������ʾ��� */
+  /** 报单提示序号 */
   notifySequence: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��ϱ�� */
+  /** 组合编号 */
   comTradeId: string;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryExchangeCombActionField */
 export interface QryExchangeCombAction {
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
 }
 
 /** CThostFtdcProductExchRateField */
 export interface ProductExchRate {
-  /** ���۱������� */
+  /** 报价币种类型 */
   quoteCurrencyId: string;
-  /** ���� */
+  /** 汇率 */
   exchangeRate: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
 }
 
 /** CThostFtdcQryProductExchRateField */
 export interface QryProductExchRate {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
 }
 
 /** CThostFtdcQryForQuoteParamField */
 export interface QryForQuoteParam {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcForQuoteParamField */
 export interface ForQuoteParam {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���¼� */
+  /** 最新价 */
   lastPrice: number;
-  /** �۲� */
+  /** 价差 */
   priceInterval: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcMMOptionInstrCommRateField */
 export interface MMOptionInstrCommRate {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������������ */
+  /** 开仓手续费率 */
   openRatioByMoney: number;
-  /** ���������� */
+  /** 开仓手续费 */
   openRatioByVolume: number;
-  /** ƽ���������� */
+  /** 平仓手续费率 */
   closeRatioByMoney: number;
-  /** ƽ�������� */
+  /** 平仓手续费 */
   closeRatioByVolume: number;
-  /** ƽ���������� */
+  /** 平今手续费率 */
   closeTodayRatioByMoney: number;
-  /** ƽ�������� */
+  /** 平今手续费 */
   closeTodayRatioByVolume: number;
-  /** ִ���������� */
+  /** 执行手续费率 */
   strikeRatioByMoney: number;
-  /** ִ�������� */
+  /** 执行手续费 */
   strikeRatioByVolume: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryMMOptionInstrCommRateField */
 export interface QryMMOptionInstrCommRate {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcMMInstrumentCommissionRateField */
 export interface MMInstrumentCommissionRate {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������������ */
+  /** 开仓手续费率 */
   openRatioByMoney: number;
-  /** ���������� */
+  /** 开仓手续费 */
   openRatioByVolume: number;
-  /** ƽ���������� */
+  /** 平仓手续费率 */
   closeRatioByMoney: number;
-  /** ƽ�������� */
+  /** 平仓手续费 */
   closeRatioByVolume: number;
-  /** ƽ���������� */
+  /** 平今手续费率 */
   closeTodayRatioByMoney: number;
-  /** ƽ�������� */
+  /** 平今手续费 */
   closeTodayRatioByVolume: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryMMInstrumentCommissionRateField */
 export interface QryMMInstrumentCommissionRate {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcInstrumentOrderCommRateField */
 export interface InstrumentOrderCommRate {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ���������� */
+  /** 报单手续费 */
   orderCommByVolume: number;
-  /** ���������� */
+  /** 撤单手续费 */
   orderActionCommByVolume: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ���������� */
+  /** 报单手续费 */
   orderCommByTrade: number;
-  /** ���������� */
+  /** 撤单手续费 */
   orderActionCommByTrade: number;
 }
 
 /** CThostFtdcQryInstrumentOrderCommRateField */
 export interface QryInstrumentOrderCommRate {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcTradeParamField */
 export interface TradeParam {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �������� */
+  /** 参数代码 */
   tradeParamId: `${enums.TradeParamID}`;
-  /** ��������ֵ */
+  /** 参数代码值 */
   tradeParamValue: string;
-  /** ��ע */
+  /** 备注 */
   memo: string;
 }
 
 /** CThostFtdcInstrumentMarginRateULField */
 export interface InstrumentMarginRateUL {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��ͷ��֤���� */
+  /** 多头保证金率 */
   longMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 多头保证金费 */
   longMarginRatioByVolume: number;
-  /** ��ͷ��֤���� */
+  /** 空头保证金率 */
   shortMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 空头保证金费 */
   shortMarginRatioByVolume: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcFutureLimitPosiParamField */
 export interface FutureLimitPosiParam {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ����Ͷ�������������� */
+  /** 当日投机开仓数量限制 */
   specOpenVolume: number;
-  /** �������������������� */
+  /** 当日套利开仓数量限制 */
   arbiOpenVolume: number;
-  /** ����Ͷ��+���������������� */
+  /** 当日投机+套利开仓数量限制 */
   openVolume: number;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
 }
 
 /** CThostFtdcLoginForbiddenIPField */
 export interface LoginForbiddenIP {
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcIPListField */
 export interface IPList {
-  /** �Ƿ������ */
+  /** 是否白名单 */
   isWhite: number;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcInputOptionSelfCloseField */
 export interface InputOptionSelfClose {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Ȩ�ԶԳ����� */
+  /** 期权自对冲引用 */
   optionSelfCloseRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��Ȩ��Ȩ��ͷ���Ƿ��ԶԳ� */
+  /** 期权行权的头寸是否自对冲 */
   optSelfCloseFlag: `${enums.OptSelfCloseFlag}`;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** �ʽ��˺� */
+  /** 资金账号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ���ױ��� */
+  /** 交易编码 */
   clientId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcInputOptionSelfCloseActionField */
 export interface InputOptionSelfCloseAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Ȩ�ԶԳ�������� */
+  /** 期权自对冲操作引用 */
   optionSelfCloseActionRef: number;
-  /** ��Ȩ�ԶԳ����� */
+  /** 期权自对冲引用 */
   optionSelfCloseRef: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ȩ�ԶԳ������� */
+  /** 期权自对冲操作编号 */
   optionSelfCloseSysId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionFlag: `${enums.ActionFlag}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcOptionSelfCloseField */
 export interface OptionSelfClose {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Ȩ�ԶԳ����� */
+  /** 期权自对冲引用 */
   optionSelfCloseRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��Ȩ��Ȩ��ͷ���Ƿ��ԶԳ� */
+  /** 期权行权的头寸是否自对冲 */
   optSelfCloseFlag: `${enums.OptSelfCloseFlag}`;
-  /** ������Ȩ�ԶԳ��� */
+  /** 本地期权自对冲编号 */
   optionSelfCloseLocalId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ��Ȩ�ԶԳ��ύ״̬ */
+  /** 期权自对冲提交状态 */
   orderSubmitStatus: `${enums.OrderSubmitStatus}`;
-  /** ������ʾ��� */
+  /** 报单提示序号 */
   notifySequence: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ��Ȩ�ԶԳ��� */
+  /** 期权自对冲编号 */
   optionSelfCloseSysId: string;
-  /** �������� */
+  /** 报单日期 */
   insertDate: string;
-  /** ����ʱ�� */
+  /** 插入时间 */
   insertTime: string;
-  /** ����ʱ�� */
+  /** 撤销时间 */
   cancelTime: string;
-  /** �ԶԳ��� */
+  /** 自对冲结果 */
   execResult: `${enums.ExecResult}`;
-  /** �����Ա��� */
+  /** 结算会员编号 */
   clearingPartId: string;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** �����û����� */
+  /** 操作用户代码 */
   activeUserId: string;
-  /** ���͹�˾������� */
+  /** 经纪公司报单编号 */
   brokerOptionSelfCloseSeq: number;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** �ʽ��˺� */
+  /** 资金账号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcOptionSelfCloseActionField */
 export interface OptionSelfCloseAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Ȩ�ԶԳ�������� */
+  /** 期权自对冲操作引用 */
   optionSelfCloseActionRef: number;
-  /** ��Ȩ�ԶԳ����� */
+  /** 期权自对冲引用 */
   optionSelfCloseRef: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ȩ�ԶԳ������� */
+  /** 期权自对冲操作编号 */
   optionSelfCloseSysId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionFlag: `${enums.ActionFlag}`;
-  /** �������� */
+  /** 操作日期 */
   actionDate: string;
-  /** ����ʱ�� */
+  /** 操作时间 */
   actionTime: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ������Ȩ�ԶԳ��� */
+  /** 本地期权自对冲编号 */
   optionSelfCloseLocalId: string;
-  /** �������ر�� */
+  /** 操作本地编号 */
   actionLocalId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��������״̬ */
+  /** 报单操作状态 */
   orderActionStatus: `${enums.OrderActionStatus}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryOptionSelfCloseField */
 export interface QryOptionSelfClose {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ȩ�ԶԳ��� */
+  /** 期权自对冲编号 */
   optionSelfCloseSysId: string;
-  /** ��ʼʱ�� */
+  /** 开始时间 */
   insertTimeStart: string;
-  /** ����ʱ�� */
+  /** 结束时间 */
   insertTimeEnd: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcExchangeOptionSelfCloseField */
 export interface ExchangeOptionSelfClose {
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��Ȩ��Ȩ��ͷ���Ƿ��ԶԳ� */
+  /** 期权行权的头寸是否自对冲 */
   optSelfCloseFlag: `${enums.OptSelfCloseFlag}`;
-  /** ������Ȩ�ԶԳ��� */
+  /** 本地期权自对冲编号 */
   optionSelfCloseLocalId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ��Ȩ�ԶԳ��ύ״̬ */
+  /** 期权自对冲提交状态 */
   orderSubmitStatus: `${enums.OrderSubmitStatus}`;
-  /** ������ʾ��� */
+  /** 报单提示序号 */
   notifySequence: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ��Ȩ�ԶԳ��� */
+  /** 期权自对冲编号 */
   optionSelfCloseSysId: string;
-  /** �������� */
+  /** 报单日期 */
   insertDate: string;
-  /** ����ʱ�� */
+  /** 插入时间 */
   insertTime: string;
-  /** ����ʱ�� */
+  /** 撤销时间 */
   cancelTime: string;
-  /** �ԶԳ��� */
+  /** 自对冲结果 */
   execResult: `${enums.ExecResult}`;
-  /** �����Ա��� */
+  /** 结算会员编号 */
   clearingPartId: string;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryOptionSelfCloseActionField */
 export interface QryOptionSelfCloseAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
 }
 
 /** CThostFtdcExchangeOptionSelfCloseActionField */
 export interface ExchangeOptionSelfCloseAction {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ȩ�ԶԳ������� */
+  /** 期权自对冲操作编号 */
   optionSelfCloseSysId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionFlag: `${enums.ActionFlag}`;
-  /** �������� */
+  /** 操作日期 */
   actionDate: string;
-  /** ����ʱ�� */
+  /** 操作时间 */
   actionTime: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ������Ȩ�ԶԳ��� */
+  /** 本地期权自对冲编号 */
   optionSelfCloseLocalId: string;
-  /** �������ر�� */
+  /** 操作本地编号 */
   actionLocalId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��������״̬ */
+  /** 报单操作状态 */
   orderActionStatus: `${enums.OrderActionStatus}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Ȩ��Ȩ��ͷ���Ƿ��ԶԳ� */
+  /** 期权行权的头寸是否自对冲 */
   optSelfCloseFlag: `${enums.OptSelfCloseFlag}`;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
 }
 
 /** CThostFtdcSyncDelaySwapField */
 export interface SyncDelaySwap {
-  /** ������ˮ�� */
+  /** 换汇流水号 */
   delaySwapSeqNo: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Դ���� */
+  /** 源币种 */
   fromCurrencyId: string;
-  /** Դ��� */
+  /** 源金额 */
   fromAmount: number;
-  /** Դ���㶳����(���ö���) */
+  /** 源换汇冻结金额(可用冻结) */
   fromFrozenSwap: number;
-  /** Դʣ�໻����(���ᶳ��) */
+  /** 源剩余换汇额度(可提冻结) */
   fromRemainSwap: number;
-  /** Ŀ����� */
+  /** 目标币种 */
   toCurrencyId: string;
-  /** Ŀ���� */
+  /** 目标金额 */
   toAmount: number;
-  /** �Ƿ��ֹ����� */
+  /** 是否手工换汇 */
   isManualSwap: number;
-  /** �Ƿ�������ҵ�ʣ�໻��������Ϊ0 */
+  /** 是否将所有外币的剩余换汇额度设置为0 */
   isAllRemainSetZero: number;
 }
 
 /** CThostFtdcQrySyncDelaySwapField */
 export interface QrySyncDelaySwap {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ��ʱ������ˮ�� */
+  /** 延时换汇流水号 */
   delaySwapSeqNo: string;
 }
 
 /** CThostFtdcInvestUnitField */
 export interface InvestUnit {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Ͷ���ߵ�Ԫ���� */
+  /** 投资者单元名称 */
   investorUnitName: string;
-  /** Ͷ���߷������ */
+  /** 投资者分组代码 */
   investorGroupId: string;
-  /** ��������ģ����� */
+  /** 手续费率模板代码 */
   commModelId: string;
-  /** ��֤����ģ����� */
+  /** 保证金率模板代码 */
   marginModelId: string;
-  /** �ʽ��˺� */
+  /** 资金账号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
 }
 
 /** CThostFtdcQryInvestUnitField */
 export interface QryInvestUnit {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
 }
 
 /** CThostFtdcSecAgentCheckModeField */
 export interface SecAgentCheckMode {
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���� */
+  /** 币种 */
   currencyId: string;
-  /** �����н�����ʽ��ʺ� */
+  /** 境外中介机构资金帐号 */
   brokerSecAgentId: string;
-  /** �Ƿ���ҪУ���Լ����ʽ��˻� */
+  /** 是否需要校验自己的资金账户 */
   checkSelfAccount: number;
 }
 
 /** CThostFtdcSecAgentTradeInfoField */
 export interface SecAgentTradeInfo {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �����н�����ʽ��ʺ� */
+  /** 境外中介机构资金帐号 */
   brokerSecAgentId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �������������� */
+  /** 二级代理商姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcMarketDataField */
 export interface MarketData {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���¼� */
+  /** 最新价 */
   lastPrice: number;
-  /** �ϴν���� */
+  /** 上次结算价 */
   preSettlementPrice: number;
-  /** ������ */
+  /** 昨收盘 */
   preClosePrice: number;
-  /** ��ֲ��� */
+  /** 昨持仓量 */
   preOpenInterest: number;
-  /** ���� */
+  /** 今开盘 */
   openPrice: number;
-  /** ��߼� */
+  /** 最高价 */
   highestPrice: number;
-  /** ��ͼ� */
+  /** 最低价 */
   lowestPrice: number;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** �ɽ���� */
+  /** 成交金额 */
   turnover: number;
-  /** �ֲ��� */
+  /** 持仓量 */
   openInterest: number;
-  /** ������ */
+  /** 今收盘 */
   closePrice: number;
-  /** ���ν���� */
+  /** 本次结算价 */
   settlementPrice: number;
-  /** ��ͣ��� */
+  /** 涨停板价 */
   upperLimitPrice: number;
-  /** ��ͣ��� */
+  /** 跌停板价 */
   lowerLimitPrice: number;
-  /** ����ʵ�� */
+  /** 昨虚实度 */
   preDelta: number;
-  /** ����ʵ�� */
+  /** 今虚实度 */
   currDelta: number;
-  /** ����޸�ʱ�� */
+  /** 最后修改时间 */
   updateTime: string;
-  /** ����޸ĺ��� */
+  /** 最后修改毫秒 */
   updateMillisec: number;
-  /** ҵ������ */
+  /** 业务日期 */
   actionDay: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
 }
 
 /** CThostFtdcMarketDataBaseField */
 export interface MarketDataBase {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** �ϴν���� */
+  /** 上次结算价 */
   preSettlementPrice: number;
-  /** ������ */
+  /** 昨收盘 */
   preClosePrice: number;
-  /** ��ֲ��� */
+  /** 昨持仓量 */
   preOpenInterest: number;
-  /** ����ʵ�� */
+  /** 昨虚实度 */
   preDelta: number;
 }
 
 /** CThostFtdcMarketDataStaticField */
 export interface MarketDataStatic {
-  /** ���� */
+  /** 今开盘 */
   openPrice: number;
-  /** ��߼� */
+  /** 最高价 */
   highestPrice: number;
-  /** ��ͼ� */
+  /** 最低价 */
   lowestPrice: number;
-  /** ������ */
+  /** 今收盘 */
   closePrice: number;
-  /** ��ͣ��� */
+  /** 涨停板价 */
   upperLimitPrice: number;
-  /** ��ͣ��� */
+  /** 跌停板价 */
   lowerLimitPrice: number;
-  /** ���ν���� */
+  /** 本次结算价 */
   settlementPrice: number;
-  /** ����ʵ�� */
+  /** 今虚实度 */
   currDelta: number;
 }
 
 /** CThostFtdcMarketDataLastMatchField */
 export interface MarketDataLastMatch {
-  /** ���¼� */
+  /** 最新价 */
   lastPrice: number;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** �ɽ���� */
+  /** 成交金额 */
   turnover: number;
-  /** �ֲ��� */
+  /** 持仓量 */
   openInterest: number;
 }
 
 /** CThostFtdcMarketDataBestPriceField */
 export interface MarketDataBestPrice {
-  /** �����һ */
+  /** 申买价一 */
   bidPrice1: number;
-  /** ������һ */
+  /** 申买量一 */
   bidVolume1: number;
-  /** ������һ */
+  /** 申卖价一 */
   askPrice1: number;
-  /** ������һ */
+  /** 申卖量一 */
   askVolume1: number;
 }
 
 /** CThostFtdcMarketDataBid23Field */
 export interface MarketDataBid23 {
-  /** ����۶� */
+  /** 申买价二 */
   bidPrice2: number;
-  /** �������� */
+  /** 申买量二 */
   bidVolume2: number;
-  /** ������� */
+  /** 申买价三 */
   bidPrice3: number;
-  /** �������� */
+  /** 申买量三 */
   bidVolume3: number;
 }
 
 /** CThostFtdcMarketDataAsk23Field */
 export interface MarketDataAsk23 {
-  /** �����۶� */
+  /** 申卖价二 */
   askPrice2: number;
-  /** �������� */
+  /** 申卖量二 */
   askVolume2: number;
-  /** �������� */
+  /** 申卖价三 */
   askPrice3: number;
-  /** �������� */
+  /** 申卖量三 */
   askVolume3: number;
 }
 
 /** CThostFtdcMarketDataBid45Field */
 export interface MarketDataBid45 {
-  /** ������� */
+  /** 申买价四 */
   bidPrice4: number;
-  /** �������� */
+  /** 申买量四 */
   bidVolume4: number;
-  /** ������� */
+  /** 申买价五 */
   bidPrice5: number;
-  /** �������� */
+  /** 申买量五 */
   bidVolume5: number;
 }
 
 /** CThostFtdcMarketDataAsk45Field */
 export interface MarketDataAsk45 {
-  /** �������� */
+  /** 申卖价四 */
   askPrice4: number;
-  /** �������� */
+  /** 申卖量四 */
   askVolume4: number;
-  /** �������� */
+  /** 申卖价五 */
   askPrice5: number;
-  /** �������� */
+  /** 申卖量五 */
   askVolume5: number;
 }
 
 /** CThostFtdcMarketDataUpdateTimeField */
 export interface MarketDataUpdateTime {
-  /** ����޸�ʱ�� */
+  /** 最后修改时间 */
   updateTime: string;
-  /** ����޸ĺ��� */
+  /** 最后修改毫秒 */
   updateMillisec: number;
-  /** ҵ������ */
+  /** 业务日期 */
   actionDay: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcMarketDataBandingPriceField */
 export interface MarketDataBandingPrice {
-  /** �ϴ��� */
+  /** 上带价 */
   bandingUpperPrice: number;
-  /** �´��� */
+  /** 下带价 */
   bandingLowerPrice: number;
 }
 
 /** CThostFtdcMarketDataExchangeField */
 export interface MarketDataExchange {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
 }
 
 /** CThostFtdcSpecificInstrumentField */
 export interface SpecificInstrument {
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcInstrumentStatusField */
 export interface InstrumentStatus {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��������� */
+  /** 结算组代码 */
   settlementGroupId: string;
-  /** ��Լ����״̬ */
+  /** 合约交易状态 */
   instrumentStatus: `${enums.InstrumentStatusType}`;
-  /** ���׽׶α�� */
+  /** 交易阶段编号 */
   tradingSegmentSn: number;
-  /** ���뱾״̬ʱ�� */
+  /** 进入本状态时间 */
   enterTime: string;
-  /** ���뱾״̬ԭ�� */
+  /** 进入本状态原因 */
   enterReason: `${enums.InstStatusEnterReason}`;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryInstrumentStatusField */
 export interface QryInstrumentStatus {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
 }
 
 /** CThostFtdcInvestorAccountField */
 export interface InvestorAccount {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
 }
 
 /** CThostFtdcPositionProfitAlgorithmField */
 export interface PositionProfitAlgorithm {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ӯ���㷨 */
+  /** 盈亏算法 */
   algorithm: `${enums.Algorithm}`;
-  /** ��ע */
+  /** 备注 */
   memo: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
 }
 
 /** CThostFtdcDiscountField */
 export interface Discount {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �ʽ��ۿ۱��� */
+  /** 资金折扣比例 */
   discount: number;
 }
 
 /** CThostFtdcQryTransferBankField */
 export interface QryTransferBank {
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з����Ĵ��� */
+  /** 银行分中心代码 */
   bankBrchId: string;
 }
 
 /** CThostFtdcTransferBankField */
 export interface TransferBank {
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з����Ĵ��� */
+  /** 银行分中心代码 */
   bankBrchId: string;
-  /** �������� */
+  /** 银行名称 */
   bankName: string;
-  /** �Ƿ��Ծ */
+  /** 是否活跃 */
   isActive: number;
 }
 
 /** CThostFtdcQryInvestorPositionDetailField */
 export interface QryInvestorPositionDetail {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcInvestorPositionDetailField */
 export interface InvestorPositionDetail {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ���� */
+  /** 买卖 */
   direction: `${enums.Direction}`;
-  /** �������� */
+  /** 开仓日期 */
   openDate: string;
-  /** �ɽ���� */
+  /** 成交编号 */
   tradeId: string;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** ���ּ� */
+  /** 开仓价 */
   openPrice: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** �ɽ����� */
+  /** 成交类型 */
   tradeType: `${enums.TradeType}`;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���ն���ƽ��ӯ�� */
+  /** 逐日盯市平仓盈亏 */
   closeProfitByDate: number;
-  /** ��ʶԳ�ƽ��ӯ�� */
+  /** 逐笔对冲平仓盈亏 */
   closeProfitByTrade: number;
-  /** ���ն��гֲ�ӯ�� */
+  /** 逐日盯市持仓盈亏 */
   positionProfitByDate: number;
-  /** ��ʶԳ�ֲ�ӯ�� */
+  /** 逐笔对冲持仓盈亏 */
   positionProfitByTrade: number;
-  /** Ͷ���߱�֤�� */
+  /** 投资者保证金 */
   margin: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchMargin: number;
-  /** ��֤���� */
+  /** 保证金率 */
   marginRateByMoney: number;
-  /** ��֤����(������) */
+  /** 保证金率(按手数) */
   marginRateByVolume: number;
-  /** ������ */
+  /** 昨结算价 */
   lastSettlementPrice: number;
-  /** ����� */
+  /** 结算价 */
   settlementPrice: number;
-  /** ƽ���� */
+  /** 平仓量 */
   closeVolume: number;
-  /** ƽ�ֽ�� */
+  /** 平仓金额 */
   closeAmount: number;
-  /** �ȿ���ƽʣ������ */
+  /** 先开先平剩余数量 */
   timeFirstVolume: number;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ����ֱֲ�־ */
+  /** 特殊持仓标志 */
   specPosiType: `${enums.SpecPosiType}`;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Ϻ�Լ���� */
+  /** 组合合约代码 */
   combInstrumentId: string;
 }
 
 /** CThostFtdcTradingAccountPasswordField */
 export interface TradingAccountPassword {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ���� */
+  /** 密码 */
   password: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
 }
 
 /** CThostFtdcMDTraderOfferField */
 export interface MDTraderOffer {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** ���� */
+  /** 密码 */
   password: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** ����������Ա����״̬ */
+  /** 交易所交易员连接状态 */
   traderConnectStatus: `${enums.TraderConnectStatus}`;
-  /** ����������������� */
+  /** 发出连接请求的日期 */
   connectRequestDate: string;
-  /** �������������ʱ�� */
+  /** 发出连接请求的时间 */
   connectRequestTime: string;
-  /** �ϴα������� */
+  /** 上次报告日期 */
   lastReportDate: string;
-  /** �ϴα���ʱ�� */
+  /** 上次报告时间 */
   lastReportTime: string;
-  /** ����������� */
+  /** 完成连接日期 */
   connectDate: string;
-  /** �������ʱ�� */
+  /** 完成连接时间 */
   connectTime: string;
-  /** �������� */
+  /** 启动日期 */
   startDate: string;
-  /** ����ʱ�� */
+  /** 启动时间 */
   startTime: string;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ��ϯλ���ɽ���� */
+  /** 本席位最大成交编号 */
   maxTradeId: string;
-  /** ��ϯλ��󱨵����� */
+  /** 本席位最大报单备拷 */
   maxOrderMessageReference: string;
-  /** ����ʱѡ��ϯλ�㷨 */
+  /** 撤单时选择席位算法 */
   orderCancelAlg: `${enums.OrderCancelAlg}`;
 }
 
 /** CThostFtdcQryMDTraderOfferField */
 export interface QryMDTraderOffer {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
 }
 
 /** CThostFtdcQryNoticeField */
 export interface QryNotice {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
 }
 
 /** CThostFtdcNoticeField */
 export interface Notice {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ��Ϣ���� */
+  /** 消息正文 */
   content: string;
-  /** ���͹�˾֪ͨ�������к� */
+  /** 经纪公司通知内容序列号 */
   sequenceLabel: string;
 }
 
 /** CThostFtdcUserRightField */
 export interface UserRight {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �ͻ�Ȩ������ */
+  /** 客户权限类型 */
   userRightType: `${enums.UserRightType}`;
-  /** �Ƿ��ֹ */
+  /** 是否禁止 */
   isForbidden: number;
 }
 
 /** CThostFtdcQrySettlementInfoConfirmField */
 export interface QrySettlementInfoConfirm {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
 }
 
 /** CThostFtdcLoadSettlementInfoField */
 export interface LoadSettlementInfo {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
 }
 
 /** CThostFtdcBrokerWithdrawAlgorithmField */
 export interface BrokerWithdrawAlgorithm {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �����ʽ��㷨 */
+  /** 可提资金算法 */
   withdrawAlgorithm: `${enums.Algorithm}`;
-  /** �ʽ�ʹ���� */
+  /** 资金使用率 */
   usingRatio: number;
-  /** �����Ƿ����ƽ��ӯ�� */
+  /** 可提是否包含平仓盈利 */
   includeCloseProfit: `${enums.IncludeCloseProfit}`;
-  /** �����޲����޳ɽ��ͻ��Ƿ��ܿ���������� */
+  /** 本日无仓且无成交客户是否受可提比例限制 */
   allWithoutTrade: `${enums.AllWithoutTrade}`;
-  /** �����Ƿ����ƽ��ӯ�� */
+  /** 可用是否包含平仓盈利 */
   availIncludeCloseProfit: `${enums.IncludeCloseProfit}`;
-  /** �Ƿ������û��¼� */
+  /** 是否启用用户事件 */
   isBrokerUserEvent: number;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ������Ѻ���� */
+  /** 货币质押比率 */
   fundMortgageRatio: number;
-  /** Ȩ���㷨 */
+  /** 权益算法 */
   balanceAlgorithm: `${enums.BalanceAlgorithm}`;
 }
 
 /** CThostFtdcTradingAccountPasswordUpdateV1Field */
 export interface TradingAccountPasswordUpdateV1 {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ԭ���Ŀ��� */
+  /** 原来的口令 */
   oldPassword: string;
-  /** �µĿ��� */
+  /** 新的口令 */
   newPassword: string;
 }
 
 /** CThostFtdcTradingAccountPasswordUpdateField */
 export interface TradingAccountPasswordUpdate {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ԭ���Ŀ��� */
+  /** 原来的口令 */
   oldPassword: string;
-  /** �µĿ��� */
+  /** 新的口令 */
   newPassword: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
 }
 
 /** CThostFtdcQryCombinationLegField */
 export interface QryCombinationLeg {
-  /** ���ȱ�� */
+  /** 单腿编号 */
   legId: number;
-  /** ��Ϻ�Լ���� */
+  /** 组合合约代码 */
   combInstrumentId: string;
-  /** ���Ⱥ�Լ���� */
+  /** 单腿合约代码 */
   legInstrumentId: string;
 }
 
 /** CThostFtdcQrySyncStatusField */
 export interface QrySyncStatus {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
 }
 
 /** CThostFtdcCombinationLegField */
 export interface CombinationLeg {
-  /** ���ȱ�� */
+  /** 单腿编号 */
   legId: number;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ���ȳ��� */
+  /** 单腿乘数 */
   legMultiple: number;
-  /** �������� */
+  /** 派生层数 */
   implyLevel: number;
-  /** ��Ϻ�Լ���� */
+  /** 组合合约代码 */
   combInstrumentId: string;
-  /** ���Ⱥ�Լ���� */
+  /** 单腿合约代码 */
   legInstrumentId: string;
 }
 
 /** CThostFtdcSyncStatusField */
 export interface SyncStatus {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ����ͬ��״̬ */
+  /** 数据同步状态 */
   dataSyncStatus: `${enums.DataSyncStatus}`;
 }
 
 /** CThostFtdcQryLinkManField */
 export interface QryLinkMan {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
 }
 
 /** CThostFtdcLinkManField */
 export interface LinkMan {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��ϵ������ */
+  /** 联系人类型 */
   personType: `${enums.PersonType}`;
-  /** ֤������ */
+  /** 证件类型 */
   identifiedCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** ���� */
+  /** 名称 */
   personName: string;
-  /** ��ϵ�绰 */
+  /** 联系电话 */
   telephone: string;
-  /** ͨѶ��ַ */
+  /** 通讯地址 */
   address: string;
-  /** �������� */
+  /** 邮政编码 */
   zipCode: string;
-  /** ���ȼ� */
+  /** 优先级 */
   priority: number;
-  /** ������������ */
+  /** 开户邮政编码 */
   uoaZipCode: string;
-  /** ȫ�� */
+  /** 全称 */
   personFullName: string;
 }
 
 /** CThostFtdcQryBrokerUserEventField */
 export interface QryBrokerUserEvent {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �û��¼����� */
+  /** 用户事件类型 */
   userEventType: `${enums.UserEventType}`;
 }
 
 /** CThostFtdcBrokerUserEventField */
 export interface BrokerUserEvent {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �û��¼����� */
+  /** 用户事件类型 */
   userEventType: `${enums.UserEventType}`;
-  /** �û��¼���� */
+  /** 用户事件序号 */
   eventSequenceNo: number;
-  /** �¼��������� */
+  /** 事件发生日期 */
   eventDate: string;
-  /** �¼�����ʱ�� */
+  /** 事件发生时间 */
   eventTime: string;
-  /** �û��¼���Ϣ */
+  /** 用户事件信息 */
   userEventInfo: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
 }
 
 /** CThostFtdcQryContractBankField */
 export interface QryContractBank {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з����Ĵ��� */
+  /** 银行分中心代码 */
   bankBrchId: string;
 }
 
 /** CThostFtdcContractBankField */
 export interface ContractBank {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з����Ĵ��� */
+  /** 银行分中心代码 */
   bankBrchId: string;
-  /** �������� */
+  /** 银行名称 */
   bankName: string;
-  /** �ϱ�csrc�����д��� */
+  /** 上报csrc的银行代码 */
   csrcBankId: string;
 }
 
 /** CThostFtdcInvestorPositionCombineDetailField */
 export interface InvestorPositionCombineDetail {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** �������� */
+  /** 开仓日期 */
   openDate: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��ϱ�� */
+  /** 组合编号 */
   comTradeId: string;
-  /** ��ϱ�� */
+  /** 撮合编号 */
   tradeId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ���� */
+  /** 买卖 */
   direction: `${enums.Direction}`;
-  /** �ֲ��� */
+  /** 持仓量 */
   totalAmt: number;
-  /** Ͷ���߱�֤�� */
+  /** 投资者保证金 */
   margin: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchMargin: number;
-  /** ��֤���� */
+  /** 保证金率 */
   marginRateByMoney: number;
-  /** ��֤����(������) */
+  /** 保证金率(按手数) */
   marginRateByVolume: number;
-  /** ���ȱ�� */
+  /** 单腿编号 */
   legId: number;
-  /** ���ȳ��� */
+  /** 单腿乘数 */
   legMultiple: number;
-  /** �ɽ���� */
+  /** 成交组号 */
   tradeGroupId: number;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��ϳֲֺ�Լ���� */
+  /** 组合持仓合约编码 */
   combInstrumentId: string;
 }
 
 /** CThostFtdcParkedOrderField */
 export interface ParkedOrder {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �����۸����� */
+  /** 报单价格条件 */
   orderPriceType: `${enums.OrderPriceType}`;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ��Ͽ�ƽ��־ */
+  /** 组合开平标志 */
   combOffsetFlag: string;
-  /** ���Ͷ���ױ���־ */
+  /** 组合投机套保标志 */
   combHedgeFlag: string;
-  /** �۸� */
+  /** 价格 */
   limitPrice: number;
-  /** ���� */
+  /** 数量 */
   volumeTotalOriginal: number;
-  /** ��Ч������ */
+  /** 有效期类型 */
   timeCondition: `${enums.TimeCondition}`;
-  /** GTD���� */
+  /** GTD日期 */
   gtdDate: string;
-  /** �ɽ������� */
+  /** 成交量类型 */
   volumeCondition: `${enums.VolumeCondition}`;
-  /** ��С�ɽ��� */
+  /** 最小成交量 */
   minVolume: number;
-  /** �������� */
+  /** 触发条件 */
   contingentCondition: `${enums.ContingentCondition}`;
-  /** ֹ��� */
+  /** 止损价 */
   stopPrice: number;
-  /** ǿƽԭ�� */
+  /** 强平原因 */
   forceCloseReason: `${enums.ForceCloseReason}`;
-  /** �Զ������־ */
+  /** 自动挂起标志 */
   isAutoSuspend: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** �û�ǿƽ��־ */
+  /** 用户强平标志 */
   userForceClose: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ԥ�񱨵���� */
+  /** 预埋报单编号 */
   parkedOrderId: string;
-  /** �û����� */
+  /** 用户类型 */
   userType: `${enums.UserType}`;
-  /** Ԥ��״̬ */
+  /** 预埋单状态 */
   status: `${enums.ParkedOrderStatus}`;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** ��������־ */
+  /** 互换单标志 */
   isSwapOrder: number;
-  /** �ʽ��˺� */
+  /** 资金账号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ���ױ��� */
+  /** 交易编码 */
   clientId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcParkedOrderActionField */
 export interface ParkedOrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������������ */
+  /** 报单操作引用 */
   orderActionRef: number;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionFlag: `${enums.ActionFlag}`;
-  /** �۸� */
+  /** 价格 */
   limitPrice: number;
-  /** �����仯 */
+  /** 数量变化 */
   volumeChange: number;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Ԥ�񳷵������ */
+  /** 预埋撤单单编号 */
   parkedOrderActionId: string;
-  /** �û����� */
+  /** 用户类型 */
   userType: `${enums.UserType}`;
-  /** Ԥ�񳷵�״̬ */
+  /** 预埋撤单状态 */
   status: `${enums.ParkedOrderStatus}`;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryParkedOrderField */
 export interface QryParkedOrder {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryParkedOrderActionField */
 export interface QryParkedOrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcRemoveParkedOrderField */
 export interface RemoveParkedOrder {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ԥ�񱨵���� */
+  /** 预埋报单编号 */
   parkedOrderId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
 }
 
 /** CThostFtdcRemoveParkedOrderActionField */
 export interface RemoveParkedOrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ԥ�񳷵���� */
+  /** 预埋撤单编号 */
   parkedOrderActionId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
 }
 
 /** CThostFtdcInvestorWithdrawAlgorithmField */
 export interface InvestorWithdrawAlgorithm {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �����ʽ���� */
+  /** 可提资金比例 */
   usingRatio: number;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ������Ѻ���� */
+  /** 货币质押比率 */
   fundMortgageRatio: number;
 }
 
 /** CThostFtdcQryInvestorPositionCombineDetailField */
 export interface QryInvestorPositionCombineDetail {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��ϳֲֺ�Լ���� */
+  /** 组合持仓合约编码 */
   combInstrumentId: string;
 }
 
 /** CThostFtdcMarketDataAveragePriceField */
 export interface MarketDataAveragePrice {
-  /** ���վ��� */
+  /** 当日均价 */
   averagePrice: number;
 }
 
 /** CThostFtdcVerifyInvestorPasswordField */
 export interface VerifyInvestorPassword {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���� */
+  /** 密码 */
   password: string;
 }
 
 /** CThostFtdcUserIPField */
 export interface UserIP {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** IP��ַ���� */
+  /** IP地址掩码 */
   ipMask: string;
 }
 
 /** CThostFtdcTradingNoticeInfoField */
 export interface TradingNoticeInfo {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ����ʱ�� */
+  /** 发送时间 */
   sendTime: string;
-  /** ��Ϣ���� */
+  /** 消息正文 */
   fieldContent: string;
-  /** ����ϵ�к� */
+  /** 序列系列号 */
   sequenceSeries: number;
-  /** ���к� */
+  /** 序列号 */
   sequenceNo: number;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
 }
 
 /** CThostFtdcTradingNoticeField */
 export interface TradingNotice {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ����ϵ�к� */
+  /** 序列系列号 */
   sequenceSeries: number;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ����ʱ�� */
+  /** 发送时间 */
   sendTime: string;
-  /** ���к� */
+  /** 序列号 */
   sequenceNo: number;
-  /** ��Ϣ���� */
+  /** 消息正文 */
   fieldContent: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
 }
 
 /** CThostFtdcQryTradingNoticeField */
 export interface QryTradingNotice {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
 }
 
 /** CThostFtdcQryErrOrderField */
 export interface QryErrOrder {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
 }
 
 /** CThostFtdcErrOrderField */
 export interface ErrOrder {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �����۸����� */
+  /** 报单价格条件 */
   orderPriceType: `${enums.OrderPriceType}`;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ��Ͽ�ƽ��־ */
+  /** 组合开平标志 */
   combOffsetFlag: string;
-  /** ���Ͷ���ױ���־ */
+  /** 组合投机套保标志 */
   combHedgeFlag: string;
-  /** �۸� */
+  /** 价格 */
   limitPrice: number;
-  /** ���� */
+  /** 数量 */
   volumeTotalOriginal: number;
-  /** ��Ч������ */
+  /** 有效期类型 */
   timeCondition: `${enums.TimeCondition}`;
-  /** GTD���� */
+  /** GTD日期 */
   gtdDate: string;
-  /** �ɽ������� */
+  /** 成交量类型 */
   volumeCondition: `${enums.VolumeCondition}`;
-  /** ��С�ɽ��� */
+  /** 最小成交量 */
   minVolume: number;
-  /** �������� */
+  /** 触发条件 */
   contingentCondition: `${enums.ContingentCondition}`;
-  /** ֹ��� */
+  /** 止损价 */
   stopPrice: number;
-  /** ǿƽԭ�� */
+  /** 强平原因 */
   forceCloseReason: `${enums.ForceCloseReason}`;
-  /** �Զ������־ */
+  /** 自动挂起标志 */
   isAutoSuspend: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** �û�ǿƽ��־ */
+  /** 用户强平标志 */
   userForceClose: number;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** ��������־ */
+  /** 互换单标志 */
   isSwapOrder: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** �ʽ��˺� */
+  /** 资金账号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ���ױ��� */
+  /** 交易编码 */
   clientId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** ���������ֶ� */
+  /** 报单回显字段 */
   orderMemo: string;
-  /** session��������� api�Զ�ά�� */
+  /** session上请求计数 api自动维护 */
   sessionReqSeq: number;
 }
 
 /** CThostFtdcErrorConditionalOrderField */
 export interface ErrorConditionalOrder {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �����۸����� */
+  /** 报单价格条件 */
   orderPriceType: `${enums.OrderPriceType}`;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ��Ͽ�ƽ��־ */
+  /** 组合开平标志 */
   combOffsetFlag: string;
-  /** ���Ͷ���ױ���־ */
+  /** 组合投机套保标志 */
   combHedgeFlag: string;
-  /** �۸� */
+  /** 价格 */
   limitPrice: number;
-  /** ���� */
+  /** 数量 */
   volumeTotalOriginal: number;
-  /** ��Ч������ */
+  /** 有效期类型 */
   timeCondition: `${enums.TimeCondition}`;
-  /** GTD���� */
+  /** GTD日期 */
   gtdDate: string;
-  /** �ɽ������� */
+  /** 成交量类型 */
   volumeCondition: `${enums.VolumeCondition}`;
-  /** ��С�ɽ��� */
+  /** 最小成交量 */
   minVolume: number;
-  /** �������� */
+  /** 触发条件 */
   contingentCondition: `${enums.ContingentCondition}`;
-  /** ֹ��� */
+  /** 止损价 */
   stopPrice: number;
-  /** ǿƽԭ�� */
+  /** 强平原因 */
   forceCloseReason: `${enums.ForceCloseReason}`;
-  /** �Զ������־ */
+  /** 自动挂起标志 */
   isAutoSuspend: number;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �����ύ״̬ */
+  /** 报单提交状态 */
   orderSubmitStatus: `${enums.OrderSubmitStatus}`;
-  /** ������ʾ��� */
+  /** 报单提示序号 */
   notifySequence: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ������Դ */
+  /** 报单来源 */
   orderSource: `${enums.OrderSource}`;
-  /** ����״̬ */
+  /** 报单状态 */
   orderStatus: `${enums.OrderStatus}`;
-  /** �������� */
+  /** 报单类型 */
   orderType: `${enums.OrderType}`;
-  /** ��ɽ����� */
+  /** 今成交数量 */
   volumeTraded: number;
-  /** ʣ������ */
+  /** 剩余数量 */
   volumeTotal: number;
-  /** �������� */
+  /** 报单日期 */
   insertDate: string;
-  /** ί��ʱ�� */
+  /** 委托时间 */
   insertTime: string;
-  /** ����ʱ�� */
+  /** 激活时间 */
   activeTime: string;
-  /** ����ʱ�� */
+  /** 挂起时间 */
   suspendTime: string;
-  /** ����޸�ʱ�� */
+  /** 最后修改时间 */
   updateTime: string;
-  /** ����ʱ�� */
+  /** 撤销时间 */
   cancelTime: string;
-  /** ����޸Ľ���������Ա���� */
+  /** 最后修改交易所交易员代码 */
   activeTraderId: string;
-  /** �����Ա��� */
+  /** 结算会员编号 */
   clearingPartId: string;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** �û�ǿƽ��־ */
+  /** 用户强平标志 */
   userForceClose: number;
-  /** �����û����� */
+  /** 操作用户代码 */
   activeUserId: string;
-  /** ���͹�˾������� */
+  /** 经纪公司报单编号 */
   brokerOrderSeq: number;
-  /** ��ر��� */
+  /** 相关报单 */
   relativeOrderSysId: string;
-  /** ֣�����ɽ����� */
+  /** 郑商所成交数量 */
   zceTotalTradedVolume: number;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** ��������־ */
+  /** 互换单标志 */
   isSwapOrder: number;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** �ʽ��˺� */
+  /** 资金账号 */
   accountId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryErrOrderActionField */
 export interface QryErrOrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
 }
 
 /** CThostFtdcErrOrderActionField */
 export interface ErrOrderAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������������ */
+  /** 报单操作引用 */
   orderActionRef: number;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionFlag: `${enums.ActionFlag}`;
-  /** �۸� */
+  /** 价格 */
   limitPrice: number;
-  /** �����仯 */
+  /** 数量变化 */
   volumeChange: number;
-  /** �������� */
+  /** 操作日期 */
   actionDate: string;
-  /** ����ʱ�� */
+  /** 操作时间 */
   actionTime: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** �������ر�� */
+  /** 操作本地编号 */
   actionLocalId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ҵ��Ԫ */
+  /** 业务单元 */
   businessUnit: string;
-  /** ��������״̬ */
+  /** 报单操作状态 */
   orderActionStatus: `${enums.OrderActionStatus}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** Ӫҵ����� */
+  /** 营业部编号 */
   branchId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** ���������ֶ� */
+  /** 报单回显字段 */
   orderMemo: string;
-  /** session��������� api�Զ�ά�� */
+  /** session上请求计数 api自动维护 */
   sessionReqSeq: number;
 }
 
 /** CThostFtdcQryExchangeSequenceField */
 export interface QryExchangeSequence {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
 }
 
 /** CThostFtdcExchangeSequenceField */
 export interface ExchangeSequence {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** ��Լ����״̬ */
+  /** 合约交易状态 */
   marketStatus: `${enums.InstrumentStatusType}`;
 }
 
 /** CThostFtdcQryMaxOrderVolumeWithPriceField */
 export interface QryMaxOrderVolumeWithPrice {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ��ƽ��־ */
+  /** 开平标志 */
   offsetFlag: `${enums.OffsetFlag}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��������������� */
+  /** 最大允许报单数量 */
   maxVolume: number;
-  /** �����۸� */
+  /** 报单价格 */
   price: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryBrokerTradingParamsField */
 export interface QryBrokerTradingParams {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
 }
 
 /** CThostFtdcBrokerTradingParamsField */
 export interface BrokerTradingParams {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��֤��۸����� */
+  /** 保证金价格类型 */
   marginPriceType: `${enums.MarginPriceType}`;
-  /** ӯ���㷨 */
+  /** 盈亏算法 */
   algorithm: `${enums.Algorithm}`;
-  /** �����Ƿ����ƽ��ӯ�� */
+  /** 可用是否包含平仓盈利 */
   availIncludeCloseProfit: `${enums.IncludeCloseProfit}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ��ȨȨ����۸����� */
+  /** 期权权利金价格类型 */
   optionRoyaltyPriceType: `${enums.OptionRoyaltyPriceType}`;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
 }
 
 /** CThostFtdcQryBrokerTradingAlgosField */
 export interface QryBrokerTradingAlgos {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcBrokerTradingAlgosField */
 export interface BrokerTradingAlgos {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** �ֲִ����㷨��� */
+  /** 持仓处理算法编号 */
   handlePositionAlgoId: `${enums.HandlePositionAlgoID}`;
-  /** Ѱ�ұ�֤�����㷨��� */
+  /** 寻找保证金率算法编号 */
   findMarginRateAlgoId: `${enums.FindMarginRateAlgoID}`;
-  /** �ʽ����㷨��� */
+  /** 资金处理算法编号 */
   handleTradingAccountAlgoId: `${enums.HandleTradingAccountAlgoID}`;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQueryBrokerDepositField */
 export interface QueryBrokerDeposit {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
 }
 
 /** CThostFtdcBrokerDepositField */
 export interface BrokerDeposit {
-  /** �������� */
+  /** 交易日期 */
   tradingDay: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** �ϴν���׼���� */
+  /** 上次结算准备金 */
   preBalance: number;
-  /** ��ǰ��֤���ܶ� */
+  /** 当前保证金总额 */
   currMargin: number;
-  /** ƽ��ӯ�� */
+  /** 平仓盈亏 */
   closeProfit: number;
-  /** �ڻ�����׼���� */
+  /** 期货结算准备金 */
   balance: number;
-  /** ����� */
+  /** 入金金额 */
   deposit: number;
-  /** ������ */
+  /** 出金金额 */
   withdraw: number;
-  /** �����ʽ� */
+  /** 可提资金 */
   available: number;
-  /** ����׼���� */
+  /** 基本准备金 */
   reserve: number;
-  /** ����ı�֤�� */
+  /** 冻结的保证金 */
   frozenMargin: number;
 }
 
 /** CThostFtdcQryCFMMCBrokerKeyField */
 export interface QryCFMMCBrokerKey {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
 }
 
 /** CThostFtdcCFMMCBrokerKeyField */
 export interface CFMMCBrokerKey {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���͹�˾ͳһ���� */
+  /** 经纪公司统一编码 */
   participantId: string;
-  /** ��Կ�������� */
+  /** 密钥生成日期 */
   createDate: string;
-  /** ��Կ����ʱ�� */
+  /** 密钥生成时间 */
   createTime: string;
-  /** ��Կ��� */
+  /** 密钥编号 */
   keyId: number;
-  /** ��̬��Կ */
+  /** 动态密钥 */
   currentKey: string;
-  /** ��̬��Կ���� */
+  /** 动态密钥类型 */
   keyKind: `${enums.CFMMCKeyKind}`;
 }
 
 /** CThostFtdcCFMMCTradingAccountKeyField */
 export interface CFMMCTradingAccountKey {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���͹�˾ͳһ���� */
+  /** 经纪公司统一编码 */
   participantId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ��Կ��� */
+  /** 密钥编号 */
   keyId: number;
-  /** ��̬��Կ */
+  /** 动态密钥 */
   currentKey: string;
 }
 
 /** CThostFtdcQryCFMMCTradingAccountKeyField */
 export interface QryCFMMCTradingAccountKey {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
 }
 
 /** CThostFtdcBrokerUserOTPParamField */
 export interface BrokerUserOTPParam {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ��̬�����ṩ�� */
+  /** 动态令牌提供商 */
   otpVendorsId: string;
-  /** ��̬�������к� */
+  /** 动态令牌序列号 */
   serialNumber: string;
-  /** ������Կ */
+  /** 令牌密钥 */
   authKey: string;
-  /** Ư��ֵ */
+  /** 漂移值 */
   lastDrift: number;
-  /** �ɹ�ֵ */
+  /** 成功值 */
   lastSuccess: number;
-  /** ��̬�������� */
+  /** 动态令牌类型 */
   otpType: `${enums.OTPType}`;
 }
 
 /** CThostFtdcManualSyncBrokerUserOTPField */
 export interface ManualSyncBrokerUserOTP {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ��̬�������� */
+  /** 动态令牌类型 */
   otpType: `${enums.OTPType}`;
-  /** ��һ����̬���� */
+  /** 第一个动态密码 */
   firstOtp: string;
-  /** �ڶ�����̬���� */
+  /** 第二个动态密码 */
   secondOtp: string;
 }
 
 /** CThostFtdcCommRateModelField */
 export interface CommRateModel {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ��������ģ����� */
+  /** 手续费率模板代码 */
   commModelId: string;
-  /** ģ������ */
+  /** 模板名称 */
   commModelName: string;
 }
 
 /** CThostFtdcQryCommRateModelField */
 export interface QryCommRateModel {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ��������ģ����� */
+  /** 手续费率模板代码 */
   commModelId: string;
 }
 
 /** CThostFtdcMarginModelField */
 export interface MarginModel {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ��֤����ģ����� */
+  /** 保证金率模板代码 */
   marginModelId: string;
-  /** ģ������ */
+  /** 模板名称 */
   marginModelName: string;
 }
 
 /** CThostFtdcQryMarginModelField */
 export interface QryMarginModel {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ��֤����ģ����� */
+  /** 保证金率模板代码 */
   marginModelId: string;
 }
 
 /** CThostFtdcEWarrantOffsetField */
 export interface EWarrantOffset {
-  /** �������� */
+  /** 交易日期 */
   tradingDay: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryEWarrantOffsetField */
 export interface QryEWarrantOffset {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryInvestorProductGroupMarginField */
 export interface QryInvestorProductGroupMargin {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Ʒ��/��Ʒ�ֱ�ʾ */
+  /** 品种/跨品种标示 */
   productGroupId: string;
 }
 
 /** CThostFtdcInvestorProductGroupMarginField */
 export interface InvestorProductGroupMargin {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ����ı�֤�� */
+  /** 冻结的保证金 */
   frozenMargin: number;
-  /** ��ͷ����ı�֤�� */
+  /** 多头冻结的保证金 */
   longFrozenMargin: number;
-  /** ��ͷ����ı�֤�� */
+  /** 空头冻结的保证金 */
   shortFrozenMargin: number;
-  /** ռ�õı�֤�� */
+  /** 占用的保证金 */
   useMargin: number;
-  /** ��ͷ��֤�� */
+  /** 多头保证金 */
   longUseMargin: number;
-  /** ��ͷ��֤�� */
+  /** 空头保证金 */
   shortUseMargin: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchMargin: number;
-  /** ��������ͷ��֤�� */
+  /** 交易所多头保证金 */
   longExchMargin: number;
-  /** ��������ͷ��֤�� */
+  /** 交易所空头保证金 */
   shortExchMargin: number;
-  /** ƽ��ӯ�� */
+  /** 平仓盈亏 */
   closeProfit: number;
-  /** ����������� */
+  /** 冻结的手续费 */
   frozenCommission: number;
-  /** ������ */
+  /** 手续费 */
   commission: number;
-  /** ������ʽ� */
+  /** 冻结的资金 */
   frozenCash: number;
-  /** �ʽ��� */
+  /** 资金差额 */
   cashIn: number;
-  /** �ֲ�ӯ�� */
+  /** 持仓盈亏 */
   positionProfit: number;
-  /** �۵��ܽ�� */
+  /** 折抵总金额 */
   offsetAmount: number;
-  /** ��ͷ�۵��ܽ�� */
+  /** 多头折抵总金额 */
   longOffsetAmount: number;
-  /** ��ͷ�۵��ܽ�� */
+  /** 空头折抵总金额 */
   shortOffsetAmount: number;
-  /** �������۵��ܽ�� */
+  /** 交易所折抵总金额 */
   exchOffsetAmount: number;
-  /** ��������ͷ�۵��ܽ�� */
+  /** 交易所多头折抵总金额 */
   longExchOffsetAmount: number;
-  /** ��������ͷ�۵��ܽ�� */
+  /** 交易所空头折抵总金额 */
   shortExchOffsetAmount: number;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** Ʒ��/��Ʒ�ֱ�ʾ */
+  /** 品种/跨品种标示 */
   productGroupId: string;
 }
 
 /** CThostFtdcQueryCFMMCTradingAccountTokenField */
 export interface QueryCFMMCTradingAccountToken {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
 }
 
 /** CThostFtdcCFMMCTradingAccountTokenField */
 export interface CFMMCTradingAccountToken {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���͹�˾ͳһ���� */
+  /** 经纪公司统一编码 */
   participantId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ��Կ��� */
+  /** 密钥编号 */
   keyId: number;
-  /** ��̬���� */
+  /** 动态令牌 */
   token: string;
 }
 
 /** CThostFtdcQryProductGroupField */
 export interface QryProductGroup {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
 }
 
 /** CThostFtdcProductGroupField */
 export interface ProductGroup {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** ��Ʒ����� */
+  /** 产品组代码 */
   productGroupId: string;
 }
 
 /** CThostFtdcBulletinField */
 export interface Bulletin {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 公告编号 */
   bulletinId: number;
-  /** ���к� */
+  /** 序列号 */
   sequenceNo: number;
-  /** �������� */
+  /** 公告类型 */
   newsType: string;
-  /** �����̶� */
+  /** 紧急程度 */
   newsUrgency: string;
-  /** ����ʱ�� */
+  /** 发送时间 */
   sendTime: string;
-  /** ��ϢժҪ */
+  /** 消息摘要 */
   abstract: string;
-  /** ��Ϣ��Դ */
+  /** 消息来源 */
   comeFrom: string;
-  /** ��Ϣ���� */
+  /** 消息正文 */
   content: string;
-  /** WEB��ַ */
+  /** WEB地址 */
   urlLink: string;
-  /** �г����� */
+  /** 市场代码 */
   marketId: string;
 }
 
 /** CThostFtdcQryBulletinField */
 export interface QryBulletin {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ������ */
+  /** 公告编号 */
   bulletinId: number;
-  /** ���к� */
+  /** 序列号 */
   sequenceNo: number;
-  /** �������� */
+  /** 公告类型 */
   newsType: string;
-  /** �����̶� */
+  /** 紧急程度 */
   newsUrgency: string;
 }
 
 /** CThostFtdcMulticastInstrumentField */
 export interface MulticastInstrument {
-  /** ����� */
+  /** 主题号 */
   topicId: number;
-  /** ��Լ��� */
+  /** 合约编号 */
   instrumentNo: number;
-  /** ��׼�� */
+  /** 基准价 */
   codePrice: number;
-  /** ��Լ�������� */
+  /** 合约数量乘数 */
   volumeMultiple: number;
-  /** ��С�䶯��λ */
+  /** 最小变动价位 */
   priceTick: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryMulticastInstrumentField */
 export interface QryMulticastInstrument {
-  /** ����� */
+  /** 主题号 */
   topicId: number;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcAppIDAuthAssignField */
 export interface AppIDAuthAssign {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** App���� */
+  /** App代码 */
   appId: string;
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
 }
 
 /** CThostFtdcReqOpenAccountField */
 export interface ReqOpenAccount {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �Ա� */
+  /** 性别 */
   gender: `${enums.Gender}`;
-  /** ���Ҵ��� */
+  /** 国家代码 */
   countryCode: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** ��ַ */
+  /** 地址 */
   address: string;
-  /** �ʱ� */
+  /** 邮编 */
   zipCode: string;
-  /** �绰���� */
+  /** 电话号码 */
   telephone: string;
-  /** �ֻ� */
+  /** 手机 */
   mobilePhone: string;
-  /** ���� */
+  /** 传真 */
   fax: string;
-  /** �����ʼ� */
+  /** 电子邮件 */
   eMail: string;
-  /** �ʽ��˻�״̬ */
+  /** 资金账户状态 */
   moneyAccountStatus: `${enums.MoneyAccountStatus}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** �㳮��־ */
+  /** 汇钞标志 */
   cashExchangeCode: `${enums.CashExchangeCode}`;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcReqCancelAccountField */
 export interface ReqCancelAccount {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �Ա� */
+  /** 性别 */
   gender: `${enums.Gender}`;
-  /** ���Ҵ��� */
+  /** 国家代码 */
   countryCode: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** ��ַ */
+  /** 地址 */
   address: string;
-  /** �ʱ� */
+  /** 邮编 */
   zipCode: string;
-  /** �绰���� */
+  /** 电话号码 */
   telephone: string;
-  /** �ֻ� */
+  /** 手机 */
   mobilePhone: string;
-  /** ���� */
+  /** 传真 */
   fax: string;
-  /** �����ʼ� */
+  /** 电子邮件 */
   eMail: string;
-  /** �ʽ��˻�״̬ */
+  /** 资金账户状态 */
   moneyAccountStatus: `${enums.MoneyAccountStatus}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** �㳮��־ */
+  /** 汇钞标志 */
   cashExchangeCode: `${enums.CashExchangeCode}`;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcReqChangeAccountField */
 export interface ReqChangeAccount {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �Ա� */
+  /** 性别 */
   gender: `${enums.Gender}`;
-  /** ���Ҵ��� */
+  /** 国家代码 */
   countryCode: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** ��ַ */
+  /** 地址 */
   address: string;
-  /** �ʱ� */
+  /** 邮编 */
   zipCode: string;
-  /** �绰���� */
+  /** 电话号码 */
   telephone: string;
-  /** �ֻ� */
+  /** 手机 */
   mobilePhone: string;
-  /** ���� */
+  /** 传真 */
   fax: string;
-  /** �����ʼ� */
+  /** 电子邮件 */
   eMail: string;
-  /** �ʽ��˻�״̬ */
+  /** 资金账户状态 */
   moneyAccountStatus: `${enums.MoneyAccountStatus}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** �������ʺ� */
+  /** 新银行帐号 */
   newBankAccount: string;
-  /** ���������� */
+  /** 新银行密码 */
   newBankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcReqTransferField */
 export interface ReqTransfer {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �ڻ���˾��ˮ�� */
+  /** 期货公司流水号 */
   futureSerial: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ת�ʽ�� */
+  /** 转帐金额 */
   tradeAmount: number;
-  /** �ڻ���ȡ��� */
+  /** 期货可取金额 */
   futureFetchAmount: number;
-  /** ����֧����־ */
+  /** 费用支付标志 */
   feePayFlag: `${enums.FeePayFlag}`;
-  /** Ӧ�տͻ����� */
+  /** 应收客户费用 */
   custFee: number;
-  /** Ӧ���ڻ���˾���� */
+  /** 应收期货公司费用 */
   brokerFee: number;
-  /** ���ͷ������շ�����Ϣ */
+  /** 发送方给接收方的消息 */
   message: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ת�˽���״̬ */
+  /** 转账交易状态 */
   transferStatus: `${enums.TransferStatus}`;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcRspTransferField */
 export interface RspTransfer {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �ڻ���˾��ˮ�� */
+  /** 期货公司流水号 */
   futureSerial: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ת�ʽ�� */
+  /** 转帐金额 */
   tradeAmount: number;
-  /** �ڻ���ȡ��� */
+  /** 期货可取金额 */
   futureFetchAmount: number;
-  /** ����֧����־ */
+  /** 费用支付标志 */
   feePayFlag: `${enums.FeePayFlag}`;
-  /** Ӧ�տͻ����� */
+  /** 应收客户费用 */
   custFee: number;
-  /** Ӧ���ڻ���˾���� */
+  /** 应收期货公司费用 */
   brokerFee: number;
-  /** ���ͷ������շ�����Ϣ */
+  /** 发送方给接收方的消息 */
   message: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ת�˽���״̬ */
+  /** 转账交易状态 */
   transferStatus: `${enums.TransferStatus}`;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcReqRepealField */
 export interface ReqRepeal {
-  /** ����ʱ���� */
+  /** 冲正时间间隔 */
   repealTimeInterval: number;
-  /** �Ѿ��������� */
+  /** 已经冲正次数 */
   repealedTimes: number;
-  /** ���г�����־ */
+  /** 银行冲正标志 */
   bankRepealFlag: `${enums.BankRepealFlag}`;
-  /** ���̳�����־ */
+  /** 期商冲正标志 */
   brokerRepealFlag: `${enums.BrokerRepealFlag}`;
-  /** ������ƽ̨��ˮ�� */
+  /** 被冲正平台流水号 */
   plateRepealSerial: number;
-  /** ������������ˮ�� */
+  /** 被冲正银行流水号 */
   bankRepealSerial: string;
-  /** �������ڻ���ˮ�� */
+  /** 被冲正期货流水号 */
   futureRepealSerial: number;
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �ڻ���˾��ˮ�� */
+  /** 期货公司流水号 */
   futureSerial: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ת�ʽ�� */
+  /** 转帐金额 */
   tradeAmount: number;
-  /** �ڻ���ȡ��� */
+  /** 期货可取金额 */
   futureFetchAmount: number;
-  /** ����֧����־ */
+  /** 费用支付标志 */
   feePayFlag: `${enums.FeePayFlag}`;
-  /** Ӧ�տͻ����� */
+  /** 应收客户费用 */
   custFee: number;
-  /** Ӧ���ڻ���˾���� */
+  /** 应收期货公司费用 */
   brokerFee: number;
-  /** ���ͷ������շ�����Ϣ */
+  /** 发送方给接收方的消息 */
   message: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ת�˽���״̬ */
+  /** 转账交易状态 */
   transferStatus: `${enums.TransferStatus}`;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcRspRepealField */
 export interface RspRepeal {
-  /** ����ʱ���� */
+  /** 冲正时间间隔 */
   repealTimeInterval: number;
-  /** �Ѿ��������� */
+  /** 已经冲正次数 */
   repealedTimes: number;
-  /** ���г�����־ */
+  /** 银行冲正标志 */
   bankRepealFlag: `${enums.BankRepealFlag}`;
-  /** ���̳�����־ */
+  /** 期商冲正标志 */
   brokerRepealFlag: `${enums.BrokerRepealFlag}`;
-  /** ������ƽ̨��ˮ�� */
+  /** 被冲正平台流水号 */
   plateRepealSerial: number;
-  /** ������������ˮ�� */
+  /** 被冲正银行流水号 */
   bankRepealSerial: string;
-  /** �������ڻ���ˮ�� */
+  /** 被冲正期货流水号 */
   futureRepealSerial: number;
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �ڻ���˾��ˮ�� */
+  /** 期货公司流水号 */
   futureSerial: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ת�ʽ�� */
+  /** 转帐金额 */
   tradeAmount: number;
-  /** �ڻ���ȡ��� */
+  /** 期货可取金额 */
   futureFetchAmount: number;
-  /** ����֧����־ */
+  /** 费用支付标志 */
   feePayFlag: `${enums.FeePayFlag}`;
-  /** Ӧ�տͻ����� */
+  /** 应收客户费用 */
   custFee: number;
-  /** Ӧ���ڻ���˾���� */
+  /** 应收期货公司费用 */
   brokerFee: number;
-  /** ���ͷ������շ�����Ϣ */
+  /** 发送方给接收方的消息 */
   message: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ת�˽���״̬ */
+  /** 转账交易状态 */
   transferStatus: `${enums.TransferStatus}`;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcReqQueryAccountField */
 export interface ReqQueryAccount {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** �ڻ���˾��ˮ�� */
+  /** 期货公司流水号 */
   futureSerial: number;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcRspQueryAccountField */
 export interface RspQueryAccount {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** �ڻ���˾��ˮ�� */
+  /** 期货公司流水号 */
   futureSerial: number;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ���п��ý�� */
+  /** 银行可用金额 */
   bankUseAmount: number;
-  /** ���п�ȡ��� */
+  /** 银行可取金额 */
   bankFetchAmount: number;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcFutureSignIOField */
 export interface FutureSignIO {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
 }
 
 /** CThostFtdcRspFutureSignInField */
 export interface RspFutureSignIn {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** PIN��Կ */
+  /** PIN密钥 */
   pinKey: string;
-  /** MAC��Կ */
+  /** MAC密钥 */
   macKey: string;
 }
 
 /** CThostFtdcReqFutureSignOutField */
 export interface ReqFutureSignOut {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
 }
 
 /** CThostFtdcRspFutureSignOutField */
 export interface RspFutureSignOut {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
 }
 
 /** CThostFtdcReqQueryTradeResultBySerialField */
 export interface ReqQueryTradeResultBySerial {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** ��ˮ�� */
+  /** 流水号 */
   reference: number;
-  /** ����ˮ�ŷ����ߵĻ������� */
+  /** 本流水号发布者的机构类型 */
   refrenceIssureType: `${enums.InstitutionType}`;
-  /** ����ˮ�ŷ����߻������� */
+  /** 本流水号发布者机构编码 */
   refrenceIssure: string;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ת�ʽ�� */
+  /** 转帐金额 */
   tradeAmount: number;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcRspQueryTradeResultBySerialField */
 export interface RspQueryTradeResultBySerial {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** ��ˮ�� */
+  /** 流水号 */
   reference: number;
-  /** ����ˮ�ŷ����ߵĻ������� */
+  /** 本流水号发布者的机构类型 */
   refrenceIssureType: `${enums.InstitutionType}`;
-  /** ����ˮ�ŷ����߻������� */
+  /** 本流水号发布者机构编码 */
   refrenceIssure: string;
-  /** ԭʼ���ش��� */
+  /** 原始返回代码 */
   originReturnCode: string;
-  /** ԭʼ���������� */
+  /** 原始返回码描述 */
   originDescrInfoForReturnCode: string;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ת�ʽ�� */
+  /** 转帐金额 */
   tradeAmount: number;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
 }
 
 /** CThostFtdcReqDayEndFileReadyField */
 export interface ReqDayEndFileReady {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ļ�ҵ���� */
+  /** 文件业务功能 */
   fileBusinessCode: `${enums.FileBusinessCode}`;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
 }
 
 /** CThostFtdcReturnResultField */
 export interface ReturnResult {
-  /** ���ش��� */
+  /** 返回代码 */
   returnCode: string;
-  /** ���������� */
+  /** 返回码描述 */
   descrInfoForReturnCode: string;
 }
 
 /** CThostFtdcVerifyFuturePasswordField */
 export interface VerifyFuturePassword {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
 }
 
 /** CThostFtdcVerifyCustInfoField */
 export interface VerifyCustInfo {
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcVerifyFuturePasswordAndCustInfoField */
 export interface VerifyFuturePasswordAndCustInfo {
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcDepositResultInformField */
 export interface DepositResultInform {
-  /** �������ˮ�ţ�����ˮ��Ϊ���ڱ��̷��ص���ˮ�� */
+  /** 出入金流水号，该流水号为银期报盘返回的流水号 */
   depositSeqNo: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ����� */
+  /** 入金金额 */
   deposit: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ���ش��� */
+  /** 返回代码 */
   returnCode: string;
-  /** ���������� */
+  /** 返回码描述 */
   descrInfoForReturnCode: string;
 }
 
 /** CThostFtdcReqSyncKeyField */
 export interface ReqSyncKey {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ���׺��ĸ����ڱ��̵���Ϣ */
+  /** 交易核心给银期报盘的消息 */
   message: string;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
 }
 
 /** CThostFtdcRspSyncKeyField */
 export interface RspSyncKey {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ���׺��ĸ����ڱ��̵���Ϣ */
+  /** 交易核心给银期报盘的消息 */
   message: string;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
 }
 
 /** CThostFtdcNotifyQueryAccountField */
 export interface NotifyQueryAccount {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** �ڻ���˾��ˮ�� */
+  /** 期货公司流水号 */
   futureSerial: number;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ���п��ý�� */
+  /** 银行可用金额 */
   bankUseAmount: number;
-  /** ���п�ȡ��� */
+  /** 银行可取金额 */
   bankFetchAmount: number;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcTransferSerialField */
 export interface TransferSerial {
-  /** ƽ̨��ˮ�� */
+  /** 平台流水号 */
   plateSerial: number;
-  /** ���׷������� */
+  /** 交易发起方日期 */
   tradeDate: string;
-  /** �������� */
+  /** 交易日期 */
   tradingDay: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ���״��� */
+  /** 交易代码 */
   tradeCode: string;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ���б��� */
+  /** 银行编码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构编码 */
   bankBranchId: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** �ڻ���˾���� */
+  /** 期货公司编码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �ڻ���˾�ʺ����� */
+  /** 期货公司帐号类型 */
   futureAccType: `${enums.FutureAccType}`;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �ڻ���˾��ˮ�� */
+  /** 期货公司流水号 */
   futureSerial: number;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ���׽�� */
+  /** 交易金额 */
   tradeAmount: number;
-  /** Ӧ�տͻ����� */
+  /** 应收客户费用 */
   custFee: number;
-  /** Ӧ���ڻ���˾���� */
+  /** 应收期货公司费用 */
   brokerFee: number;
-  /** ��Ч��־ */
+  /** 有效标志 */
   availabilityFlag: `${enums.AvailabilityFlag}`;
-  /** ����Ա */
+  /** 操作员 */
   operatorCode: string;
-  /** �������ʺ� */
+  /** 新银行帐号 */
   bankNewAccount: string;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
 }
 
 /** CThostFtdcQryTransferSerialField */
 export interface QryTransferSerial {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ���б��� */
+  /** 银行编码 */
   bankId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
 }
 
 /** CThostFtdcNotifyFutureSignInField */
 export interface NotifyFutureSignIn {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** PIN��Կ */
+  /** PIN密钥 */
   pinKey: string;
-  /** MAC��Կ */
+  /** MAC密钥 */
   macKey: string;
 }
 
 /** CThostFtdcNotifyFutureSignOutField */
 export interface NotifyFutureSignOut {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
 }
 
 /** CThostFtdcNotifySyncKeyField */
 export interface NotifySyncKey {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ���׺��ĸ����ڱ��̵���Ϣ */
+  /** 交易核心给银期报盘的消息 */
   message: string;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
 }
 
 /** CThostFtdcQryAccountregisterField */
 export interface QryAccountregister {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ���б��� */
+  /** 银行编码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构编码 */
   bankBranchId: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
 }
 
 /** CThostFtdcAccountregisterField */
 export interface Accountregister {
-  /** �������� */
+  /** 交易日期 */
   tradeDay: string;
-  /** ���б��� */
+  /** 银行编码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构编码 */
   bankBranchId: string;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �ڻ���˾���� */
+  /** 期货公司编码 */
   brokerId: string;
-  /** �ڻ���˾��֧�������� */
+  /** 期货公司分支机构编码 */
   brokerBranchId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ��������� */
+  /** 开销户类别 */
   openOrDestroy: `${enums.OpenOrDestroy}`;
-  /** ǩԼ���� */
+  /** 签约日期 */
   regDate: string;
-  /** ��Լ���� */
+  /** 解约日期 */
   outDate: string;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcOpenAccountField */
 export interface OpenAccount {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �Ա� */
+  /** 性别 */
   gender: `${enums.Gender}`;
-  /** ���Ҵ��� */
+  /** 国家代码 */
   countryCode: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** ��ַ */
+  /** 地址 */
   address: string;
-  /** �ʱ� */
+  /** 邮编 */
   zipCode: string;
-  /** �绰���� */
+  /** 电话号码 */
   telephone: string;
-  /** �ֻ� */
+  /** 手机 */
   mobilePhone: string;
-  /** ���� */
+  /** 传真 */
   fax: string;
-  /** �����ʼ� */
+  /** 电子邮件 */
   eMail: string;
-  /** �ʽ��˻�״̬ */
+  /** 资金账户状态 */
   moneyAccountStatus: `${enums.MoneyAccountStatus}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** �㳮��־ */
+  /** 汇钞标志 */
   cashExchangeCode: `${enums.CashExchangeCode}`;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcCancelAccountField */
 export interface CancelAccount {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �Ա� */
+  /** 性别 */
   gender: `${enums.Gender}`;
-  /** ���Ҵ��� */
+  /** 国家代码 */
   countryCode: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** ��ַ */
+  /** 地址 */
   address: string;
-  /** �ʱ� */
+  /** 邮编 */
   zipCode: string;
-  /** �绰���� */
+  /** 电话号码 */
   telephone: string;
-  /** �ֻ� */
+  /** 手机 */
   mobilePhone: string;
-  /** ���� */
+  /** 传真 */
   fax: string;
-  /** �����ʼ� */
+  /** 电子邮件 */
   eMail: string;
-  /** �ʽ��˻�״̬ */
+  /** 资金账户状态 */
   moneyAccountStatus: `${enums.MoneyAccountStatus}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** �㳮��־ */
+  /** 汇钞标志 */
   cashExchangeCode: `${enums.CashExchangeCode}`;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcChangeAccountField */
 export interface ChangeAccount {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �Ա� */
+  /** 性别 */
   gender: `${enums.Gender}`;
-  /** ���Ҵ��� */
+  /** 国家代码 */
   countryCode: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** ��ַ */
+  /** 地址 */
   address: string;
-  /** �ʱ� */
+  /** 邮编 */
   zipCode: string;
-  /** �绰���� */
+  /** 电话号码 */
   telephone: string;
-  /** �ֻ� */
+  /** 手机 */
   mobilePhone: string;
-  /** ���� */
+  /** 传真 */
   fax: string;
-  /** �����ʼ� */
+  /** 电子邮件 */
   eMail: string;
-  /** �ʽ��˻�״̬ */
+  /** 资金账户状态 */
   moneyAccountStatus: `${enums.MoneyAccountStatus}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** �������ʺ� */
+  /** 新银行帐号 */
   newBankAccount: string;
-  /** ���������� */
+  /** 新银行密码 */
   newBankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
 }
 
 /** CThostFtdcSecAgentACIDMapField */
 export interface SecAgentACIDMap {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �ʽ��˻� */
+  /** 资金账户 */
   accountId: string;
-  /** ���� */
+  /** 币种 */
   currencyId: string;
-  /** �����н�����ʽ��ʺ� */
+  /** 境外中介机构资金帐号 */
   brokerSecAgentId: string;
 }
 
 /** CThostFtdcQrySecAgentACIDMapField */
 export interface QrySecAgentACIDMap {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �ʽ��˻� */
+  /** 资金账户 */
   accountId: string;
-  /** ���� */
+  /** 币种 */
   currencyId: string;
 }
 
 /** CThostFtdcUserRightsAssignField */
 export interface UserRightsAssign {
-  /** Ӧ�õ�Ԫ���� */
+  /** 应用单元代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
 }
 
 /** CThostFtdcBrokerUserRightAssignField */
 export interface BrokerUserRightAssign {
-  /** Ӧ�õ�Ԫ���� */
+  /** 应用单元代码 */
   brokerId: string;
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
-  /** �ܷ��� */
+  /** 能否交易 */
   tradeable: number;
 }
 
 /** CThostFtdcDRTransferField */
 export interface DRTransfer {
-  /** ԭ�������Ĵ��� */
+  /** 原交易中心代码 */
   origDrIdentityId: number;
-  /** Ŀ�꽻�����Ĵ��� */
+  /** 目标交易中心代码 */
   destDrIdentityId: number;
-  /** ԭӦ�õ�Ԫ���� */
+  /** 原应用单元代码 */
   origBrokerId: string;
-  /** Ŀ�����õ�Ԫ���� */
+  /** 目标易用单元代码 */
   destBrokerId: string;
 }
 
 /** CThostFtdcFensUserInfoField */
 export interface FensUserInfo {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ��¼ģʽ */
+  /** 登录模式 */
   loginMode: `${enums.LoginMode}`;
 }
 
 /** CThostFtdcCurrTransferIdentityField */
 export interface CurrTransferIdentity {
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   identityId: number;
 }
 
 /** CThostFtdcLoginForbiddenUserField */
 export interface LoginForbiddenUser {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryLoginForbiddenUserField */
 export interface QryLoginForbiddenUser {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
 }
 
 /** CThostFtdcTradingAccountReserveField */
 export interface TradingAccountReserve {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ����׼���� */
+  /** 基本准备金 */
   reserve: number;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
 }
 
 /** CThostFtdcQryLoginForbiddenIPField */
 export interface QryLoginForbiddenIP {
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryIPListField */
 export interface QryIPList {
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryUserRightsAssignField */
 export interface QryUserRightsAssign {
-  /** Ӧ�õ�Ԫ���� */
+  /** 应用单元代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
 }
 
 /** CThostFtdcReserveOpenAccountConfirmField */
 export interface ReserveOpenAccountConfirm {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �Ա� */
+  /** 性别 */
   gender: `${enums.Gender}`;
-  /** ���Ҵ��� */
+  /** 国家代码 */
   countryCode: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** ��ַ */
+  /** 地址 */
   address: string;
-  /** �ʱ� */
+  /** 邮编 */
   zipCode: string;
-  /** �绰���� */
+  /** 电话号码 */
   telephone: string;
-  /** �ֻ� */
+  /** 手机 */
   mobilePhone: string;
-  /** ���� */
+  /** 传真 */
   fax: string;
-  /** �����ʼ� */
+  /** 电子邮件 */
   eMail: string;
-  /** �ʽ��˻�״̬ */
+  /** 资金账户状态 */
   moneyAccountStatus: `${enums.MoneyAccountStatus}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** ԤԼ����������ˮ�� */
+  /** 预约开户银行流水号 */
   bankReserveOpenSeq: string;
-  /** ԤԼ�������� */
+  /** 预约开户日期 */
   bookDate: string;
-  /** ԤԼ������֤���� */
+  /** 预约开户验证密码 */
   bookPsw: string;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
 }
 
 /** CThostFtdcReserveOpenAccountField */
 export interface ReserveOpenAccount {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �Ա� */
+  /** 性别 */
   gender: `${enums.Gender}`;
-  /** ���Ҵ��� */
+  /** 国家代码 */
   countryCode: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** ��ַ */
+  /** 地址 */
   address: string;
-  /** �ʱ� */
+  /** 邮编 */
   zipCode: string;
-  /** �绰���� */
+  /** 电话号码 */
   telephone: string;
-  /** �ֻ� */
+  /** 手机 */
   mobilePhone: string;
-  /** ���� */
+  /** 传真 */
   fax: string;
-  /** �����ʼ� */
+  /** 电子邮件 */
   eMail: string;
-  /** �ʽ��˻�״̬ */
+  /** 资金账户状态 */
   moneyAccountStatus: `${enums.MoneyAccountStatus}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ԤԼ����״̬ */
+  /** 预约开户状态 */
   reserveOpenAccStas: `${enums.ReserveOpenAccStas}`;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
 }
 
 /** CThostFtdcAccountPropertyField */
 export interface AccountProperty {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ����ͳһ��ʶ���� */
+  /** 银行统一标识类型 */
   bankId: string;
-  /** �����˻� */
+  /** 银行账户 */
   bankAccount: string;
-  /** �����˻��Ŀ��������� */
+  /** 银行账户的开户人名称 */
   openName: string;
-  /** �����˻��Ŀ����� */
+  /** 银行账户的开户行 */
   openBank: string;
-  /** �Ƿ��Ծ */
+  /** 是否活跃 */
   isActive: number;
-  /** �˻���Դ */
+  /** 账户来源 */
   accountSourceType: `${enums.AccountSourceType}`;
-  /** �������� */
+  /** 开户日期 */
   openDate: string;
-  /** ע������ */
+  /** 注销日期 */
   cancelDate: string;
-  /** ¼��Ա���� */
+  /** 录入员代码 */
   operatorId: string;
-  /** ¼������ */
+  /** 录入日期 */
   operateDate: string;
-  /** ¼��ʱ�� */
+  /** 录入时间 */
   operateTime: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
 }
 
 /** CThostFtdcQryCurrDRIdentityField */
 export interface QryCurrDRIdentity {
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
 }
 
 /** CThostFtdcCurrDRIdentityField */
 export interface CurrDRIdentity {
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
 }
 
 /** CThostFtdcQrySecAgentCheckModeField */
 export interface QrySecAgentCheckMode {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
 }
 
 /** CThostFtdcQrySecAgentTradeInfoField */
 export interface QrySecAgentTradeInfo {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �����н�����ʽ��ʺ� */
+  /** 境外中介机构资金帐号 */
   brokerSecAgentId: string;
 }
 
 /** CThostFtdcReqUserAuthMethodField */
 export interface ReqUserAuthMethod {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
 }
 
 /** CThostFtdcRspUserAuthMethodField */
 export interface RspUserAuthMethod {
-  /** ��ǰ�����õ���֤ģʽ */
+  /** 当前可以用的认证模式 */
   usableAuthMethod: number;
 }
 
 /** CThostFtdcReqGenUserCaptchaField */
 export interface ReqGenUserCaptcha {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
 }
 
 /** CThostFtdcRspGenUserCaptchaField */
 export interface RspGenUserCaptcha {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ͼƬ��Ϣ���� */
+  /** 图片信息长度 */
   captchaInfoLen: number;
-  /** ͼƬ��Ϣ */
+  /** 图片信息 */
   captchaInfo: string;
 }
 
 /** CThostFtdcReqGenUserTextField */
 export interface ReqGenUserText {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
 }
 
 /** CThostFtdcRspGenUserTextField */
 export interface RspGenUserText {
-  /** ������֤����� */
+  /** 短信验证码序号 */
   userTextSeq: number;
 }
 
 /** CThostFtdcReqUserLoginWithCaptchaField */
 export interface ReqUserLoginWithCaptcha {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���� */
+  /** 密码 */
   password: string;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** �ӿڶ˲�Ʒ��Ϣ */
+  /** 接口端产品信息 */
   interfaceProductInfo: string;
-  /** Э����Ϣ */
+  /** 协议信息 */
   protocolInfo: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��¼��ע */
+  /** 登录备注 */
   loginRemark: string;
-  /** ͼ����֤����������� */
+  /** 图形验证码的文字内容 */
   captcha: string;
-  /** �ն�IP�˿� */
+  /** 终端IP端口 */
   clientIpPort: number;
-  /** �ն�IP��ַ */
+  /** 终端IP地址 */
   clientIpAddress: string;
 }
 
 /** CThostFtdcReqUserLoginWithTextField */
 export interface ReqUserLoginWithText {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���� */
+  /** 密码 */
   password: string;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** �ӿڶ˲�Ʒ��Ϣ */
+  /** 接口端产品信息 */
   interfaceProductInfo: string;
-  /** Э����Ϣ */
+  /** 协议信息 */
   protocolInfo: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��¼��ע */
+  /** 登录备注 */
   loginRemark: string;
-  /** ������֤���������� */
+  /** 短信验证码文字内容 */
   text: string;
-  /** �ն�IP�˿� */
+  /** 终端IP端口 */
   clientIpPort: number;
-  /** �ն�IP��ַ */
+  /** 终端IP地址 */
   clientIpAddress: string;
 }
 
 /** CThostFtdcReqUserLoginWithOTPField */
 export interface ReqUserLoginWithOTP {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���� */
+  /** 密码 */
   password: string;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** �ӿڶ˲�Ʒ��Ϣ */
+  /** 接口端产品信息 */
   interfaceProductInfo: string;
-  /** Э����Ϣ */
+  /** 协议信息 */
   protocolInfo: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��¼��ע */
+  /** 登录备注 */
   loginRemark: string;
-  /** OTP���� */
+  /** OTP密码 */
   otpPassword: string;
-  /** �ն�IP�˿� */
+  /** 终端IP端口 */
   clientIpPort: number;
-  /** �ն�IP��ַ */
+  /** 终端IP地址 */
   clientIpAddress: string;
 }
 
 /** CThostFtdcReqApiHandshakeField */
 export interface ReqApiHandshake {
-  /** api��frontͨ����Կ�汾�� */
+  /** api与front通信密钥版本号 */
   cryptoKeyVersion: string;
 }
 
 /** CThostFtdcRspApiHandshakeField */
 export interface RspApiHandshake {
-  /** ���ֻظ����ݳ��� */
+  /** 握手回复数据长度 */
   frontHandshakeDataLen: number;
-  /** ���ֻظ����� */
+  /** 握手回复数据 */
   frontHandshakeData: string;
-  /** API��֤�Ƿ��� */
+  /** API认证是否开启 */
   isApiAuthEnabled: number;
 }
 
 /** CThostFtdcReqVerifyApiKeyField */
 export interface ReqVerifyApiKey {
-  /** ���ֻظ����ݳ��� */
+  /** 握手回复数据长度 */
   apiHandshakeDataLen: number;
-  /** ���ֻظ����� */
+  /** 握手回复数据 */
   apiHandshakeData: string;
 }
 
 /** CThostFtdcDepartmentUserField */
 export interface DepartmentUser {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.DepartmentRange}`;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
 }
 
 /** CThostFtdcQueryFreqField */
 export interface QueryFreq {
-  /** ��ѯƵ�� */
+  /** 查询频率 */
   queryFreq: number;
-  /** FTDƵ�� */
+  /** FTD频率 */
   ftdPkgFreq: number;
 }
 
 /** CThostFtdcAuthForbiddenIPField */
 export interface AuthForbiddenIP {
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryAuthForbiddenIPField */
 export interface QryAuthForbiddenIP {
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
 }
 
 /** CThostFtdcSyncDelaySwapFrozenField */
 export interface SyncDelaySwapFrozen {
-  /** ������ˮ�� */
+  /** 换汇流水号 */
   delaySwapSeqNo: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Դ���� */
+  /** 源币种 */
   fromCurrencyId: string;
-  /** Դʣ�໻����(���ᶳ��) */
+  /** 源剩余换汇额度(可提冻结) */
   fromRemainSwap: number;
-  /** �Ƿ��ֹ����� */
+  /** 是否手工换汇 */
   isManualSwap: number;
 }
 
 /** CThostFtdcUserSystemInfoField */
 export interface UserSystemInfo {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �û���ϵͳ�ڲ���Ϣ���� */
+  /** 用户端系统内部信息长度 */
   clientSystemInfoLen: number;
-  /** �û���ϵͳ�ڲ���Ϣ */
+  /** 用户端系统内部信息 */
   clientSystemInfo: string;
-  /** �ն�IP�˿� */
+  /** 终端IP端口 */
   clientIpPort: number;
-  /** ��¼�ɹ�ʱ�� */
+  /** 登录成功时间 */
   clientLoginTime: string;
-  /** App���� */
+  /** App代码 */
   clientAppId: string;
-  /** �û�����IP */
+  /** 用户公网IP */
   clientPublicIp: string;
-  /** �ͻ���¼��ע2 */
+  /** 客户登录备注2 */
   clientLoginRemark: string;
-  /** �ͻ��ն˵�MAC�ȱ�ʶ */
+  /** 客户终端的MAC等标识 */
   mac: string;
 }
 
 /** CThostFtdcAuthUserIDField */
 export interface AuthUserID {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** App���� */
+  /** App代码 */
   appId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** У������ */
+  /** 校验类型 */
   authType: `${enums.AuthType}`;
 }
 
 /** CThostFtdcAuthIPField */
 export interface AuthIP {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** App���� */
+  /** App代码 */
   appId: string;
-  /** �û����� */
+  /** 用户代码 */
   ipAddress: string;
 }
 
 /** CThostFtdcQryClassifiedInstrumentField */
 export interface QryClassifiedInstrument {
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** ��Լ����״̬ */
+  /** 合约交易状态 */
   tradingType: `${enums.TradingType}`;
-  /** ��Լ�������� */
+  /** 合约分类类型 */
   classType: `${enums.ClassType}`;
 }
 
 /** CThostFtdcQryCombPromotionParamField */
 export interface QryCombPromotionParam {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcCombPromotionParamField */
 export interface CombPromotionParam {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   combHedgeFlag: string;
-  /** ��Ȩ��ϱ�֤����� */
+  /** 期权组合保证金比例 */
   xparameter: number;
 }
 
 /** CThostFtdcReqUserLoginSMField */
 export interface ReqUserLoginSM {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���� */
+  /** 密码 */
   password: string;
-  /** �û��˲�Ʒ��Ϣ */
+  /** 用户端产品信息 */
   userProductInfo: string;
-  /** �ӿڶ˲�Ʒ��Ϣ */
+  /** 接口端产品信息 */
   interfaceProductInfo: string;
-  /** Э����Ϣ */
+  /** 协议信息 */
   protocolInfo: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��̬���� */
+  /** 动态密码 */
   oneTimePassword: string;
-  /** ��¼��ע */
+  /** 登录备注 */
   loginRemark: string;
-  /** �ն�IP�˿� */
+  /** 终端IP端口 */
   clientIpPort: number;
-  /** �ն�IP��ַ */
+  /** 终端IP地址 */
   clientIpAddress: string;
-  /** ������֤�� */
+  /** 短信验证码 */
   smsCode: string;
-  /** ���͹�˾���� */
+  /** 经纪公司名称 */
   brokerName: string;
-  /** ��֤�� */
+  /** 认证码 */
   authCode: string;
-  /** App���� */
+  /** App代码 */
   appId: string;
-  /** PIN�� */
+  /** PIN码 */
   pin: string;
 }
 
 /** CThostFtdcQryRiskSettleInvstPositionField */
 export interface QryRiskSettleInvstPosition {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryRiskSettleProductStatusField */
 export interface QryRiskSettleProductStatus {
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
 }
 
 /** CThostFtdcRiskSettleInvstPositionField */
 export interface RiskSettleInvstPosition {
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �ֲֶ�շ��� */
+  /** 持仓多空方向 */
   posiDirection: `${enums.PosiDirection}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** �ֲ����� */
+  /** 持仓日期 */
   positionDate: `${enums.PositionDate}`;
-  /** ���ճֲ� */
+  /** 上日持仓 */
   ydPosition: number;
-  /** ���ճֲ� */
+  /** 今日持仓 */
   position: number;
-  /** ��ͷ���� */
+  /** 多头冻结 */
   longFrozen: number;
-  /** ��ͷ���� */
+  /** 空头冻结 */
   shortFrozen: number;
-  /** ���ֶ����� */
+  /** 开仓冻结金额 */
   longFrozenAmount: number;
-  /** ���ֶ����� */
+  /** 开仓冻结金额 */
   shortFrozenAmount: number;
-  /** ������ */
+  /** 开仓量 */
   openVolume: number;
-  /** ƽ���� */
+  /** 平仓量 */
   closeVolume: number;
-  /** ���ֽ�� */
+  /** 开仓金额 */
   openAmount: number;
-  /** ƽ�ֽ�� */
+  /** 平仓金额 */
   closeAmount: number;
-  /** �ֲֳɱ� */
+  /** 持仓成本 */
   positionCost: number;
-  /** �ϴ�ռ�õı�֤�� */
+  /** 上次占用的保证金 */
   preMargin: number;
-  /** ռ�õı�֤�� */
+  /** 占用的保证金 */
   useMargin: number;
-  /** ����ı�֤�� */
+  /** 冻结的保证金 */
   frozenMargin: number;
-  /** ������ʽ� */
+  /** 冻结的资金 */
   frozenCash: number;
-  /** ����������� */
+  /** 冻结的手续费 */
   frozenCommission: number;
-  /** �ʽ��� */
+  /** 资金差额 */
   cashIn: number;
-  /** ������ */
+  /** 手续费 */
   commission: number;
-  /** ƽ��ӯ�� */
+  /** 平仓盈亏 */
   closeProfit: number;
-  /** �ֲ�ӯ�� */
+  /** 持仓盈亏 */
   positionProfit: number;
-  /** �ϴν���� */
+  /** 上次结算价 */
   preSettlementPrice: number;
-  /** ���ν���� */
+  /** 本次结算价 */
   settlementPrice: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ���ֳɱ� */
+  /** 开仓成本 */
   openCost: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchangeMargin: number;
-  /** ��ϳɽ��γɵĳֲ� */
+  /** 组合成交形成的持仓 */
   combPosition: number;
-  /** ��϶�ͷ���� */
+  /** 组合多头冻结 */
   combLongFrozen: number;
-  /** ��Ͽ�ͷ���� */
+  /** 组合空头冻结 */
   combShortFrozen: number;
-  /** ���ն���ƽ��ӯ�� */
+  /** 逐日盯市平仓盈亏 */
   closeProfitByDate: number;
-  /** ��ʶԳ�ƽ��ӯ�� */
+  /** 逐笔对冲平仓盈亏 */
   closeProfitByTrade: number;
-  /** ���ճֲ� */
+  /** 今日持仓 */
   todayPosition: number;
-  /** ��֤���� */
+  /** 保证金率 */
   marginRateByMoney: number;
-  /** ��֤����(������) */
+  /** 保证金率(按手数) */
   marginRateByVolume: number;
-  /** ִ�ж��� */
+  /** 执行冻结 */
   strikeFrozen: number;
-  /** ִ�ж����� */
+  /** 执行冻结金额 */
   strikeFrozenAmount: number;
-  /** ����ִ�ж��� */
+  /** 放弃执行冻结 */
   abandonFrozen: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ִ�ж������� */
+  /** 执行冻结的昨仓 */
   ydStrikeFrozen: number;
-  /** Ͷ�ʵ�Ԫ���� */
+  /** 投资单元代码 */
   investUnitId: string;
-  /** �ֲֳɱ���ֵ */
+  /** 持仓成本差值 */
   positionCostOffset: number;
-  /** tas�ֲ����� */
+  /** tas持仓手数 */
   tasPosition: number;
-  /** tas�ֲֳɱ� */
+  /** tas持仓成本 */
   tasPositionCost: number;
 }
 
 /** CThostFtdcRiskSettleProductStatusField */
 export interface RiskSettleProductStatus {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ��� */
+  /** 产品编号 */
   productId: string;
-  /** ��Ʒ����״̬ */
+  /** 产品结算状态 */
   productStatus: `${enums.ProductStatus}`;
 }
 
 /** CThostFtdcSyncDeltaInfoField */
 export interface SyncDeltaInfo {
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
-  /** ׷ƽ״̬ */
+  /** 追平状态 */
   syncDeltaStatus: `${enums.SyncDeltaStatus}`;
-  /** ׷ƽ���� */
+  /** 追平描述 */
   syncDescription: string;
-  /** �Ƿ�ֻ���ʽ�׷ƽ */
+  /** 是否只有资金追平 */
   isOnlyTrdDelta: number;
 }
 
 /** CThostFtdcSyncDeltaProductStatusField */
 export interface SyncDeltaProductStatus {
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** �Ƿ��������� */
+  /** 是否允许交易 */
   productStatus: `${enums.ProductStatus}`;
 }
 
 /** CThostFtdcSyncDeltaInvstPosDtlField */
 export interface SyncDeltaInvstPosDtl {
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ���� */
+  /** 买卖 */
   direction: `${enums.Direction}`;
-  /** �������� */
+  /** 开仓日期 */
   openDate: string;
-  /** �ɽ���� */
+  /** 成交编号 */
   tradeId: string;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** ���ּ� */
+  /** 开仓价 */
   openPrice: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** �ɽ����� */
+  /** 成交类型 */
   tradeType: `${enums.TradeType}`;
-  /** ��Ϻ�Լ���� */
+  /** 组合合约代码 */
   combInstrumentId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���ն���ƽ��ӯ�� */
+  /** 逐日盯市平仓盈亏 */
   closeProfitByDate: number;
-  /** ��ʶԳ�ƽ��ӯ�� */
+  /** 逐笔对冲平仓盈亏 */
   closeProfitByTrade: number;
-  /** ���ն��гֲ�ӯ�� */
+  /** 逐日盯市持仓盈亏 */
   positionProfitByDate: number;
-  /** ��ʶԳ�ֲ�ӯ�� */
+  /** 逐笔对冲持仓盈亏 */
   positionProfitByTrade: number;
-  /** Ͷ���߱�֤�� */
+  /** 投资者保证金 */
   margin: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchMargin: number;
-  /** ��֤���� */
+  /** 保证金率 */
   marginRateByMoney: number;
-  /** ��֤����(������) */
+  /** 保证金率(按手数) */
   marginRateByVolume: number;
-  /** ������ */
+  /** 昨结算价 */
   lastSettlementPrice: number;
-  /** ����� */
+  /** 结算价 */
   settlementPrice: number;
-  /** ƽ���� */
+  /** 平仓量 */
   closeVolume: number;
-  /** ƽ�ֽ�� */
+  /** 平仓金额 */
   closeAmount: number;
-  /** �ȿ���ƽʣ������ */
+  /** 先开先平剩余数量 */
   timeFirstVolume: number;
-  /** ����ֱֲ�־ */
+  /** 特殊持仓标志 */
   specPosiType: `${enums.SpecPosiType}`;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaInvstPosCombDtlField */
 export interface SyncDeltaInvstPosCombDtl {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** �������� */
+  /** 开仓日期 */
   openDate: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��ϱ�� */
+  /** 组合编号 */
   comTradeId: string;
-  /** ��ϱ�� */
+  /** 撮合编号 */
   tradeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ���� */
+  /** 买卖 */
   direction: `${enums.Direction}`;
-  /** �ֲ��� */
+  /** 持仓量 */
   totalAmt: number;
-  /** Ͷ���߱�֤�� */
+  /** 投资者保证金 */
   margin: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchMargin: number;
-  /** ��֤���� */
+  /** 保证金率 */
   marginRateByMoney: number;
-  /** ��֤����(������) */
+  /** 保证金率(按手数) */
   marginRateByVolume: number;
-  /** ���ȱ�� */
+  /** 单腿编号 */
   legId: number;
-  /** ���ȳ��� */
+  /** 单腿乘数 */
   legMultiple: number;
-  /** �ɽ���� */
+  /** 成交组号 */
   tradeGroupId: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaTradingAccountField */
 export interface SyncDeltaTradingAccount {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ϴ���Ѻ��� */
+  /** 上次质押金额 */
   preMortgage: number;
-  /** �ϴ����ö�� */
+  /** 上次信用额度 */
   preCredit: number;
-  /** �ϴδ��� */
+  /** 上次存款额 */
   preDeposit: number;
-  /** �ϴν���׼���� */
+  /** 上次结算准备金 */
   preBalance: number;
-  /** �ϴ�ռ�õı�֤�� */
+  /** 上次占用的保证金 */
   preMargin: number;
-  /** ��Ϣ���� */
+  /** 利息基数 */
   interestBase: number;
-  /** ��Ϣ���� */
+  /** 利息收入 */
   interest: number;
-  /** ����� */
+  /** 入金金额 */
   deposit: number;
-  /** ������ */
+  /** 出金金额 */
   withdraw: number;
-  /** ����ı�֤�� */
+  /** 冻结的保证金 */
   frozenMargin: number;
-  /** ������ʽ� */
+  /** 冻结的资金 */
   frozenCash: number;
-  /** ����������� */
+  /** 冻结的手续费 */
   frozenCommission: number;
-  /** ��ǰ��֤���ܶ� */
+  /** 当前保证金总额 */
   currMargin: number;
-  /** �ʽ��� */
+  /** 资金差额 */
   cashIn: number;
-  /** ������ */
+  /** 手续费 */
   commission: number;
-  /** ƽ��ӯ�� */
+  /** 平仓盈亏 */
   closeProfit: number;
-  /** �ֲ�ӯ�� */
+  /** 持仓盈亏 */
   positionProfit: number;
-  /** �ڻ�����׼���� */
+  /** 期货结算准备金 */
   balance: number;
-  /** �����ʽ� */
+  /** 可用资金 */
   available: number;
-  /** ��ȡ�ʽ� */
+  /** 可取资金 */
   withdrawQuota: number;
-  /** ����׼���� */
+  /** 基本准备金 */
   reserve: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ���ö�� */
+  /** 信用额度 */
   credit: number;
-  /** ��Ѻ��� */
+  /** 质押金额 */
   mortgage: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchangeMargin: number;
-  /** Ͷ���߽��֤�� */
+  /** 投资者交割保证金 */
   deliveryMargin: number;
-  /** ���������֤�� */
+  /** 交易所交割保证金 */
   exchangeDeliveryMargin: number;
-  /** �����ڻ�����׼���� */
+  /** 保底期货结算准备金 */
   reserveBalance: number;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** �ϴλ��������� */
+  /** 上次货币质入金额 */
   preFundMortgageIn: number;
-  /** �ϴλ����ʳ���� */
+  /** 上次货币质出金额 */
   preFundMortgageOut: number;
-  /** ���������� */
+  /** 货币质入金额 */
   fundMortgageIn: number;
-  /** �����ʳ���� */
+  /** 货币质出金额 */
   fundMortgageOut: number;
-  /** ������Ѻ��� */
+  /** 货币质押余额 */
   fundMortgageAvailable: number;
-  /** ����Ѻ���ҽ�� */
+  /** 可质押货币金额 */
   mortgageableFund: number;
-  /** �����Ʒռ�ñ�֤�� */
+  /** 特殊产品占用保证金 */
   specProductMargin: number;
-  /** �����Ʒ���ᱣ֤�� */
+  /** 特殊产品冻结保证金 */
   specProductFrozenMargin: number;
-  /** �����Ʒ������ */
+  /** 特殊产品手续费 */
   specProductCommission: number;
-  /** �����Ʒ���������� */
+  /** 特殊产品冻结手续费 */
   specProductFrozenCommission: number;
-  /** �����Ʒ�ֲ�ӯ�� */
+  /** 特殊产品持仓盈亏 */
   specProductPositionProfit: number;
-  /** �����Ʒƽ��ӯ�� */
+  /** 特殊产品平仓盈亏 */
   specProductCloseProfit: number;
-  /** ���ݳֲ�ӯ���㷨����������Ʒ�ֲ�ӯ�� */
+  /** 根据持仓盈亏算法计算的特殊产品持仓盈亏 */
   specProductPositionProfitByAlg: number;
-  /** �����Ʒ��������֤�� */
+  /** 特殊产品交易所保证金 */
   specProductExchangeMargin: number;
-  /** ��ʱ���㶳���� */
+  /** 延时换汇冻结金额 */
   frozenSwap: number;
-  /** ʣ�໻���� */
+  /** 剩余换汇额度 */
   remainSwap: number;
-  /** ��Ȩ��ֵ */
+  /** 期权市值 */
   optionValue: number;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaInitInvstMarginField */
 export interface SyncDeltaInitInvstMargin {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ׷ƽǰ�ܷ��ձ�֤�� */
+  /** 追平前总风险保证金 */
   lastRiskTotalInvstMargin: number;
-  /** ׷ƽǰ�������ܷ��ձ�֤�� */
+  /** 追平前交易所总风险保证金 */
   lastRiskTotalExchMargin: number;
-  /** ����׷ƽƷ���ܱ�֤�� */
+  /** 本次追平品种总保证金 */
   thisSyncInvstMargin: number;
-  /** ����׷ƽƷ�ֽ������ܱ�֤�� */
+  /** 本次追平品种交易所总保证金 */
   thisSyncExchMargin: number;
-  /** ����δ׷ƽƷ���ܱ�֤�� */
+  /** 本次未追平品种总保证金 */
   remainRiskInvstMargin: number;
-  /** ����δ׷ƽƷ�ֽ������ܱ�֤�� */
+  /** 本次未追平品种交易所总保证金 */
   remainRiskExchMargin: number;
-  /** ׷ƽǰ�������Ʒ���ձ�֤�� */
+  /** 追平前总特殊产品风险保证金 */
   lastRiskSpecTotalInvstMargin: number;
-  /** ׷ƽǰ�������Ʒ���������ձ�֤�� */
+  /** 追平前总特殊产品交易所风险保证金 */
   lastRiskSpecTotalExchMargin: number;
-  /** ����׷ƽƷ�������Ʒ�ܱ�֤�� */
+  /** 本次追平品种特殊产品总保证金 */
   thisSyncSpecInvstMargin: number;
-  /** ����׷ƽƷ�������Ʒ�������ܱ�֤�� */
+  /** 本次追平品种特殊产品交易所总保证金 */
   thisSyncSpecExchMargin: number;
-  /** ����δ׷ƽƷ�������Ʒ�ܱ�֤�� */
+  /** 本次未追平品种特殊产品总保证金 */
   remainRiskSpecInvstMargin: number;
-  /** ����δ׷ƽƷ�������Ʒ�������ܱ�֤�� */
+  /** 本次未追平品种特殊产品交易所总保证金 */
   remainRiskSpecExchMargin: number;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaDceCombInstrumentField */
 export interface SyncDeltaDceCombInstrument {
-  /** ��Լ���� */
+  /** 合约代码 */
   combInstrumentId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** �ɽ���� */
+  /** 成交组号 */
   tradeGroupId: number;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   combHedgeFlag: `${enums.HedgeFlag}`;
-  /** ������� */
+  /** 组合类型 */
   combinationType: `${enums.DceCombinationType}`;
-  /** ���� */
+  /** 买卖 */
   direction: `${enums.Direction}`;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** �ڻ�/��Ȩ��ϱ�֤����� */
+  /** 期货/期权组合保证金比例 */
   xparameter: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaInvstMarginRateField */
 export interface SyncDeltaInvstMarginRate {
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��ͷ��֤���� */
+  /** 多头保证金率 */
   longMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 多头保证金费 */
   longMarginRatioByVolume: number;
-  /** ��ͷ��֤���� */
+  /** 空头保证金率 */
   shortMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 空头保证金费 */
   shortMarginRatioByVolume: number;
-  /** �Ƿ���Խ�������ȡ */
+  /** 是否相对交易所收取 */
   isRelative: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaExchMarginRateField */
 export interface SyncDeltaExchMarginRate {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��ͷ��֤���� */
+  /** 多头保证金率 */
   longMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 多头保证金费 */
   longMarginRatioByVolume: number;
-  /** ��ͷ��֤���� */
+  /** 空头保证金率 */
   shortMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 空头保证金费 */
   shortMarginRatioByVolume: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaOptExchMarginField */
 export interface SyncDeltaOptExchMargin {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ͷ����ͷ��֤�����ϵ�� */
+  /** 投机空头保证金调整系数 */
   sShortMarginRatioByMoney: number;
-  /** Ͷ����ͷ��֤�����ϵ�� */
+  /** 投机空头保证金调整系数 */
   sShortMarginRatioByVolume: number;
-  /** ��ֵ��ͷ��֤�����ϵ�� */
+  /** 保值空头保证金调整系数 */
   hShortMarginRatioByMoney: number;
-  /** ��ֵ��ͷ��֤�����ϵ�� */
+  /** 保值空头保证金调整系数 */
   hShortMarginRatioByVolume: number;
-  /** ������ͷ��֤�����ϵ�� */
+  /** 套利空头保证金调整系数 */
   aShortMarginRatioByMoney: number;
-  /** ������ͷ��֤�����ϵ�� */
+  /** 套利空头保证金调整系数 */
   aShortMarginRatioByVolume: number;
-  /** �����̿�ͷ��֤�����ϵ�� */
+  /** 做市商空头保证金调整系数 */
   mShortMarginRatioByMoney: number;
-  /** �����̿�ͷ��֤�����ϵ�� */
+  /** 做市商空头保证金调整系数 */
   mShortMarginRatioByVolume: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaOptInvstMarginField */
 export interface SyncDeltaOptInvstMargin {
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ����ͷ��֤�����ϵ�� */
+  /** 投机空头保证金调整系数 */
   sShortMarginRatioByMoney: number;
-  /** Ͷ����ͷ��֤�����ϵ�� */
+  /** 投机空头保证金调整系数 */
   sShortMarginRatioByVolume: number;
-  /** ��ֵ��ͷ��֤�����ϵ�� */
+  /** 保值空头保证金调整系数 */
   hShortMarginRatioByMoney: number;
-  /** ��ֵ��ͷ��֤�����ϵ�� */
+  /** 保值空头保证金调整系数 */
   hShortMarginRatioByVolume: number;
-  /** ������ͷ��֤�����ϵ�� */
+  /** 套利空头保证金调整系数 */
   aShortMarginRatioByMoney: number;
-  /** ������ͷ��֤�����ϵ�� */
+  /** 套利空头保证金调整系数 */
   aShortMarginRatioByVolume: number;
-  /** �Ƿ���潻������ȡ */
+  /** 是否跟随交易所收取 */
   isRelative: number;
-  /** �����̿�ͷ��֤�����ϵ�� */
+  /** 做市商空头保证金调整系数 */
   mShortMarginRatioByMoney: number;
-  /** �����̿�ͷ��֤�����ϵ�� */
+  /** 做市商空头保证金调整系数 */
   mShortMarginRatioByVolume: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaInvstMarginRateULField */
 export interface SyncDeltaInvstMarginRateUL {
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��ͷ��֤���� */
+  /** 多头保证金率 */
   longMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 多头保证金费 */
   longMarginRatioByVolume: number;
-  /** ��ͷ��֤���� */
+  /** 空头保证金率 */
   shortMarginRatioByMoney: number;
-  /** ��ͷ��֤��� */
+  /** 空头保证金费 */
   shortMarginRatioByVolume: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaOptInvstCommRateField */
 export interface SyncDeltaOptInvstCommRate {
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������������ */
+  /** 开仓手续费率 */
   openRatioByMoney: number;
-  /** ���������� */
+  /** 开仓手续费 */
   openRatioByVolume: number;
-  /** ƽ���������� */
+  /** 平仓手续费率 */
   closeRatioByMoney: number;
-  /** ƽ�������� */
+  /** 平仓手续费 */
   closeRatioByVolume: number;
-  /** ƽ���������� */
+  /** 平今手续费率 */
   closeTodayRatioByMoney: number;
-  /** ƽ�������� */
+  /** 平今手续费 */
   closeTodayRatioByVolume: number;
-  /** ִ���������� */
+  /** 执行手续费率 */
   strikeRatioByMoney: number;
-  /** ִ�������� */
+  /** 执行手续费 */
   strikeRatioByVolume: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaInvstCommRateField */
 export interface SyncDeltaInvstCommRate {
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ������������ */
+  /** 开仓手续费率 */
   openRatioByMoney: number;
-  /** ���������� */
+  /** 开仓手续费 */
   openRatioByVolume: number;
-  /** ƽ���������� */
+  /** 平仓手续费率 */
   closeRatioByMoney: number;
-  /** ƽ�������� */
+  /** 平仓手续费 */
   closeRatioByVolume: number;
-  /** ƽ���������� */
+  /** 平今手续费率 */
   closeTodayRatioByMoney: number;
-  /** ƽ�������� */
+  /** 平今手续费 */
   closeTodayRatioByVolume: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaProductExchRateField */
 export interface SyncDeltaProductExchRate {
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** ���۱������� */
+  /** 报价币种类型 */
   quoteCurrencyId: string;
-  /** ���� */
+  /** 汇率 */
   exchangeRate: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaDepthMarketDataField */
 export interface SyncDeltaDepthMarketData {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** ���¼� */
+  /** 最新价 */
   lastPrice: number;
-  /** �ϴν���� */
+  /** 上次结算价 */
   preSettlementPrice: number;
-  /** ������ */
+  /** 昨收盘 */
   preClosePrice: number;
-  /** ��ֲ��� */
+  /** 昨持仓量 */
   preOpenInterest: number;
-  /** ���� */
+  /** 今开盘 */
   openPrice: number;
-  /** ��߼� */
+  /** 最高价 */
   highestPrice: number;
-  /** ��ͼ� */
+  /** 最低价 */
   lowestPrice: number;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** �ɽ���� */
+  /** 成交金额 */
   turnover: number;
-  /** �ֲ��� */
+  /** 持仓量 */
   openInterest: number;
-  /** ������ */
+  /** 今收盘 */
   closePrice: number;
-  /** ���ν���� */
+  /** 本次结算价 */
   settlementPrice: number;
-  /** ��ͣ��� */
+  /** 涨停板价 */
   upperLimitPrice: number;
-  /** ��ͣ��� */
+  /** 跌停板价 */
   lowerLimitPrice: number;
-  /** ����ʵ�� */
+  /** 昨虚实度 */
   preDelta: number;
-  /** ����ʵ�� */
+  /** 今虚实度 */
   currDelta: number;
-  /** ����޸�ʱ�� */
+  /** 最后修改时间 */
   updateTime: string;
-  /** ����޸ĺ��� */
+  /** 最后修改毫秒 */
   updateMillisec: number;
-  /** �����һ */
+  /** 申买价一 */
   bidPrice1: number;
-  /** ������һ */
+  /** 申买量一 */
   bidVolume1: number;
-  /** ������һ */
+  /** 申卖价一 */
   askPrice1: number;
-  /** ������һ */
+  /** 申卖量一 */
   askVolume1: number;
-  /** ����۶� */
+  /** 申买价二 */
   bidPrice2: number;
-  /** �������� */
+  /** 申买量二 */
   bidVolume2: number;
-  /** �����۶� */
+  /** 申卖价二 */
   askPrice2: number;
-  /** �������� */
+  /** 申卖量二 */
   askVolume2: number;
-  /** ������� */
+  /** 申买价三 */
   bidPrice3: number;
-  /** �������� */
+  /** 申买量三 */
   bidVolume3: number;
-  /** �������� */
+  /** 申卖价三 */
   askPrice3: number;
-  /** �������� */
+  /** 申卖量三 */
   askVolume3: number;
-  /** ������� */
+  /** 申买价四 */
   bidPrice4: number;
-  /** �������� */
+  /** 申买量四 */
   bidVolume4: number;
-  /** �������� */
+  /** 申卖价四 */
   askPrice4: number;
-  /** �������� */
+  /** 申卖量四 */
   askVolume4: number;
-  /** ������� */
+  /** 申买价五 */
   bidPrice5: number;
-  /** �������� */
+  /** 申买量五 */
   bidVolume5: number;
-  /** �������� */
+  /** 申卖价五 */
   askPrice5: number;
-  /** �������� */
+  /** 申卖量五 */
   askVolume5: number;
-  /** ���վ��� */
+  /** 当日均价 */
   averagePrice: number;
-  /** ҵ������ */
+  /** 业务日期 */
   actionDay: string;
-  /** �ϴ��� */
+  /** 上带价 */
   bandingUpperPrice: number;
-  /** �´��� */
+  /** 下带价 */
   bandingLowerPrice: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaIndexPriceField */
 export interface SyncDeltaIndexPrice {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ָ���ֻ����̼� */
+  /** 指数现货收盘价 */
   closePrice: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaEWarrantOffsetField */
 export interface SyncDeltaEWarrantOffset {
-  /** �������� */
+  /** 交易日期 */
   tradingDay: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSPBMFutureParameterField */
 export interface SPBMFutureParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
-  /** �ڻ���Լ���� */
+  /** 期货合约因子 */
   cvf: number;
-  /** �׶α�ʶ */
+  /** 阶段标识 */
   timeRange: `${enums.TimeRange}`;
-  /** Ʒ�ֱ�֤���׼ */
+  /** 品种保证金标准 */
   marginRate: number;
-  /** �ڻ���Լ�ڲ������ַ����ۿ۱��� */
+  /** 期货合约内部对锁仓费率折扣比例 */
   lockRateX: number;
-  /** ��߱�֤���׼ */
+  /** 提高保证金标准 */
   addOnRate: number;
-  /** ������ */
+  /** 昨结算价 */
   preSettlementPrice: number;
-  /** �ڻ���Լ�ڲ������ָ��ӷ����ۿ۱��� */
+  /** 期货合约内部对锁仓附加费率折扣比例 */
   addOnLockRateX2: number;
 }
 
 /** CThostFtdcSPBMOptionParameterField */
 export interface SPBMOptionParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
-  /** ��Ȩ��Լ���� */
+  /** 期权合约因子 */
   cvf: number;
-  /** ��Ȩ��ּ۸� */
+  /** 期权冲抵价格 */
   downPrice: number;
-  /** Deltaֵ */
+  /** Delta值 */
   delta: number;
-  /** ������Ȩ����ת�����ֵ */
+  /** 卖方期权风险转换最低值 */
   slimiDelta: number;
-  /** ������ */
+  /** 昨结算价 */
   preSettlementPrice: number;
 }
 
 /** CThostFtdcSPBMIntraParameterField */
 export interface SPBMIntraParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
-  /** Ʒ���ں�Լ������ַ����ۿ۱��� */
+  /** 品种内合约间对锁仓费率折扣比例 */
   intraRateY: number;
-  /** Ʒ���ں�Լ������ָ��ӷ����ۿ۱��� */
+  /** 品种内合约间对锁仓附加费率折扣比例 */
   addOnIntraRateY2: number;
 }
 
 /** CThostFtdcSPBMInterParameterField */
 export interface SPBMInterParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���ȼ� */
+  /** 优先级 */
   spreadId: number;
-  /** Ʒ�ּ�����ַ����ۿ۱��� */
+  /** 品种间对锁仓费率折扣比例 */
   interRateZ: number;
-  /** ��һ�ȹ���Ʒ�� */
+  /** 第一腿构成品种 */
   leg1ProdFamilyCode: string;
-  /** �ڶ��ȹ���Ʒ�� */
+  /** 第二腿构成品种 */
   leg2ProdFamilyCode: string;
 }
 
 /** CThostFtdcSyncSPBMParameterEndField */
 export interface SyncSPBMParameterEnd {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
 }
 
 /** CThostFtdcQrySPBMFutureParameterField */
 export interface QrySPBMFutureParameter {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
 }
 
 /** CThostFtdcQrySPBMOptionParameterField */
 export interface QrySPBMOptionParameter {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
 }
 
 /** CThostFtdcQrySPBMIntraParameterField */
 export interface QrySPBMIntraParameter {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
 }
 
 /** CThostFtdcQrySPBMInterParameterField */
 export interface QrySPBMInterParameter {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��һ�ȹ���Ʒ�� */
+  /** 第一腿构成品种 */
   leg1ProdFamilyCode: string;
-  /** �ڶ��ȹ���Ʒ�� */
+  /** 第二腿构成品种 */
   leg2ProdFamilyCode: string;
 }
 
 /** CThostFtdcSPBMPortfDefinitionField */
 export interface SPBMPortfDefinition {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��ϱ�֤���ײʹ��� */
+  /** 组合保证金套餐代码 */
   portfolioDefId: number;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
-  /** �Ƿ�����SPBM */
+  /** 是否启用SPBM */
   isSpbm: number;
 }
 
 /** CThostFtdcSPBMInvestorPortfDefField */
 export interface SPBMInvestorPortfDef {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��ϱ�֤���ײʹ��� */
+  /** 组合保证金套餐代码 */
   portfolioDefId: number;
 }
 
 /** CThostFtdcInvestorPortfMarginRatioField */
 export interface InvestorPortfMarginRatio {
-  /** Ͷ���߷�Χ */
+  /** 投资者范围 */
   investorRange: `${enums.InvestorRange}`;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա��Ͷ������ȡ�ı�֤��ͽ�������Ͷ������ȡ�ı�֤��ı��� */
+  /** 会员对投资者收取的保证金和交易所对投资者收取的保证金的比例 */
   marginRatio: number;
-  /** ��ƷȺ���� */
+  /** 产品群代码 */
   productGroupId: string;
 }
 
 /** CThostFtdcQrySPBMPortfDefinitionField */
 export interface QrySPBMPortfDefinition {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��ϱ�֤���ײʹ��� */
+  /** 组合保证金套餐代码 */
   portfolioDefId: number;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
 }
 
 /** CThostFtdcQrySPBMInvestorPortfDefField */
 export interface QrySPBMInvestorPortfDef {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
 }
 
 /** CThostFtdcQryInvestorPortfMarginRatioField */
 export interface QryInvestorPortfMarginRatio {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��ƷȺ���� */
+  /** 产品群代码 */
   productGroupId: string;
 }
 
 /** CThostFtdcInvestorProdSPBMDetailField */
 export interface InvestorProdSPBMDetail {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
-  /** ��Լ�ڶ�����֤�� */
+  /** 合约内对锁保证金 */
   intraInstrMargin: number;
-  /** ��鼯��֤�� */
+  /** 买归集保证金 */
   bCollectingMargin: number;
-  /** ���鼯��֤�� */
+  /** 卖归集保证金 */
   sCollectingMargin: number;
-  /** Ʒ���ں�Լ�������֤�� */
+  /** 品种内合约间对锁保证金 */
   intraProdMargin: number;
-  /** ����֤�� */
+  /** 净保证金 */
   netMargin: number;
-  /** ��Ʒ�������֤�� */
+  /** 产品间对锁保证金 */
   interProdMargin: number;
-  /** �㱣֤�� */
+  /** 裸保证金 */
   singleMargin: number;
-  /** ���ӱ�֤�� */
+  /** 附加保证金 */
   addOnMargin: number;
-  /** �����±�֤�� */
+  /** 交割月保证金 */
   deliveryMargin: number;
-  /** ������Ȩ��ͷ��� */
+  /** 看涨期权最低风险 */
   callOptionMinRisk: number;
-  /** ������Ȩ��ͷ��� */
+  /** 看跌期权最低风险 */
   putOptionMinRisk: number;
-  /** ������Ȩ��ͷ��� */
+  /** 卖方期权最低风险 */
   optionMinRisk: number;
-  /** ����Ȩ��ּ�ֵ */
+  /** 买方期权冲抵价值 */
   optionValueOffset: number;
-  /** ������ȨȨ���� */
+  /** 卖方期权权利金 */
   optionRoyalty: number;
-  /** ��ֵ��� */
+  /** 价值冲抵 */
   realOptionValueOffset: number;
-  /** ��֤�� */
+  /** 保证金 */
   margin: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchMargin: number;
 }
 
 /** CThostFtdcQryInvestorProdSPBMDetailField */
 export interface QryInvestorProdSPBMDetail {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
 }
 
 /** CThostFtdcPortfTradeParamSettingField */
 export interface PortfTradeParamSetting {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �鱣�㷨 */
+  /** 组保算法 */
   portfolio: `${enums.Portfolio}`;
-  /** �����Ƿ����� */
+  /** 撤单是否验资 */
   isActionVerify: number;
-  /** ƽ���Ƿ����� */
+  /** 平仓是否验资 */
   isCloseVerify: number;
 }
 
 /** CThostFtdcInvestorTradingRightField */
 export interface InvestorTradingRight {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ����Ȩ�� */
+  /** 交易权限 */
   invstTradingRight: `${enums.InvstTradingRight}`;
 }
 
 /** CThostFtdcMortgageParamField */
 export interface MortgageParam {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ��Ѻ���ϵ�� */
+  /** 质押配比系数 */
   mortgageBalance: number;
-  /** �����Ƿ���֤��Ѻ��� */
+  /** 开仓是否验证质押配比 */
   checkMortgageRatio: number;
 }
 
 /** CThostFtdcWithDrawParamField */
 export interface WithDrawParam {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �������� */
+  /** 参数代码 */
   withDrawParamId: `${enums.WithDrawParamID}`;
-  /** ��������ֵ */
+  /** 参数代码值 */
   withDrawParamValue: string;
 }
 
 /** CThostFtdcThostUserFunctionField */
 export interface ThostUserFunction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Thost�ն˹��ܴ��� */
+  /** Thost终端功能代码 */
   thostFunctionCode: number;
 }
 
 /** CThostFtdcQryThostUserFunctionField */
 export interface QryThostUserFunction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
 }
 
 /** CThostFtdcSPBMAddOnInterParameterField */
 export interface SPBMAddOnInterParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���ȼ� */
+  /** 优先级 */
   spreadId: number;
-  /** Ʒ�ּ�����ָ��ӷ����ۿ۱��� */
+  /** 品种间对锁仓附加费率折扣比例 */
   addOnInterRateZ2: number;
-  /** ��һ�ȹ���Ʒ�� */
+  /** 第一腿构成品种 */
   leg1ProdFamilyCode: string;
-  /** �ڶ��ȹ���Ʒ�� */
+  /** 第二腿构成品种 */
   leg2ProdFamilyCode: string;
 }
 
 /** CThostFtdcQrySPBMAddOnInterParameterField */
 export interface QrySPBMAddOnInterParameter {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��һ�ȹ���Ʒ�� */
+  /** 第一腿构成品种 */
   leg1ProdFamilyCode: string;
-  /** �ڶ��ȹ���Ʒ�� */
+  /** 第二腿构成品种 */
   leg2ProdFamilyCode: string;
 }
 
 /** CThostFtdcQryInvestorCommoditySPMMMarginField */
 export interface QryInvestorCommoditySPMMMargin {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Ʒ����� */
+  /** 商品组代码 */
   commodityId: string;
 }
 
 /** CThostFtdcQryInvestorCommodityGroupSPMMMarginField */
 export interface QryInvestorCommodityGroupSPMMMargin {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��ƷȺ���� */
+  /** 商品群代码 */
   commodityGroupId: string;
 }
 
 /** CThostFtdcQrySPMMInstParamField */
 export interface QrySPMMInstParam {
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQrySPMMProductParamField */
 export interface QrySPMMProductParam {
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
 }
 
 /** CThostFtdcInvestorCommoditySPMMMarginField */
 export interface InvestorCommoditySPMMMargin {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Ʒ����� */
+  /** 商品组代码 */
   commodityId: string;
-  /** �Żݲ�λӦ�ձ�֤�� */
+  /** 优惠仓位应收保证金 */
   marginBeforeDiscount: number;
-  /** ���Żݲ�λӦ�ձ�֤�� */
+  /** 不优惠仓位应收保证金 */
   marginNoDiscount: number;
-  /** ��ͷʵ�ַ��� */
+  /** 多头实仓风险 */
   longPosRisk: number;
-  /** ��ͷ���ֶ������ */
+  /** 多头开仓冻结风险 */
   longOpenFrozenRisk: number;
-  /** ��ͷ��ƽ������� */
+  /** 多头被平冻结风险 */
   longCloseFrozenRisk: number;
-  /** ��ͷʵ�ַ��� */
+  /** 空头实仓风险 */
   shortPosRisk: number;
-  /** ��ͷ���ֶ������ */
+  /** 空头开仓冻结风险 */
   shortOpenFrozenRisk: number;
-  /** ��ͷ��ƽ������� */
+  /** 空头被平冻结风险 */
   shortCloseFrozenRisk: number;
-  /** SPMMƷ���ڿ����Ż�ϵ�� */
+  /** SPMM品种内跨期优惠系数 */
   intraCommodityRate: number;
-  /** SPMM��Ȩ�Ż�ϵ�� */
+  /** SPMM期权优惠系数 */
   optionDiscountRate: number;
-  /** ʵ�ֶԳ��Żݽ�� */
+  /** 实仓对冲优惠金额 */
   posDiscount: number;
-  /** ���ֱ����Գ��Żݽ�� */
+  /** 开仓报单对冲优惠金额 */
   openFrozenDiscount: number;
-  /** Ʒ�ַ��վ�ͷ */
+  /** 品种风险净头 */
   netRisk: number;
-  /** ƽ�ֶ��ᱣ֤�� */
+  /** 平仓冻结保证金 */
   closeFrozenMargin: number;
-  /** ����������� */
+  /** 冻结的手续费 */
   frozenCommission: number;
-  /** ������ */
+  /** 手续费 */
   commission: number;
-  /** ������ʽ� */
+  /** 冻结的资金 */
   frozenCash: number;
-  /** �ʽ��� */
+  /** 资金差额 */
   cashIn: number;
-  /** ��Ȩ�����ʽ� */
+  /** 行权冻结资金 */
   strikeFrozenMargin: number;
 }
 
 /** CThostFtdcInvestorCommodityGroupSPMMMarginField */
 export interface InvestorCommodityGroupSPMMMargin {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��ƷȺ���� */
+  /** 商品群代码 */
   commodityGroupId: string;
-  /** �Żݲ�λӦ�ձ�֤�� */
+  /** 优惠仓位应收保证金 */
   marginBeforeDiscount: number;
-  /** ���Żݲ�λӦ�ձ�֤�� */
+  /** 不优惠仓位应收保证金 */
   marginNoDiscount: number;
-  /** ��ͷ���� */
+  /** 多头风险 */
   longRisk: number;
-  /** ��ͷ���� */
+  /** 空头风险 */
   shortRisk: number;
-  /** ��ƷȺƽ�ֶ��ᱣ֤�� */
+  /** 商品群平仓冻结保证金 */
   closeFrozenMargin: number;
-  /** SPMM��Ʒ���Ż�ϵ�� */
+  /** SPMM跨品种优惠系数 */
   interCommodityRate: number;
-  /** ��ƷȺ��С��֤����� */
+  /** 商品群最小保证金比例 */
   miniMarginRatio: number;
-  /** Ͷ���߱�֤��ͽ�������֤��ı��� */
+  /** 投资者保证金和交易所保证金的比例 */
   adjustRatio: number;
-  /** SPMMƷ�����Żݻ��� */
+  /** SPMM品种内优惠汇总 */
   intraCommodityDiscount: number;
-  /** SPMM��Ʒ���Ż� */
+  /** SPMM跨品种优惠 */
   interCommodityDiscount: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchMargin: number;
-  /** Ͷ���߱�֤�� */
+  /** 投资者保证金 */
   investorMargin: number;
-  /** ����������� */
+  /** 冻结的手续费 */
   frozenCommission: number;
-  /** ������ */
+  /** 手续费 */
   commission: number;
-  /** ������ʽ� */
+  /** 冻结的资金 */
   frozenCash: number;
-  /** �ʽ��� */
+  /** 资金差额 */
   cashIn: number;
-  /** ��Ȩ�����ʽ� */
+  /** 行权冻结资金 */
   strikeFrozenMargin: number;
 }
 
 /** CThostFtdcSPMMInstParamField */
 export interface SPMMInstParam {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** SPMM��Լ��֤���㷨 */
+  /** SPMM合约保证金算法 */
   instMarginCalId: `${enums.InstMarginCalID}`;
-  /** ��Ʒ����� */
+  /** 商品组代码 */
   commodityId: string;
-  /** ��ƷȺ���� */
+  /** 商品群代码 */
   commodityGroupId: string;
 }
 
 /** CThostFtdcSPMMProductParamField */
 export interface SPMMProductParam {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** ��Ʒ����� */
+  /** 商品组代码 */
   commodityId: string;
-  /** ��ƷȺ���� */
+  /** 商品群代码 */
   commodityGroupId: string;
 }
 
 /** CThostFtdcQryTraderAssignField */
 export interface QryTraderAssign {
-  /** ����Ա���� */
+  /** 交易员代码 */
   traderId: string;
 }
 
 /** CThostFtdcTraderAssignField */
 export interface TraderAssign {
-  /** Ӧ�õ�Ԫ���� */
+  /** 应用单元代码 */
   brokerId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
 }
 
 /** CThostFtdcInvestorInfoCntSettingField */
 export interface InvestorInfoCntSetting {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Ʒ���� */
+  /** 商品代码 */
   productId: string;
-  /** �Ƿ���ȡ�걨�� */
+  /** 是否收取申报费 */
   isCalInfoComm: number;
-  /** �Ƿ�������Ϣ�� */
+  /** 是否限制信息量 */
   isLimitInfoMax: number;
-  /** ��Ϣ�����Ʊ��� */
+  /** 信息量限制笔数 */
   infoMaxLimit: number;
 }
 
 /** CThostFtdcRCAMSCombProductInfoField */
 export interface RCAMSCombProductInfo {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** ��Ʒ����� */
+  /** 商品组代码 */
   combProductId: string;
-  /** ��ƷȺ���� */
+  /** 商品群代码 */
   productGroupId: string;
 }
 
 /** CThostFtdcRCAMSInstrParameterField */
 export interface RCAMSInstrParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** ͬ��Լ���նԳ���� */
+  /** 同合约风险对冲比率 */
   hedgeRate: number;
 }
 
 /** CThostFtdcRCAMSIntraParameterField */
 export interface RCAMSIntraParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ��ϴ��� */
+  /** 产品组合代码 */
   combProductId: string;
-  /** Ʒ���ڶԳ���� */
+  /** 品种内对冲比率 */
   hedgeRate: number;
 }
 
 /** CThostFtdcRCAMSInterParameterField */
 export interface RCAMSInterParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��ƷȺ���� */
+  /** 商品群代码 */
   productGroupId: string;
-  /** ���ȼ� */
+  /** 优先级 */
   priority: number;
-  /** �۵��� */
+  /** 折抵率 */
   creditRate: number;
-  /** ��Ʒ��ϴ���1 */
+  /** 产品组合代码1 */
   combProduct1: string;
-  /** ��Ʒ��ϴ���2 */
+  /** 产品组合代码2 */
   combProduct2: string;
 }
 
 /** CThostFtdcRCAMSShortOptAdjustParamField */
 export interface RCAMSShortOptAdjustParam {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ��ϴ��� */
+  /** 产品组合代码 */
   combProductId: string;
-  /** Ͷ�ױ�־ */
+  /** 投套标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��ͷ��Ȩ���յ�����׼ */
+  /** 空头期权风险调整标准 */
   adjustValue: number;
 }
 
 /** CThostFtdcRCAMSInvestorCombPositionField */
 export interface RCAMSInvestorCombPosition {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ͷ�ױ�־ */
+  /** 投套标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** �ֲֶ�շ��� */
+  /** 持仓多空方向 */
   posiDirection: `${enums.PosiDirection}`;
-  /** ��Ϻ�Լ���� */
+  /** 组合合约代码 */
   combInstrumentId: string;
-  /** ���ȱ�� */
+  /** 单腿编号 */
   legId: number;
-  /** ��������Ϻ�Լ���� */
+  /** 交易所组合合约代码 */
   exchangeInstId: string;
-  /** �ֲ��� */
+  /** 持仓量 */
   totalAmt: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchMargin: number;
-  /** Ͷ���߱�֤�� */
+  /** 投资者保证金 */
   margin: number;
 }
 
 /** CThostFtdcInvestorProdRCAMSMarginField */
 export interface InvestorProdRCAMSMargin {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Ʒ��ϴ��� */
+  /** 产品组合代码 */
   combProductId: string;
-  /** Ͷ�ױ�־ */
+  /** 投套标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��ƷȺ���� */
+  /** 商品群代码 */
   productGroupId: string;
-  /** Ʒ�����ǰ���� */
+  /** 品种组合前风险 */
   riskBeforeDiscount: number;
-  /** ͬ��Լ�Գ���� */
+  /** 同合约对冲风险 */
   intraInstrRisk: number;
-  /** Ʒ����ֲַ��� */
+  /** 品种买持仓风险 */
   bPosRisk: number;
-  /** Ʒ�����ֲַ��� */
+  /** 品种卖持仓风险 */
   sPosRisk: number;
-  /** Ʒ���ڶԳ���� */
+  /** 品种内对冲风险 */
   intraProdRisk: number;
-  /** Ʒ�־��ֲַ��� */
+  /** 品种净持仓风险 */
   netRisk: number;
-  /** Ʒ�ּ�Գ���� */
+  /** 品种间对冲风险 */
   interProdRisk: number;
-  /** ��ͷ��Ȩ���յ��� */
+  /** 空头期权风险调整 */
   shortOptRiskAdj: number;
-  /** ��ͷ��ȨȨ���� */
+  /** 空头期权权利金 */
   optionRoyalty: number;
-  /** ������ƽ�ֶ��ᱣ֤�� */
+  /** 大边组合平仓冻结保证金 */
   mmsaCloseFrozenMargin: number;
-  /** �������ƽ��/��Ȩ���ᱣ֤�� */
+  /** 策略组合平仓/行权冻结保证金 */
   closeCombFrozenMargin: number;
-  /** ƽ��/��Ȩ���ᱣ֤�� */
+  /** 平仓/行权冻结保证金 */
   closeFrozenMargin: number;
-  /** �����Ͽ��ֶ��ᱣ֤�� */
+  /** 大边组合开仓冻结保证金 */
   mmsaOpenFrozenMargin: number;
-  /** �������ڻ����ֶ��ᱣ֤�� */
+  /** 交割月期货开仓冻结保证金 */
   deliveryOpenFrozenMargin: number;
-  /** ���ֶ��ᱣ֤�� */
+  /** 开仓冻结保证金 */
   openFrozenMargin: number;
-  /** Ͷ���߶��ᱣ֤�� */
+  /** 投资者冻结保证金 */
   useFrozenMargin: number;
-  /** �����Ͻ������ֱֲ�֤�� */
+  /** 大边组合交易所持仓保证金 */
   mmsaExchMargin: number;
-  /** �������ڻ��������ֱֲ�֤�� */
+  /** 交割月期货交易所持仓保证金 */
   deliveryExchMargin: number;
-  /** ������Ͻ�������֤�� */
+  /** 策略组合交易所保证金 */
   combExchMargin: number;
-  /** �������ֱֲ�֤�� */
+  /** 交易所持仓保证金 */
   exchMargin: number;
-  /** Ͷ���ֱֲ߳�֤�� */
+  /** 投资者持仓保证金 */
   useMargin: number;
 }
 
 /** CThostFtdcQryRCAMSCombProductInfoField */
 export interface QryRCAMSCombProductInfo {
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** ��Ʒ����� */
+  /** 商品组代码 */
   combProductId: string;
-  /** ��ƷȺ���� */
+  /** 商品群代码 */
   productGroupId: string;
 }
 
 /** CThostFtdcQryRCAMSInstrParameterField */
 export interface QryRCAMSInstrParameter {
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
 }
 
 /** CThostFtdcQryRCAMSIntraParameterField */
 export interface QryRCAMSIntraParameter {
-  /** ��Ʒ��ϴ��� */
+  /** 产品组合代码 */
   combProductId: string;
 }
 
 /** CThostFtdcQryRCAMSInterParameterField */
 export interface QryRCAMSInterParameter {
-  /** ��ƷȺ���� */
+  /** 商品群代码 */
   productGroupId: string;
-  /** ��Ʒ��ϴ���1 */
+  /** 产品组合代码1 */
   combProduct1: string;
-  /** ��Ʒ��ϴ���2 */
+  /** 产品组合代码2 */
   combProduct2: string;
 }
 
 /** CThostFtdcQryRCAMSShortOptAdjustParamField */
 export interface QryRCAMSShortOptAdjustParam {
-  /** ��Ʒ��ϴ��� */
+  /** 产品组合代码 */
   combProductId: string;
 }
 
 /** CThostFtdcQryRCAMSInvestorCombPositionField */
 export interface QryRCAMSInvestorCombPosition {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Ϻ�Լ���� */
+  /** 组合合约代码 */
   combInstrumentId: string;
 }
 
 /** CThostFtdcQryInvestorProdRCAMSMarginField */
 export interface QryInvestorProdRCAMSMargin {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Ʒ��ϴ��� */
+  /** 产品组合代码 */
   combProductId: string;
-  /** ��ƷȺ���� */
+  /** 商品群代码 */
   productGroupId: string;
 }
 
 /** CThostFtdcRULEInstrParameterField */
 export interface RULEInstrParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Լ���� */
+  /** 合约类型 */
   instrumentClass: `${enums.InstrumentClass}`;
-  /** ��׼��Լ */
+  /** 标准合约 */
   stdInstrumentId: string;
-  /** Ͷ��������ϵ�� */
+  /** 投机买折算系数 */
   bSpecRatio: number;
-  /** Ͷ��������ϵ�� */
+  /** 投机卖折算系数 */
   sSpecRatio: number;
-  /** �ױ�������ϵ�� */
+  /** 套保买折算系数 */
   bHedgeRatio: number;
-  /** �ױ�������ϵ�� */
+  /** 套保卖折算系数 */
   sHedgeRatio: number;
-  /** �򸽼ӷ��ձ�֤�� */
+  /** 买附加风险保证金 */
   bAddOnMargin: number;
-  /** �����ӷ��ձ�֤�� */
+  /** 卖附加风险保证金 */
   sAddOnMargin: number;
-  /** ��ƷȺ�� */
+  /** 商品群号 */
   commodityGroupId: number;
 }
 
 /** CThostFtdcRULEIntraParameterField */
 export interface RULEIntraParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
-  /** ��׼��Լ */
+  /** 标准合约 */
   stdInstrumentId: string;
-  /** ��׼��Լ��֤�� */
+  /** 标准合约保证金 */
   stdInstrMargin: number;
-  /** һ���·ݺ�Լ��ϱ�֤��ϵ�� */
+  /** 一般月份合约组合保证金系数 */
   usualIntraRate: number;
-  /** �ٽ������Լ��ϱ�֤��ϵ�� */
+  /** 临近交割合约组合保证金系数 */
   deliveryIntraRate: number;
 }
 
 /** CThostFtdcRULEInterParameterField */
 export interface RULEInterParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���ȼ� */
+  /** 优先级 */
   spreadId: number;
-  /** Ʒ�ּ�����ַ����ۿ۱��� */
+  /** 品种间对锁仓费率折扣比例 */
   interRate: number;
-  /** ��һ�ȹ���Ʒ�� */
+  /** 第一腿构成品种 */
   leg1ProdFamilyCode: string;
-  /** �ڶ��ȹ���Ʒ�� */
+  /** 第二腿构成品种 */
   leg2ProdFamilyCode: string;
-  /** ��1����ϵ�� */
+  /** 腿1比例系数 */
   leg1PropFactor: number;
-  /** ��2����ϵ�� */
+  /** 腿2比例系数 */
   leg2PropFactor: number;
-  /** ��ƷȺ�� */
+  /** 商品群号 */
   commodityGroupId: number;
-  /** ��ƷȺ���� */
+  /** 商品群名称 */
   commodityGroupName: string;
 }
 
 /** CThostFtdcQryRULEInstrParameterField */
 export interface QryRULEInstrParameter {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcQryRULEIntraParameterField */
 export interface QryRULEIntraParameter {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
 }
 
 /** CThostFtdcQryRULEInterParameterField */
 export interface QryRULEInterParameter {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��һ�ȹ���Ʒ�� */
+  /** 第一腿构成品种 */
   leg1ProdFamilyCode: string;
-  /** �ڶ��ȹ���Ʒ�� */
+  /** 第二腿构成品种 */
   leg2ProdFamilyCode: string;
-  /** ��ƷȺ�� */
+  /** 商品群号 */
   commodityGroupId: number;
 }
 
 /** CThostFtdcInvestorProdRULEMarginField */
 export interface InvestorProdRULEMargin {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
-  /** ��Լ���� */
+  /** 合约类型 */
   instrumentClass: `${enums.InstrumentClass}`;
-  /** ��ƷȺ�� */
+  /** 商品群号 */
   commodityGroupId: number;
-  /** ���׼�ֲ� */
+  /** 买标准持仓 */
   bStdPosition: number;
-  /** ����׼�ֲ� */
+  /** 卖标准持仓 */
   sStdPosition: number;
-  /** ���׼���ֶ��� */
+  /** 买标准开仓冻结 */
   bStdOpenFrozen: number;
-  /** ����׼���ֶ��� */
+  /** 卖标准开仓冻结 */
   sStdOpenFrozen: number;
-  /** ���׼ƽ�ֶ��� */
+  /** 买标准平仓冻结 */
   bStdCloseFrozen: number;
-  /** ����׼ƽ�ֶ��� */
+  /** 卖标准平仓冻结 */
   sStdCloseFrozen: number;
-  /** Ʒ���ڶԳ��׼�ֲ� */
+  /** 品种内对冲标准持仓 */
   intraProdStdPosition: number;
-  /** Ʒ���ڵ��ȱ�׼�ֲ� */
+  /** 品种内单腿标准持仓 */
   netStdPosition: number;
-  /** Ʒ�ּ�Գ��׼�ֲ� */
+  /** 品种间对冲标准持仓 */
   interProdStdPosition: number;
-  /** ���ȱ�׼�ֲ� */
+  /** 单腿标准持仓 */
   singleStdPosition: number;
-  /** Ʒ���ڶ�����֤�� */
+  /** 品种内对锁保证金 */
   intraProdMargin: number;
-  /** Ʒ�ּ������֤�� */
+  /** 品种间对锁保证金 */
   interProdMargin: number;
-  /** ��Ʒ�ֵ��ȱ�֤�� */
+  /** 跨品种单腿保证金 */
   singleMargin: number;
-  /** ����Ϻ�Լ��֤�� */
+  /** 非组合合约保证金 */
   nonCombMargin: number;
-  /** ���ӱ�֤�� */
+  /** 附加保证金 */
   addOnMargin: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchMargin: number;
-  /** ���Ӷ��ᱣ֤�� */
+  /** 附加冻结保证金 */
   addOnFrozenMargin: number;
-  /** ���ֶ��ᱣ֤�� */
+  /** 开仓冻结保证金 */
   openFrozenMargin: number;
-  /** ƽ�ֶ��ᱣ֤�� */
+  /** 平仓冻结保证金 */
   closeFrozenMargin: number;
-  /** Ʒ�ֱ�֤�� */
+  /** 品种保证金 */
   margin: number;
-  /** ���ᱣ֤�� */
+  /** 冻结保证金 */
   frozenMargin: number;
 }
 
 /** CThostFtdcQryInvestorProdRULEMarginField */
 export interface QryInvestorProdRULEMargin {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
-  /** ��ƷȺ�� */
+  /** 商品群号 */
   commodityGroupId: number;
 }
 
 /** CThostFtdcSyncDeltaSPBMPortfDefinitionField */
 export interface SyncDeltaSPBMPortfDefinition {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��ϱ�֤���ײʹ��� */
+  /** 组合保证金套餐代码 */
   portfolioDefId: number;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
-  /** �Ƿ�����SPBM */
+  /** 是否启用SPBM */
   isSpbm: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaSPBMInvstPortfDefField */
 export interface SyncDeltaSPBMInvstPortfDef {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��ϱ�֤���ײʹ��� */
+  /** 组合保证金套餐代码 */
   portfolioDefId: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaSPBMFutureParameterField */
 export interface SyncDeltaSPBMFutureParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
-  /** �ڻ���Լ���� */
+  /** 期货合约因子 */
   cvf: number;
-  /** �׶α�ʶ */
+  /** 阶段标识 */
   timeRange: `${enums.TimeRange}`;
-  /** Ʒ�ֱ�֤���׼ */
+  /** 品种保证金标准 */
   marginRate: number;
-  /** �ڻ���Լ�ڲ������ַ����ۿ۱��� */
+  /** 期货合约内部对锁仓费率折扣比例 */
   lockRateX: number;
-  /** ��߱�֤���׼ */
+  /** 提高保证金标准 */
   addOnRate: number;
-  /** ������ */
+  /** 昨结算价 */
   preSettlementPrice: number;
-  /** �ڻ���Լ�ڲ������ָ��ӷ����ۿ۱��� */
+  /** 期货合约内部对锁仓附加费率折扣比例 */
   addOnLockRateX2: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaSPBMOptionParameterField */
 export interface SyncDeltaSPBMOptionParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
-  /** ��Ȩ��Լ���� */
+  /** 期权合约因子 */
   cvf: number;
-  /** ��Ȩ��ּ۸� */
+  /** 期权冲抵价格 */
   downPrice: number;
-  /** Deltaֵ */
+  /** Delta值 */
   delta: number;
-  /** ������Ȩ����ת�����ֵ */
+  /** 卖方期权风险转换最低值 */
   slimiDelta: number;
-  /** ������ */
+  /** 昨结算价 */
   preSettlementPrice: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaSPBMIntraParameterField */
 export interface SyncDeltaSPBMIntraParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
-  /** Ʒ���ں�Լ������ַ����ۿ۱��� */
+  /** 品种内合约间对锁仓费率折扣比例 */
   intraRateY: number;
-  /** Ʒ���ں�Լ������ָ��ӷ����ۿ۱��� */
+  /** 品种内合约间对锁仓附加费率折扣比例 */
   addOnIntraRateY2: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaSPBMInterParameterField */
 export interface SyncDeltaSPBMInterParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���ȼ� */
+  /** 优先级 */
   spreadId: number;
-  /** Ʒ�ּ�����ַ����ۿ۱��� */
+  /** 品种间对锁仓费率折扣比例 */
   interRateZ: number;
-  /** ��һ�ȹ���Ʒ�� */
+  /** 第一腿构成品种 */
   leg1ProdFamilyCode: string;
-  /** �ڶ��ȹ���Ʒ�� */
+  /** 第二腿构成品种 */
   leg2ProdFamilyCode: string;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaSPBMAddOnInterParamField */
 export interface SyncDeltaSPBMAddOnInterParam {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���ȼ� */
+  /** 优先级 */
   spreadId: number;
-  /** Ʒ�ּ�����ָ��ӷ����ۿ۱��� */
+  /** 品种间对锁仓附加费率折扣比例 */
   addOnInterRateZ2: number;
-  /** ��һ�ȹ���Ʒ�� */
+  /** 第一腿构成品种 */
   leg1ProdFamilyCode: string;
-  /** �ڶ��ȹ���Ʒ�� */
+  /** 第二腿构成品种 */
   leg2ProdFamilyCode: string;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaSPMMInstParamField */
 export interface SyncDeltaSPMMInstParam {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** SPMM��Լ��֤���㷨 */
+  /** SPMM合约保证金算法 */
   instMarginCalId: `${enums.InstMarginCalID}`;
-  /** ��Ʒ����� */
+  /** 商品组代码 */
   commodityId: string;
-  /** ��ƷȺ���� */
+  /** 商品群代码 */
   commodityGroupId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaSPMMProductParamField */
 export interface SyncDeltaSPMMProductParam {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** ��Ʒ����� */
+  /** 商品组代码 */
   commodityId: string;
-  /** ��ƷȺ���� */
+  /** 商品群代码 */
   commodityGroupId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaInvestorSPMMModelField */
 export interface SyncDeltaInvestorSPMMModel {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** SPMMģ��ID */
+  /** SPMM模板ID */
   spmmModelId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaSPMMModelParamField */
 export interface SyncDeltaSPMMModelParam {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** SPMMģ��ID */
+  /** SPMM模板ID */
   spmmModelId: string;
-  /** ��ƷȺ���� */
+  /** 商品群代码 */
   commodityGroupId: string;
-  /** SPMMƷ���ڿ����Ż�ϵ�� */
+  /** SPMM品种内跨期优惠系数 */
   intraCommodityRate: number;
-  /** SPMMƷ�ּ��Ż�ϵ�� */
+  /** SPMM品种间优惠系数 */
   interCommodityRate: number;
-  /** SPMM��Ȩ�Ż�ϵ�� */
+  /** SPMM期权优惠系数 */
   optionDiscountRate: number;
-  /** ��ƷȺ��С��֤����� */
+  /** 商品群最小保证金比例 */
   miniMarginRatio: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaRCAMSCombProdInfoField */
 export interface SyncDeltaRCAMSCombProdInfo {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** ��Ʒ����� */
+  /** 商品组代码 */
   combProductId: string;
-  /** ��ƷȺ���� */
+  /** 商品群代码 */
   productGroupId: string;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaRCAMSInstrParameterField */
 export interface SyncDeltaRCAMSInstrParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** ͬ��Լ���նԳ���� */
+  /** 同合约风险对冲比率 */
   hedgeRate: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaRCAMSIntraParameterField */
 export interface SyncDeltaRCAMSIntraParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ��ϴ��� */
+  /** 产品组合代码 */
   combProductId: string;
-  /** Ʒ���ڶԳ���� */
+  /** 品种内对冲比率 */
   hedgeRate: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaRCAMSInterParameterField */
 export interface SyncDeltaRCAMSInterParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��ƷȺ���� */
+  /** 商品群代码 */
   productGroupId: string;
-  /** ���ȼ� */
+  /** 优先级 */
   priority: number;
-  /** �۵��� */
+  /** 折抵率 */
   creditRate: number;
-  /** ��Ʒ��ϴ���1 */
+  /** 产品组合代码1 */
   combProduct1: string;
-  /** ��Ʒ��ϴ���2 */
+  /** 产品组合代码2 */
   combProduct2: string;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaRCAMSSOptAdjParamField */
 export interface SyncDeltaRCAMSSOptAdjParam {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ʒ��ϴ��� */
+  /** 产品组合代码 */
   combProductId: string;
-  /** Ͷ�ױ�־ */
+  /** 投套标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��ͷ��Ȩ���յ�����׼ */
+  /** 空头期权风险调整标准 */
   adjustValue: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaRCAMSCombRuleDtlField */
 export interface SyncDeltaRCAMSCombRuleDtl {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���Բ�Ʒ */
+  /** 策略产品 */
   prodGroup: string;
-  /** ����id */
+  /** 策略id */
   ruleId: string;
-  /** ���ȼ� */
+  /** 优先级 */
   priority: number;
-  /** Ͷ�ױ�־ */
+  /** 投套标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** ��ϱ�֤���׼ */
+  /** 组合保证金标准 */
   combMargin: number;
-  /** ��������Ϻ�Լ���� */
+  /** 交易所组合合约代码 */
   exchangeInstId: string;
-  /** ���ȱ�� */
+  /** 单腿编号 */
   legId: number;
-  /** ���Ⱥ�Լ���� */
+  /** 单腿合约代码 */
   legInstrumentId: string;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ���ȳ��� */
+  /** 单腿乘数 */
   legMultiple: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaRCAMSInvstCombPosField */
 export interface SyncDeltaRCAMSInvstCombPos {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** Ͷ�ױ�־ */
+  /** 投套标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** �ֲֶ�շ��� */
+  /** 持仓多空方向 */
   posiDirection: `${enums.PosiDirection}`;
-  /** ��Ϻ�Լ���� */
+  /** 组合合约代码 */
   combInstrumentId: string;
-  /** ���ȱ�� */
+  /** 单腿编号 */
   legId: number;
-  /** ��������Ϻ�Լ���� */
+  /** 交易所组合合约代码 */
   exchangeInstId: string;
-  /** �ֲ��� */
+  /** 持仓量 */
   totalAmt: number;
-  /** ��������֤�� */
+  /** 交易所保证金 */
   exchMargin: number;
-  /** Ͷ���߱�֤�� */
+  /** 投资者保证金 */
   margin: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaRULEInstrParameterField */
 export interface SyncDeltaRULEInstrParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ��Լ���� */
+  /** 合约类型 */
   instrumentClass: `${enums.InstrumentClass}`;
-  /** ��׼��Լ */
+  /** 标准合约 */
   stdInstrumentId: string;
-  /** Ͷ��������ϵ�� */
+  /** 投机买折算系数 */
   bSpecRatio: number;
-  /** Ͷ��������ϵ�� */
+  /** 投机卖折算系数 */
   sSpecRatio: number;
-  /** �ױ�������ϵ�� */
+  /** 套保买折算系数 */
   bHedgeRatio: number;
-  /** �ױ�������ϵ�� */
+  /** 套保卖折算系数 */
   sHedgeRatio: number;
-  /** �򸽼ӷ��ձ�֤�� */
+  /** 买附加风险保证金 */
   bAddOnMargin: number;
-  /** �����ӷ��ձ�֤�� */
+  /** 卖附加风险保证金 */
   sAddOnMargin: number;
-  /** ��ƷȺ�� */
+  /** 商品群号 */
   commodityGroupId: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaRULEIntraParameterField */
 export interface SyncDeltaRULEIntraParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   prodFamilyCode: string;
-  /** ��׼��Լ */
+  /** 标准合约 */
   stdInstrumentId: string;
-  /** ��׼��Լ��֤�� */
+  /** 标准合约保证金 */
   stdInstrMargin: number;
-  /** һ���·ݺ�Լ��ϱ�֤��ϵ�� */
+  /** 一般月份合约组合保证金系数 */
   usualIntraRate: number;
-  /** �ٽ������Լ��ϱ�֤��ϵ�� */
+  /** 临近交割合约组合保证金系数 */
   deliveryIntraRate: number;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcSyncDeltaRULEInterParameterField */
 export interface SyncDeltaRULEInterParameter {
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���ȼ� */
+  /** 优先级 */
   spreadId: number;
-  /** Ʒ�ּ�����ַ����ۿ۱��� */
+  /** 品种间对锁仓费率折扣比例 */
   interRate: number;
-  /** ��һ�ȹ���Ʒ�� */
+  /** 第一腿构成品种 */
   leg1ProdFamilyCode: string;
-  /** �ڶ��ȹ���Ʒ�� */
+  /** 第二腿构成品种 */
   leg2ProdFamilyCode: string;
-  /** ��1����ϵ�� */
+  /** 腿1比例系数 */
   leg1PropFactor: number;
-  /** ��2����ϵ�� */
+  /** 腿2比例系数 */
   leg2PropFactor: number;
-  /** ��ƷȺ�� */
+  /** 商品群号 */
   commodityGroupId: number;
-  /** ��ƷȺ���� */
+  /** 商品群名称 */
   commodityGroupName: string;
-  /** ������־ */
+  /** 操作标志 */
   actionDirection: `${enums.ActionDirection}`;
-  /** ׷ƽ��� */
+  /** 追平序号 */
   syncDeltaSequenceNo: number;
 }
 
 /** CThostFtdcIpAddrParamField */
 export interface IpAddrParam {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �����ַ */
+  /** 服务地址 */
   address: string;
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
-  /** ������������ */
+  /** 交易中心名称 */
   drIdentityName: string;
-  /** ���׵�ַOR�����ַ */
+  /** 交易地址OR行情地址 */
   addrSrvMode: `${enums.AddrSrvMode}`;
-  /** ��ַ�汾 */
+  /** 地址版本 */
   addrVer: `${enums.AddrVer}`;
-  /** �����ַ��� */
+  /** 服务地址编号 */
   addrNo: number;
-  /** �����ַ���� */
+  /** 服务地址名称 */
   addrName: string;
-  /** �Ƿ��ǹ��ܵ�ַ */
+  /** 是否是国密地址 */
   isSm: number;
-  /** �Ƿ���������ַ */
+  /** 是否是内网地址 */
   isLocalAddr: number;
-  /** ��ַ������Ϣ */
+  /** 地址补充信息 */
   remark: string;
-  /** վ�� */
+  /** 站点 */
   site: string;
-  /** ������Ӫ�� */
+  /** 网络运营商 */
   netOperator: string;
-  /** ϵͳ���� */
+  /** 系统名称 */
   sysName: string;
 }
 
 /** CThostFtdcQryIpAddrParamField */
 export interface QryIpAddrParam {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
 }
 
 /** CThostFtdcTGIpAddrParamField */
 export interface TGIpAddrParam {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �����ַ */
+  /** 服务地址 */
   address: string;
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
-  /** ������������ */
+  /** 交易中心名称 */
   drIdentityName: string;
-  /** ���׵�ַOR�����ַ */
+  /** 交易地址OR行情地址 */
   addrSrvMode: `${enums.AddrSrvMode}`;
-  /** ��ַ�汾 */
+  /** 地址版本 */
   addrVer: `${enums.AddrVer}`;
-  /** �����ַ��� */
+  /** 服务地址编号 */
   addrNo: number;
-  /** �����ַ���� */
+  /** 服务地址名称 */
   addrName: string;
-  /** �Ƿ��ǹ��ܵ�ַ */
+  /** 是否是国密地址 */
   isSm: number;
-  /** �Ƿ���������ַ */
+  /** 是否是内网地址 */
   isLocalAddr: number;
-  /** ��ַ������Ϣ */
+  /** 地址补充信息 */
   remark: string;
-  /** վ�� */
+  /** 站点 */
   site: string;
-  /** ������Ӫ�� */
+  /** 网络运营商 */
   netOperator: string;
-  /** ϵͳ���� */
+  /** 系统名称 */
   sysName: string;
 }
 
 /** CThostFtdcQryTGIpAddrParamField */
 export interface QryTGIpAddrParam {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** App���� */
+  /** App代码 */
   appId: string;
 }
 
 /** CThostFtdcTGSessionQryStatusField */
 export interface TGSessionQryStatus {
-  /** ���30s�Ĳ�ѯƵ�� */
+  /** 最近30s的查询频率 */
   lastQryFreq: number;
-  /** ��ѯ״̬ */
+  /** 查询状态 */
   qryStatus: `${enums.TGSessionQryStatusType}`;
 }
 
 /** CThostFtdcLocalAddrConfigField */
 export interface LocalAddrConfig {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �Զ˵�ַ */
+  /** 对端地址 */
   peerAddr: string;
-  /** �������� */
+  /** 子网掩码 */
   netMask: string;
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
-  /** ���������ַ */
+  /** 内网服务地址 */
   localAddress: string;
 }
 
 /** CThostFtdcQryLocalAddrConfigField */
 export interface QryLocalAddrConfig {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
 }
 
 /** CThostFtdcReqQueryBankAccountBySecField */
 export interface ReqQueryBankAccountBySec {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** �ڻ���˾��ˮ�� */
+  /** 期货公司流水号 */
   futureSerial: number;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
-  /** �����ķ���ת���ڻ���˾��ˮ�� */
+  /** 次中心发起转账期货公司流水号 */
   secFutureSerial: number;
 }
 
 /** CThostFtdcRspQueryBankAccountBySecField */
 export interface RspQueryBankAccountBySec {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** �ڻ���˾��ˮ�� */
+  /** 期货公司流水号 */
   futureSerial: number;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ���п��ý�� */
+  /** 银行可用金额 */
   bankUseAmount: number;
-  /** ���п�ȡ��� */
+  /** 银行可取金额 */
   bankFetchAmount: number;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
-  /** �����ķ���ת���ڻ���˾��ˮ�� */
+  /** 次中心发起转账期货公司流水号 */
   secFutureSerial: number;
 }
 
 /** CThostFtdcReqTransferBySecField */
 export interface ReqTransferBySec {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �ڻ���˾��ˮ�� */
+  /** 期货公司流水号 */
   futureSerial: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ת�ʽ�� */
+  /** 转帐金额 */
   tradeAmount: number;
-  /** �ڻ���ȡ��� */
+  /** 期货可取金额 */
   futureFetchAmount: number;
-  /** ����֧����־ */
+  /** 费用支付标志 */
   feePayFlag: `${enums.FeePayFlag}`;
-  /** Ӧ�տͻ����� */
+  /** 应收客户费用 */
   custFee: number;
-  /** Ӧ���ڻ���˾���� */
+  /** 应收期货公司费用 */
   brokerFee: number;
-  /** ���ͷ������շ�����Ϣ */
+  /** 发送方给接收方的消息 */
   message: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ת�˽���״̬ */
+  /** 转账交易状态 */
   transferStatus: `${enums.TransferStatus}`;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
-  /** �����ķ���ת���ڻ���˾��ˮ�� */
+  /** 次中心发起转账期货公司流水号 */
   secFutureSerial: number;
 }
 
 /** CThostFtdcRspTransferBySecField */
 export interface RspTransferBySec {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �ڻ���˾��ˮ�� */
+  /** 期货公司流水号 */
   futureSerial: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ת�ʽ�� */
+  /** 转帐金额 */
   tradeAmount: number;
-  /** �ڻ���ȡ��� */
+  /** 期货可取金额 */
   futureFetchAmount: number;
-  /** ����֧����־ */
+  /** 费用支付标志 */
   feePayFlag: `${enums.FeePayFlag}`;
-  /** Ӧ�տͻ����� */
+  /** 应收客户费用 */
   custFee: number;
-  /** Ӧ���ڻ���˾���� */
+  /** 应收期货公司费用 */
   brokerFee: number;
-  /** ���ͷ������շ�����Ϣ */
+  /** 发送方给接收方的消息 */
   message: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ת�˽���״̬ */
+  /** 转账交易状态 */
   transferStatus: `${enums.TransferStatus}`;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
-  /** �����ķ���ת���ڻ���˾��ˮ�� */
+  /** 次中心发起转账期货公司流水号 */
   secFutureSerial: number;
 }
 
 /** CThostFtdcNotifyQueryFutureAccountBySecField */
 export interface NotifyQueryFutureAccountBySec {
-  /** ҵ������ */
+  /** 业务功能码 */
   tradeCode: string;
-  /** ���д��� */
+  /** 银行代码 */
   bankId: string;
-  /** ���з�֧�������� */
+  /** 银行分支机构代码 */
   bankBranchId: string;
-  /** ���̴��� */
+  /** 期商代码 */
   brokerId: string;
-  /** ���̷�֧�������� */
+  /** 期商分支机构代码 */
   brokerBranchId: string;
-  /** �������� */
+  /** 交易日期 */
   tradeDate: string;
-  /** ����ʱ�� */
+  /** 交易时间 */
   tradeTime: string;
-  /** ������ˮ�� */
+  /** 银行流水号 */
   bankSerial: string;
-  /** ����ϵͳ���� */
+  /** 交易系统日期 */
   tradingDay: string;
-  /** ����ƽ̨��Ϣ��ˮ�� */
+  /** 银期平台消息流水号 */
   plateSerial: number;
-  /** ����Ƭ��־ */
+  /** 最后分片标志 */
   lastFragment: `${enums.LastFragment}`;
-  /** �Ự�� */
+  /** 会话号 */
   sessionId: number;
-  /** �ͻ����� */
+  /** 客户姓名 */
   customerName: string;
-  /** ֤������ */
+  /** 证件类型 */
   idCardType: `${enums.IdCardType}`;
-  /** ֤������ */
+  /** 证件号码 */
   identifiedCardNo: string;
-  /** �ͻ����� */
+  /** 客户类型 */
   custType: `${enums.CustType}`;
-  /** �����ʺ� */
+  /** 银行帐号 */
   bankAccount: string;
-  /** �������� */
+  /** 银行密码 */
   bankPassWord: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** �ڻ����� */
+  /** 期货密码 */
   password: string;
-  /** �ڻ���˾��ˮ�� */
+  /** 期货公司流水号 */
   futureSerial: number;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �û���ʶ */
+  /** 用户标识 */
   userId: string;
-  /** ��֤�ͻ�֤�������־ */
+  /** 验证客户证件号码标志 */
   verifyCertNoFlag: `${enums.YesNoIndicator}`;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ժҪ */
+  /** 摘要 */
   digest: string;
-  /** �����ʺ����� */
+  /** 银行帐号类型 */
   bankAccType: `${enums.BankAccType}`;
-  /** ������־ */
+  /** 渠道标志 */
   deviceId: string;
-  /** �ڻ���λ�ʺ����� */
+  /** 期货单位帐号类型 */
   bankSecuAccType: `${enums.BankAccType}`;
-  /** �ڻ���˾���б��� */
+  /** 期货公司银行编码 */
   brokerIdByBank: string;
-  /** �ڻ���λ�ʺ� */
+  /** 期货单位帐号 */
   bankSecuAcc: string;
-  /** ���������־ */
+  /** 银行密码标志 */
   bankPwdFlag: `${enums.PwdFlag}`;
-  /** �ڻ��ʽ�����˶Ա�־ */
+  /** 期货资金密码核对标志 */
   secuPwdFlag: `${enums.PwdFlag}`;
-  /** ���׹�Ա */
+  /** 交易柜员 */
   operNo: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ����ID */
+  /** 交易ID */
   tid: number;
-  /** ���п��ý�� */
+  /** 银行可用金额 */
   bankUseAmount: number;
-  /** ���п�ȡ��� */
+  /** 银行可取金额 */
   bankFetchAmount: number;
-  /** ������� */
+  /** 错误代码 */
   errorId: number;
-  /** ������Ϣ */
+  /** 错误信息 */
   errorMsg: string;
-  /** ���ͻ����� */
+  /** 长客户姓名 */
   longCustomerName: string;
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
-  /** �����ķ���ת���ڻ���˾��ˮ�� */
+  /** 次中心发起转账期货公司流水号 */
   secFutureSerial: number;
 }
 
 /** CThostFtdcExitEmergencyField */
 export interface ExitEmergency {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
 }
 
 /** CThostFtdcInvestorPortfMarginModelField */
 export interface InvestorPortfMarginModel {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��֤��ϵ��ģ�� */
+  /** 保证金系数模板 */
   marginModelId: string;
 }
 
 /** CThostFtdcInvestorPortfSettingField */
 export interface InvestorPortfSetting {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���߱�� */
+  /** 投资者编号 */
   investorId: string;
-  /** Ͷ���ױ���־ */
+  /** 投机套保标志 */
   hedgeFlag: `${enums.HedgeFlag}`;
-  /** �Ƿ������鱣 */
+  /** 是否开启新组保 */
   usePortf: number;
 }
 
 /** CThostFtdcQryInvestorPortfSettingField */
 export interface QryInvestorPortfSetting {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���߱�� */
+  /** 投资者编号 */
   investorId: string;
 }
 
 /** CThostFtdcUserPasswordUpdateFromSecField */
 export interface UserPasswordUpdateFromSec {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ԭ���Ŀ��� */
+  /** 原来的口令 */
   oldPassword: string;
-  /** �µĿ��� */
+  /** 新的口令 */
   newPassword: string;
-  /** ��ϯ�Ľ������Ĵ��� */
+  /** 次席的交易中心代码 */
   fromSec: number;
 }
 
 /** CThostFtdcSettlementInfoConfirmFromSecField */
 export interface SettlementInfoConfirmFromSec {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ȷ������ */
+  /** 确认日期 */
   confirmDate: string;
-  /** ȷ��ʱ�� */
+  /** 确认时间 */
   confirmTime: string;
-  /** ��ϯ�Ľ������Ĵ��� */
+  /** 次席的交易中心代码 */
   fromSec: number;
 }
 
 /** CThostFtdcTradingAccountPasswordUpdateFromSecField */
 export interface TradingAccountPasswordUpdateFromSec {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ�����ʺ� */
+  /** 投资者帐号 */
   accountId: string;
-  /** ԭ���Ŀ��� */
+  /** 原来的口令 */
   oldPassword: string;
-  /** �µĿ��� */
+  /** 新的口令 */
   newPassword: string;
-  /** ���ִ��� */
+  /** 币种代码 */
   currencyId: string;
-  /** ��ϯ�Ľ������Ĵ��� */
+  /** 次席的交易中心代码 */
   fromSec: number;
 }
 
 /** CThostFtdcRiskForbiddenRightField */
 export interface RiskForbiddenRight {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���߱�� */
+  /** 投资者编号 */
   investorId: string;
-  /** ��Լ/��Ʒ���� */
+  /** 合约/产品代码 */
   instrumentId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
 }
 
 /** CThostFtdcInvestorInfoCommRecField */
 export interface InvestorInfoCommRec {
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Ʒ���� */
+  /** 商品代码 */
   instrumentId: string;
-  /** �����ܱ��� */
+  /** 报单总笔数 */
   orderCount: number;
-  /** �����ܱ��� */
+  /** 撤单总笔数 */
   orderActionCount: number;
-  /** ѯ���ܴ��� */
+  /** 询价总次数 */
   forQuoteCnt: number;
-  /** �걨�� */
+  /** 申报费 */
   infoComm: number;
-  /** �Ƿ���Ȩϵ�� */
+  /** 是否期权系列 */
   isOptSeries: number;
-  /** Ʒ�ִ��� */
+  /** 品种代码 */
   productId: string;
-  /** ��Ϣ������ */
+  /** 信息量总量 */
   infoCnt: number;
 }
 
 /** CThostFtdcQryInvestorInfoCommRecField */
 export interface QryInvestorInfoCommRec {
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Ʒ���� */
+  /** 商品代码 */
   instrumentId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
 }
 
 /** CThostFtdcCombLegField */
 export interface CombLeg {
-  /** ��Ϻ�Լ���� */
+  /** 组合合约代码 */
   combInstrumentId: string;
-  /** ���ȱ�� */
+  /** 单腿编号 */
   legId: number;
-  /** ���Ⱥ�Լ���� */
+  /** 单腿合约代码 */
   legInstrumentId: string;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ���ȳ��� */
+  /** 单腿乘数 */
   legMultiple: number;
-  /** �������� */
+  /** 派生层数 */
   implyLevel: number;
 }
 
 /** CThostFtdcQryCombLegField */
 export interface QryCombLeg {
-  /** ���Ⱥ�Լ���� */
+  /** 单腿合约代码 */
   legInstrumentId: string;
 }
 
 /** CThostFtdcInputOffsetSettingField */
 export interface InputOffsetSetting {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ����ڻ���Լ���� */
+  /** 标的期货合约代码 */
   underlyingInstrId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** �Գ����� */
+  /** 对冲类型 */
   offsetType: `${enums.OffsetType}`;
-  /** ����Գ�ĺ�Լ���� */
+  /** 申请对冲的合约数量 */
   volume: number;
-  /** �Ƿ�Գ� */
+  /** 是否对冲 */
   isOffset: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
 }
 
 /** CThostFtdcOffsetSettingField */
 export interface OffsetSetting {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ����ڻ���Լ���� */
+  /** 标的期货合约代码 */
   underlyingInstrId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** �Գ����� */
+  /** 对冲类型 */
   offsetType: `${enums.OffsetType}`;
-  /** ����Գ�ĺ�Լ���� */
+  /** 申请对冲的合约数量 */
   volume: number;
-  /** �Ƿ�Գ� */
+  /** 是否对冲 */
   isOffset: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��������Լ���� */
+  /** 交易所合约代码 */
   exchangeInstId: string;
-  /** ��������Ȩϵ�к� */
+  /** 交易所期权系列号 */
   exchangeSerialNo: string;
-  /** ��������Ʒ���� */
+  /** 交易所产品代码 */
   exchangeProductId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �Գ��ύ״̬ */
+  /** 对冲提交状态 */
   orderSubmitStatus: `${enums.OrderSubmitStatus}`;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** �������� */
+  /** 报单日期 */
   insertDate: string;
-  /** ����ʱ�� */
+  /** 插入时间 */
   insertTime: string;
-  /** ����ʱ�� */
+  /** 撤销时间 */
   cancelTime: string;
-  /** �Գ����ý�� */
+  /** 对冲设置结果 */
   execResult: `${enums.ExecResult}`;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** �����û����� */
+  /** 操作用户代码 */
   activeUserId: string;
-  /** ���͹�˾������� */
+  /** 经纪公司报单编号 */
   brokerOffsetSettingSeq: number;
-  /** ������Դ */
+  /** 申请来源 */
   applySrc: `${enums.ApplySrc}`;
 }
 
 /** CThostFtdcCancelOffsetSettingField */
 export interface CancelOffsetSetting {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ����ڻ���Լ���� */
+  /** 标的期货合约代码 */
   underlyingInstrId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** �Գ����� */
+  /** 对冲类型 */
   offsetType: `${enums.OffsetType}`;
-  /** ����Գ�ĺ�Լ���� */
+  /** 申请对冲的合约数量 */
   volume: number;
-  /** �Ƿ�Գ� */
+  /** 是否对冲 */
   isOffset: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��������Լ���� */
+  /** 交易所合约代码 */
   exchangeInstId: string;
-  /** ��������Ȩϵ�к� */
+  /** 交易所期权系列号 */
   exchangeSerialNo: string;
-  /** ��������Ʒ���� */
+  /** 交易所产品代码 */
   exchangeProductId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ��������״̬ */
+  /** 报单操作状态 */
   orderActionStatus: `${enums.OrderActionStatus}`;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** �������ر�� */
+  /** 操作本地编号 */
   actionLocalId: string;
-  /** �������� */
+  /** 操作日期 */
   actionDate: string;
-  /** ����ʱ�� */
+  /** 操作时间 */
   actionTime: string;
 }
 
 /** CThostFtdcQryOffsetSettingField */
 export interface QryOffsetSetting {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Ʒ���� */
+  /** 产品代码 */
   productId: string;
-  /** �Գ����� */
+  /** 对冲类型 */
   offsetType: `${enums.OffsetType}`;
 }
 
 /** CThostFtdcAddrAppIDRelationField */
 export interface AddrAppIDRelation {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �����ַ */
+  /** 服务地址 */
   address: string;
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
-  /** App���� */
+  /** App代码 */
   appId: string;
 }
 
 /** CThostFtdcQryAddrAppIDRelationField */
 export interface QryAddrAppIDRelation {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
 }
 
 /** CThostFtdcWechatUserSystemInfoField */
 export interface WechatUserSystemInfo {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ΢��С������û���ϵͳ�ڲ���Ϣ���� */
+  /** 微信小程序等用户端系统内部信息长度 */
   wechatCltSysInfoLen: number;
-  /** ΢��С������û���ϵͳ�ڲ���Ϣ */
+  /** 微信小程序等用户端系统内部信息 */
   wechatCltSysInfo: string;
-  /** �ն�IP�˿� */
+  /** 终端IP端口 */
   clientIpPort: number;
-  /** ��¼�ɹ�ʱ�� */
+  /** 登录成功时间 */
   clientLoginTime: string;
-  /** App���� */
+  /** App代码 */
   clientAppId: string;
-  /** �û�����IP */
+  /** 用户公网IP */
   clientPublicIp: string;
-  /** �ͻ���¼��ע2 */
+  /** 客户登录备注2 */
   clientLoginRemark: string;
 }
 
 /** CThostFtdcInvestorReserveInfoField */
 export interface InvestorReserveInfo {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Ԥ����Ϣ */
+  /** 预留信息 */
   reserveInfo: string;
 }
 
 /** CThostFtdcQryInvestorDepartmentFlatField */
 export interface QryInvestorDepartmentFlat {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
 }
 
 /** CThostFtdcInvestorDepartmentFlatField */
 export interface InvestorDepartmentFlat {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��֯�ܹ����� */
+  /** 组织架构代码 */
   departmentId: string;
 }
 
 /** CThostFtdcQryDepartmentUserField */
 export interface QryDepartmentUser {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
 }
 
 /** CThostFtdcAppAuthenticationCodeField */
 export interface AppAuthenticationCode {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** App���� */
+  /** App代码 */
   appId: string;
-  /** ��֤�� */
+  /** 认证码 */
   authCode: string;
-  /** ����֤�� */
+  /** 旧认证码 */
   preAuthCode: string;
-  /** App���� */
+  /** App类型 */
   appType: `${enums.AppType}`;
 }
 
 /** CThostFtdcUserDRIBypassField */
 export interface UserDRIBypass {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �������Ĵ��� */
+  /** 交易中心代码 */
   drIdentityId: number;
 }
 
 /** CThostFtdcReqGenSMSCodeField */
 export interface ReqGenSMSCode {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �ֻ��� */
+  /** 手机号 */
   mobile: string;
 }
 
 /** CThostFtdcRspGenSMSCodeField */
 export interface RspGenSMSCode {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ����ʱ�� */
+  /** 生成时间 */
   genTime: string;
 }
 
 /** CThostFtdcSMSVerifyInfoFromSecField */
 export interface SMSVerifyInfoFromSec {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** ���͹�˾��� */
+  /** 经纪公司简称 */
   brokerAbbr: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** �ֻ��� */
+  /** 手机号 */
   mobile: string;
-  /** ������֤�� */
+  /** 短信验证码 */
   smsCode: string;
-  /** ��֤�봴������ */
+  /** 验证码创建日期 */
   createDate: string;
-  /** ��֤�봴��ʱ�� */
+  /** 验证码创建时间 */
   createTime: string;
-  /** ��֤���Ƿ�ʹ�ù� */
+  /** 验证码是否被使用过 */
   isUsed: number;
-  /** ��ϯ�Ľ������Ĵ��� */
+  /** 次席的交易中心代码 */
   fromSec: number;
 }
 
 /** CThostFtdcSMSVerifyConfigField */
 export interface SMSVerifyConfig {
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �ֻ��� */
+  /** 手机号 */
   mobile: string;
-  /** �Ƿ����ö�����֤ */
+  /** 是否启用短信验证 */
   useSmsVerify: number;
 }
 
 /** CThostFtdcSMSVerifyInfoField */
 export interface SMSVerifyInfo {
-  /** ��֤�봴��ʱ�� */
+  /** 验证码创建时间 */
   createTime: string;
-  /** �ֻ��� */
+  /** 手机号 */
   mobile: string;
-  /** ������֤��Ϣ���� */
+  /** 短信验证信息内容 */
   smsContent: string;
 }
 
 /** CThostFtdcInputSpdApplyField */
 export interface InputSpdApply {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   firstLegInstrumentId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   secondLegInstrumentId: string;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ��϶������� */
+  /** 组合定单类型 */
   cmbType: `${enums.CmbType}`;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
 }
 
 /** CThostFtdcInputHedgeCfmField */
 export interface InputHedgeCfm {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
 }
 
 /** CThostFtdcSpdApplyField */
 export interface SpdApply {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   firstLegInstrumentId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   secondLegInstrumentId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** �����û����� */
+  /** 操作用户代码 */
   activeUserId: string;
-  /** ���͹�˾������� */
+  /** 经纪公司报单编号 */
   brokerOrderSeq: number;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ����״̬ */
+  /** 申请状态 */
   applyStatus: `${enums.ApplyStatus}`;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** �������� */
+  /** 报单日期 */
   insertDate: string;
-  /** ί��ʱ�� */
+  /** 委托时间 */
   insertTime: string;
-  /** ����ʱ�� */
+  /** 撤销时间 */
   cancelTime: string;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �����ύ״̬ */
+  /** 报单提交状态 */
   orderSubmitStatus: `${enums.OrderSubmitStatus}`;
-  /** ������ʾ��� */
+  /** 报单提示序号 */
   notifySequence: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
-  /** ��϶������� */
+  /** 组合定单类型 */
   cmbType: `${enums.CmbType}`;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
 }
 
 /** CThostFtdcHedgeCfmField */
 export interface HedgeCfm {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���� */
+  /** 数量 */
   volume: number;
-  /** �������� */
+  /** 买卖方向 */
   direction: `${enums.Direction}`;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** �����û����� */
+  /** 操作用户代码 */
   activeUserId: string;
-  /** ���͹�˾������� */
+  /** 经纪公司报单编号 */
   brokerOrderSeq: number;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ����״̬ */
+  /** 申请状态 */
   applyStatus: `${enums.ApplyStatus}`;
-  /** ��� */
+  /** 序号 */
   sequenceNo: number;
-  /** �ɹ��������� */
+  /** 成功处理数量 */
   dealVolume: number;
-  /** �������� */
+  /** 报单日期 */
   insertDate: string;
-  /** ί��ʱ�� */
+  /** 委托时间 */
   insertTime: string;
-  /** ����ʱ�� */
+  /** 撤销时间 */
   cancelTime: string;
-  /** ���� */
+  /** 日期 */
   reqDate: string;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ��Լ�ڽ������Ĵ��� */
+  /** 合约在交易所的代码 */
   exchangeInstId: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** �����ύ״̬ */
+  /** 报单提交状态 */
   orderSubmitStatus: `${enums.OrderSubmitStatus}`;
-  /** ������ʾ��� */
+  /** 报单提示序号 */
   notifySequence: number;
-  /** ������ */
+  /** 交易日 */
   tradingDay: string;
-  /** ������ */
+  /** 结算编号 */
   settlementId: number;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
 }
 
 /** CThostFtdcQrySpdApplyField */
 export interface QrySpdApply {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ��һ�Ⱥ�Լ���� */
+  /** 第一腿合约编码 */
   firstLegInstrumentId: string;
-  /** �ڶ��Ⱥ�Լ���� */
+  /** 第二腿合约编码 */
   secondLegInstrumentId: string;
 }
 
 /** CThostFtdcQryHedgeCfmField */
 export interface QryHedgeCfm {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ������� */
+  /** 报单编号 */
   orderSysId: string;
-  /** ��Լ���� */
+  /** 合约代码 */
   instrumentId: string;
 }
 
 /** CThostFtdcInputSpdApplyActionField */
 export interface InputSpdApplyAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��ͬ��� */
+  /** 合同编号 */
   orderSysId: string;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
 }
 
 /** CThostFtdcInputHedgeCfmActionField */
 export interface InputHedgeCfmAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��ͬ��� */
+  /** 合同编号 */
   orderSysId: string;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
 }
 
 /** CThostFtdcSpdApplyActionField */
 export interface SpdApplyAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �������� */
+  /** 操作日期 */
   actionDate: string;
-  /** ����ʱ�� */
+  /** 操作时间 */
   actionTime: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** �������ر�� */
+  /** 操作本地编号 */
   actionLocalId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ��������״̬ */
+  /** 报单操作状态 */
   orderActionStatus: `${enums.OrderActionStatus}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��ͬ��� */
+  /** 合同编号 */
   orderSysId: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
 }
 
 /** CThostFtdcHedgeCfmActionField */
 export interface HedgeCfmAction {
-  /** ���͹�˾���� */
+  /** 经纪公司代码 */
   brokerId: string;
-  /** Ͷ���ߴ��� */
+  /** 投资者代码 */
   investorId: string;
-  /** �������� */
+  /** 操作日期 */
   actionDate: string;
-  /** ����ʱ�� */
+  /** 操作时间 */
   actionTime: string;
-  /** ����������Ա���� */
+  /** 交易所交易员代码 */
   traderId: string;
-  /** ��װ��� */
+  /** 安装编号 */
   installId: number;
-  /** ���ر������ */
+  /** 本地报单编号 */
   orderLocalId: string;
-  /** �������ر�� */
+  /** 操作本地编号 */
   actionLocalId: string;
-  /** ��Ա���� */
+  /** 会员代码 */
   participantId: string;
-  /** �ͻ����� */
+  /** 客户代码 */
   clientId: string;
-  /** ��������״̬ */
+  /** 报单操作状态 */
   orderActionStatus: `${enums.OrderActionStatus}`;
-  /** �û����� */
+  /** 用户代码 */
   userId: string;
-  /** ���������� */
+  /** 交易所代码 */
   exchangeId: string;
-  /** ��ͬ��� */
+  /** 合同编号 */
   orderSysId: string;
-  /** ������ */
+  /** 请求编号 */
   requestId: number;
-  /** ״̬��Ϣ */
+  /** 状态信息 */
   statusMsg: string;
-  /** �������� */
+  /** 报单引用 */
   orderRef: string;
-  /** ǰ�ñ�� */
+  /** 前置编号 */
   frontId: number;
-  /** �Ự��� */
+  /** 会话编号 */
   sessionId: number;
-  /** IP��ַ */
+  /** IP地址 */
   ipAddress: string;
-  /** Mac��ַ */
+  /** Mac地址 */
   macAddress: string;
 }
 
 /** CThostFtdcFrontInfoField */
 export interface FrontInfo {
-  /** ǰ�õ�ַ */
+  /** 前置地址 */
   frontAddr: string;
-  /** ��ѯ���� */
+  /** 查询流控 */
   qryFreq: number;
-  /** FTD���� */
+  /** FTD流控 */
   ftdPkgFreq: number;
 }
 

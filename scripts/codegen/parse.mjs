@@ -9,6 +9,11 @@
 import { readFile } from "node:fs/promises";
 import { typedefTypeName } from "./naming.mjs";
 
+// Official Windows CTP headers are GB18030/GBK. Decoding them as UTF-8 leaves
+// tens of thousands of U+FFFD characters in generated TypeScript JSDoc.
+const readHeader = async (path) =>
+  new TextDecoder("gb18030").decode(await readFile(path));
+
 // Value is usually a single char ('0'), but a few CTP enum families use
 // multi-char codes (e.g. '102001'); capture the whole quoted value so none
 // are silently dropped.
@@ -31,7 +36,7 @@ const SCALAR_KIND = {
  *   enums: Array<{name, ctpType, members: [{name, value}]}>
  */
 export async function parseDataTypes(path) {
-  const text = await readFile(path, "utf8");
+  const text = await readHeader(path);
   const lines = text.split(/\r?\n/);
 
   const types = new Map();
@@ -48,6 +53,8 @@ export async function parseDataTypes(path) {
 
     const mArr = RE_TD_ARRAY.exec(line);
     if (mArr) {
+      if (types.has(mArr[1]) || aliases.some(([alias]) => alias === mArr[1]))
+        throw new Error(`duplicate CTP typedef declaration: ${mArr[1]}`);
       types.set(mArr[1], { kind: "string", size: Number(mArr[2]) });
       pending = [];
       continue;
@@ -56,10 +63,12 @@ export async function parseDataTypes(path) {
     const mScalar = RE_TD_SCALAR.exec(line);
     if (mScalar) {
       const [, base, name] = mScalar;
+      if (types.has(name) || aliases.some(([alias]) => alias === name))
+        throw new Error(`duplicate CTP typedef declaration: ${name}`);
       if (base === "char") {
         if (pending.length) {
           const enumName = typedefTypeName(name);
-          types.set(name, { kind: "enum", size: 1, enumName });
+          types.set(name, { kind: "enum", size: 1, enumName, enumCtpType: name });
           enums.push({ name: enumName, ctpType: name, members: pending });
         } else {
           types.set(name, { kind: "char", size: 1 });
@@ -73,18 +82,39 @@ export async function parseDataTypes(path) {
 
     const mAlias = RE_TD_ALIAS.exec(line);
     if (mAlias) {
+      if (types.has(mAlias[2]) || aliases.some(([alias]) => alias === mAlias[2]))
+        throw new Error(`duplicate CTP typedef declaration: ${mAlias[2]}`);
       aliases.push([mAlias[2], mAlias[1]]); // newType -> existingType
       pending = [];
       continue;
     }
 
+    if (/^typedef\b/.test(line) && /TThostFtdc\w+Type/.test(line)) {
+      throw new Error(`unparsed CTP typedef declaration: ${line.trim()}`);
+    }
+
     if (!RE_COMMENT.test(line) && !RE_BLANK.test(line)) pending = [];
   }
 
-  // Resolve typedef-of-typedef aliases (rare, but be correct).
-  for (const [alias, target] of aliases) {
-    if (types.has(target)) types.set(alias, { ...types.get(target) });
+  // Resolve typedef-of-typedef aliases to a fixed point; header order must not
+  // determine whether a chain is understood.
+  let unresolved = aliases;
+  for (;;) {
+    const next = [];
+    let progress = false;
+    for (const [alias, target] of unresolved) {
+      if (types.has(target)) {
+        types.set(alias, { ...types.get(target) });
+        progress = true;
+      } else {
+        next.push([alias, target]);
+      }
+    }
+    unresolved = next;
+    if (!progress || unresolved.length === 0) break;
   }
+  if (unresolved.length)
+    throw new Error(`unresolved CTP typedef aliases: ${unresolved.map(([a, t]) => `${a}->${t}`).join(", ")}`);
 
   return { types, enums };
 }
@@ -92,10 +122,10 @@ export async function parseDataTypes(path) {
 /**
  * Parse the Struct header into:
  *   Array<{cName, typeName, fields: [{cName, ctpType, comment}]}>
- * "reserveN" fields (deprecated padding placeholders) are dropped.
+ * "reserveN" fields (obsolete padding placeholders) are dropped.
  */
 export async function parseStructs(path) {
-  const text = await readFile(path, "utf8");
+  const text = await readHeader(path);
   const lines = text.split(/\r?\n/);
 
   const RE_STRUCT = /^struct\s+(CThostFtdc\w+Field)/;
@@ -110,6 +140,10 @@ export async function parseStructs(path) {
   for (const line of lines) {
     const mS = RE_STRUCT.exec(line);
     if (mS) {
+      if (cur)
+        throw new Error(`nested/unclosed CTP struct declaration: ${cur.cName}`);
+      if (structs.some((item) => item.cName === mS[1]))
+        throw new Error(`duplicate CTP struct declaration: ${mS[1]}`);
       cur = { cName: mS[1], fields: [] };
       comment = "";
       continue;
@@ -133,8 +167,14 @@ export async function parseStructs(path) {
         cur.fields.push({ cName: fieldName, ctpType: mF[1], comment });
       }
       comment = "";
+      continue;
     }
+    if (/TThostFtdc\w+Type/.test(line) && /;/.test(line))
+      throw new Error(`unparsed field declaration in ${cur.cName}: ${line.trim()}`);
   }
+
+  if (cur)
+    throw new Error(`unterminated CTP struct declaration: ${cur.cName}`);
 
   return structs;
 }

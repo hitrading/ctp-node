@@ -120,7 +120,7 @@ md.on("front-connected", async () => {
 
 // ================= Trader =================
 const td = new Trader("./flow-td/", cfg.tdFront);
-td.riskSet({ maxOrderVolume: 2, maxOrdersPerSec: 5, maxPriceDeviation: 0.5 });
+td.setRiskLimits({ maxOrderVolume: 2, maxOrdersPerSec: 5, maxPriceDeviation: 0.5 });
 let orderSym = cfg.orderSymbol;
 let orderTick = 0;     // price tick of the order symbol
 let placed = 0, accepted = 0, cancelled = 0, rejected = 0;

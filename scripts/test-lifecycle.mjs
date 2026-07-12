@@ -6,8 +6,40 @@
 // must stay flat purely from close() freeing the ring. Also covers
 // methods-after-close (must not crash) and a cross-thread burst drain.
 import { MarketData, Trader } from "../dist/index.js";
+process.env.CTP_NODE_TEST_HOOKS = "1";
 import { createRequire } from "node:module";
 import { existsSync, mkdirSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+// A vendor DLL stuck in Release() must fail this test, not wedge `npm test`
+// forever. The public entry point supervises the real lifecycle workload in a
+// disposable process and terminates it on a hard deadline. Running this file
+// directly and running it from npm therefore have identical isolation.
+if (process.env.CTP_LIFECYCLE_WORKER !== "1") {
+  const child = spawn(process.execPath, [fileURLToPath(import.meta.url)], {
+    env: { ...process.env, CTP_LIFECYCLE_WORKER: "1", CTP_RECREATE_WARN: "0" },
+    stdio: "inherit",
+    windowsHide: true,
+  });
+  const code = await new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      console.error("LIFECYCLE TEST: FAIL (worker exceeded 60s; terminating vendor DLL process)");
+      child.kill("SIGKILL");
+      resolve(1);
+    }, 60_000);
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      console.error("LIFECYCLE TEST: FAIL (worker spawn)", error);
+      resolve(1);
+    });
+    child.once("exit", (status) => {
+      clearTimeout(timer);
+      resolve(status ?? 1);
+    });
+  });
+  process.exit(code);
+}
 
 mkdirSync("flow-md", { recursive: true });
 mkdirSync("flow-td", { recursive: true });
@@ -33,19 +65,43 @@ const after = rss();
 // well under that. Without the fix this hit ~700 MB by cycle 20.
 check(after - before < 120, `no ring leak on close (RSS ${before} -> ${after} MB across 80 close() calls)`);
 
+// _buffer() exposes native ring storage. It must be a single cached external
+// ArrayBuffer and close() must detach it before deleting that storage; otherwise
+// any retained ArrayBuffer/typed view becomes a deterministic use-after-free.
+for (const [label, Ctor, flow] of [
+  ["MarketData", native.MarketData, "./flow-md/"],
+  ["Trader", native.Trader, "./flow-td/"],
+]) {
+  const client = new Ctor(flow, "tcp://127.0.0.1:1");
+  const first = client._buffer();
+  const second = client._buffer();
+  const bytes = new Uint8Array(first);
+  check(first === second, `${label} _buffer() returns one cached ArrayBuffer`);
+  check(first.byteLength > 0 && bytes.byteLength > 0,
+    `${label} event-channel buffer is live before close()`);
+  client.close();
+  check(first.byteLength === 0 && bytes.byteLength === 0,
+    `${label} close() detaches retained event-channel buffers`);
+}
+
 // ----- methods after close must not crash -----
 {
   const td = new Trader("./flow-td/", "tcp://127.0.0.1:1");
   td.close();
   let crashed = false;
   try {
-    void td.positionCost();
+    void td.accountMargin;
     td.resetPositions();
-    void td.getTradingDay();
-    const rejected = await td
-      .reqOrderInsert({ instrumentId: "rb2610", direction: "0", combOffsetFlag: "0", limitPrice: 3000, volumeTotalOriginal: 1 })
-      .then(() => false).catch(() => true);
-    check(rejected, "reqOrderInsert after close rejects (api gone)");
+    void td.tradingDay;
+    let rejected = false;
+    try {
+      await td.reqOrderInsert({ instrumentId: "rb2610", direction: "0", combOffsetFlag: "0", limitPrice: 3000, volumeTotalOriginal: 1 });
+    } catch {
+      // Public validation is intentionally synchronous; after close, either a
+      // synchronous validation error or a rejected send Promise is acceptable.
+      rejected = true;
+    }
+    check(rejected, "reqOrderInsert after close rejects safely");
   } catch (e) { crashed = true; console.error("    threw:", e.message); }
   check(!crashed, "Trader methods after close do not crash");
 }
@@ -89,6 +145,8 @@ check(after - before < 120, `no ring leak on close (RSS ${before} -> ${after} MB
   check(throwsFront(() => new MarketData("./flow-md/", "")), `MD empty front string throws (no segfault)`);
   check(throwsFront(() => new MarketData("./flow-md/", [])), `MD empty front list throws`);
   check(throwsFront(() => new Trader("./flow-td/", ["", ""])), `Trader all-empty fronts throw`);
+  check(throwsFront(() => new MarketData("./flow-md/", new Array(1))),
+    `MD sparse/inherited front list throws`);
   let mixOk = false;
   try { const md = new MarketData("./flow-md/", ["tcp://127.0.0.1:1", ""]); mixOk = true; md.close(); } catch { /* */ }
   check(mixOk, `valid + empty front: empty skipped, construction succeeds`);

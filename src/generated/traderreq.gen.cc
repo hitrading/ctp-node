@@ -1,11 +1,33 @@
 /* AUTO-GENERATED. Do not edit. */
 #include "traderreq.gen.h"
 #include "ThostFtdcUserApiStruct.h"
+#include "../native/order_capability.h"
 #include "../native/risk.h"
 #include <algorithm>
 #include <cstring>
 
 namespace ctp {
+
+static bool validOffsetFlags(const char *flags, size_t capacity) {
+  return capacity > 0 && flags[0] >= '0' && flags[0] <= '6' &&
+         (capacity == 1 || flags[1] == '\0');
+}
+
+static bool hasOpenOffset(const char *flags, size_t capacity) {
+  for (size_t i = 0; i < capacity && flags[i]; ++i)
+    if (flags[i] == '0') return true;
+  return false;
+}
+
+static bool validHedgeFlag(char flag) {
+  return flag == '1' || flag == '2' || flag == '3' || flag == '5' ||
+         flag == '6' || flag == '7';
+}
+
+static bool validSingleHedge(const char *flags, size_t capacity) {
+  return capacity > 0 && validHedgeFlag(flags[0]) &&
+         (capacity == 1 || flags[1] == '\0');
+}
 
 int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len,
               int requestId, RiskEngine *risk) {
@@ -20,13 +42,19 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcReqUserLoginField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
-    return api->ReqUserLogin(&f, requestId);
+    if (risk) risk->beginSessionTransition(requestId, true, f.BrokerID, f.UserID);
+    int sendRc = api->ReqUserLogin(&f, requestId);
+    if (sendRc != 0 && risk) risk->finishSessionTransition(requestId);
+    return sendRc;
   }
   case M_ReqUserLogout: {
     CThostFtdcUserLogoutField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
-    return api->ReqUserLogout(&f, requestId);
+    if (risk) risk->beginSessionTransition(requestId, false, f.BrokerID, f.UserID);
+    int sendRc = api->ReqUserLogout(&f, requestId);
+    if (sendRc != 0 && risk) risk->finishSessionTransition(requestId);
+    return sendRc;
   }
   case M_ReqUserPasswordUpdate: {
     CThostFtdcUserPasswordUpdateField f;
@@ -62,39 +90,57 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcReqUserLoginWithCaptchaField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
-    return api->ReqUserLoginWithCaptcha(&f, requestId);
+    if (risk) risk->beginSessionTransition(requestId, true, f.BrokerID, f.UserID);
+    int sendRc = api->ReqUserLoginWithCaptcha(&f, requestId);
+    if (sendRc != 0 && risk) risk->finishSessionTransition(requestId);
+    return sendRc;
   }
   case M_ReqUserLoginWithText: {
     CThostFtdcReqUserLoginWithTextField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
-    return api->ReqUserLoginWithText(&f, requestId);
+    if (risk) risk->beginSessionTransition(requestId, true, f.BrokerID, f.UserID);
+    int sendRc = api->ReqUserLoginWithText(&f, requestId);
+    if (sendRc != 0 && risk) risk->finishSessionTransition(requestId);
+    return sendRc;
   }
   case M_ReqUserLoginWithOTP: {
     CThostFtdcReqUserLoginWithOTPField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
-    return api->ReqUserLoginWithOTP(&f, requestId);
+    if (risk) risk->beginSessionTransition(requestId, true, f.BrokerID, f.UserID);
+    int sendRc = api->ReqUserLoginWithOTP(&f, requestId);
+    if (sendRc != 0 && risk) risk->finishSessionTransition(requestId);
+    return sendRc;
   }
   case M_ReqOrderInsert: {
     CThostFtdcInputOrderField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
     if (risk) {
-      RiskVerdict v = risk->check(f.InstrumentID, f.LimitPrice, risk->refPrice(f.InstrumentID), f.VolumeTotalOriginal);
+      OrdinaryOrderIdentity identity;
+      if (!decodeOrdinaryOrder(f, identity)) return CTP_INVALID_ORDER_FIELDS;
+      bool isOpen = hasOpenOffset(f.CombOffsetFlag, sizeof(f.CombOffsetFlag));
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSendForAccount(isOpen, identity.brokerId, identity.investorId, sendAllowed);
+      if (!sendAllowed) return CTP_RISK_BLOCKED;
+      RiskVerdict v = risk->check(identity.instrumentId, f.LimitPrice, risk->refPrice(identity.instrumentId), f.VolumeTotalOriginal, isOpen);
       if (!v.ok) return CTP_RISK_BLOCKED;
-      bool isOpen = (f.CombOffsetFlag[0] == '0');
       if (isOpen) {
-        OpenGate g = risk->tryReserveOpen(f.OrderRef, f.InstrumentID, f.Direction == '0', f.LimitPrice, f.VolumeTotalOriginal);
+        OpenGate g = risk->tryReserveOpen(identity.orderRef, identity.instrumentId, f.Direction == '0', f.LimitPrice, f.VolumeTotalOriginal, f.CombHedgeFlag[0]);
         if (g == OpenGate::VolumeLimit) return CTP_POSITION_VOLUME_LIMIT;
         if (g == OpenGate::CostLimit) return CTP_POSITION_LIMIT;
+        if (g == OpenGate::DuplicateOrderRef) return CTP_DUPLICATE_ORDER_REF;
+        if (g == OpenGate::MetadataUnavailable) return CTP_RISK_METADATA_UNAVAILABLE;
+        if (!risk->bindInsertRequest(requestId, identity.orderRef)) return CTP_RISK_METADATA_UNAVAILABLE;
       }
-      if (!risk->allowRate()) {
-        if (isOpen) risk->releaseReservation(f.OrderRef);
+      if (isOpen && !risk->allowRate()) {
+        risk->rollbackInsertRequest(requestId, identity.orderRef);
         return CTP_RATE_LIMITED;
       }
+      if (!isOpen && !risk->allowCloseRate()) return CTP_RATE_LIMITED;
       int sendRc = api->ReqOrderInsert(&f, requestId);
-      if (sendRc != 0 && isOpen) risk->releaseReservation(f.OrderRef); // send failed -> no lifecycle event will release it
+      if (sendRc != 0 && isOpen) risk->rollbackInsertRequest(requestId, identity.orderRef); // request not accepted; safe to retry this ref
       return sendRc;
     }
     return api->ReqOrderInsert(&f, requestId);
@@ -103,18 +149,42 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcParkedOrderField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk) {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqParkedOrderInsert(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqParkedOrderInsert(&f, requestId);
   }
   case M_ReqParkedOrderAction: {
     CThostFtdcParkedOrderActionField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk && f.ActionFlag != '0') {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqParkedOrderAction(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqParkedOrderAction(&f, requestId);
   }
   case M_ReqOrderAction: {
     CThostFtdcInputOrderActionField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk && f.ActionFlag != '0') {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqOrderAction(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqOrderAction(&f, requestId);
   }
   case M_ReqQryMaxOrderVolume: {
@@ -145,33 +215,70 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcInputExecOrderField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
-    if (risk && risk->isHalted()) return CTP_RISK_BLOCKED;
+    if (risk) {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqExecOrderInsert(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqExecOrderInsert(&f, requestId);
   }
   case M_ReqExecOrderAction: {
     CThostFtdcInputExecOrderActionField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk && f.ActionFlag != '0') {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqExecOrderAction(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqExecOrderAction(&f, requestId);
   }
   case M_ReqForQuoteInsert: {
     CThostFtdcInputForQuoteField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
-    if (risk && risk->isHalted()) return CTP_RISK_BLOCKED;
+    if (risk) {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqForQuoteInsert(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqForQuoteInsert(&f, requestId);
   }
   case M_ReqQuoteInsert: {
     CThostFtdcInputQuoteField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
-    if (risk && risk->isHalted()) return CTP_RISK_BLOCKED;
+    if (risk) {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqQuoteInsert(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqQuoteInsert(&f, requestId);
   }
   case M_ReqQuoteAction: {
     CThostFtdcInputQuoteActionField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk && f.ActionFlag != '0') {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqQuoteAction(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqQuoteAction(&f, requestId);
   }
   case M_ReqBatchOrderAction: {
@@ -184,20 +291,42 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcInputOptionSelfCloseField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
-    if (risk && risk->isHalted()) return CTP_RISK_BLOCKED;
+    if (risk) {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqOptionSelfCloseInsert(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqOptionSelfCloseInsert(&f, requestId);
   }
   case M_ReqOptionSelfCloseAction: {
     CThostFtdcInputOptionSelfCloseActionField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk && f.ActionFlag != '0') {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqOptionSelfCloseAction(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqOptionSelfCloseAction(&f, requestId);
   }
   case M_ReqCombActionInsert: {
     CThostFtdcInputCombActionField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
-    if (risk && risk->isHalted()) return CTP_RISK_BLOCKED;
+    if (risk) {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqCombActionInsert(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqCombActionInsert(&f, requestId);
   }
   case M_ReqQryOrder: {
@@ -240,7 +369,10 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcQryInstrumentMarginRateField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
-    return api->ReqQryInstrumentMarginRate(&f, requestId);
+    if (risk) risk->beginMarginScheduleQuery(requestId, false, f.InstrumentID, f.HedgeFlag, f.BrokerID, f.InvestorID);
+    int sendRc = api->ReqQryInstrumentMarginRate(&f, requestId);
+    if (sendRc != 0 && risk) risk->finishMarginScheduleQuery(requestId, false);
+    return sendRc;
   }
   case M_ReqQryInstrumentCommissionRate: {
     CThostFtdcQryInstrumentCommissionRateField f;
@@ -270,6 +402,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcQryInstrumentField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk) risk->invalidateInstrument(f.InstrumentID);
     return api->ReqQryInstrument(&f, requestId);
   }
   case M_ReqQryDepthMarketData: {
@@ -342,7 +475,10 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcQryExchangeMarginRateField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
-    return api->ReqQryExchangeMarginRate(&f, requestId);
+    if (risk) risk->beginMarginScheduleQuery(requestId, true, f.InstrumentID, f.HedgeFlag, f.BrokerID, "");
+    int sendRc = api->ReqQryExchangeMarginRate(&f, requestId);
+    if (sendRc != 0 && risk) risk->finishMarginScheduleQuery(requestId, false);
+    return sendRc;
   }
   case M_ReqQryExchangeMarginRateAdjust: {
     CThostFtdcQryExchangeMarginRateAdjustField f;
@@ -522,12 +658,28 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcReqTransferField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk) {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqFromBankToFutureByFuture(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqFromBankToFutureByFuture(&f, requestId);
   }
   case M_ReqFromFutureToBankByFuture: {
     CThostFtdcReqTransferField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk) {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqFromFutureToBankByFuture(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqFromFutureToBankByFuture(&f, requestId);
   }
   case M_ReqQueryBankAccountMoneyByFuture: {
@@ -726,6 +878,14 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcInputOffsetSettingField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk) {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqOffsetSetting(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqOffsetSetting(&f, requestId);
   }
   case M_ReqCancelOffsetSetting: {
@@ -750,6 +910,14 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcInputSpdApplyField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk) {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqSpdApply(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqSpdApply(&f, requestId);
   }
   case M_ReqSpdApplyAction: {
@@ -768,6 +936,14 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcInputHedgeCfmField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
+    if (risk) {
+      bool sendAllowed = false;
+      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
+      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
+      int sendRc = api->ReqHedgeCfm(&f, requestId);
+      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
+      return sendRc;
+    }
     return api->ReqHedgeCfm(&f, requestId);
   }
   case M_ReqHedgeCfmAction: {

@@ -42,11 +42,11 @@ td.on("front-connected", async () => {
     const rows = await td.reqQryInstrument({ instrumentId: "au2608" });
     const row = rows.find((r) => r.instrumentId === "au2608");
     if (row) log(`au2608 mult=${row.volumeMultiple} (auto-fed to risk engine from this query)`);
-    await sleep(1100);
+    await td.syncOrders();
     log(`positions: ${await td.syncPositions()} (expect 0)`);
 
-    td.setMaxPosition("au2608", { long: 1 }); // at most 1 long lot
-    log("setMaxPosition(au2608, { long: 1 })");
+    td.setInstrumentPositionLimit("au2608", { long: 1 });
+    log("setInstrumentPositionLimit(au2608, { long: 1 })");
 
     log(`open #1                       -> ${await open()}`);
     log(`open #2 (while #1 in-flight)  -> ${await open()}   <-- expect BLOCKED by reservation`);
