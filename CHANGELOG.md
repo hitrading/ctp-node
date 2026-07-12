@@ -1,3 +1,21 @@
+# [3.0.0](https://github.com/hitrading/ctp-node/compare/v2.0.0...v3.0.0) (2026-07-12)
+
+
+* feat(risk)!: real-margin risk model with in-C++ data sourcing and MD snapshot LVC ([64436d5](https://github.com/hitrading/ctp-node/commit/64436d524f5c316d3da3ac85e7ded723b2d7677a))
+
+
+### BREAKING CHANGES
+
+* RiskConfig -> RiskLimits; maxPositionCost/maxMargin ->
+maxAccountMargin (now real margin, x multiplier); halt() -> haltAll() +
+reduceOnly(); setMaxPosition*/setMaxInstrumentCost -> setInstrumentPositionLimit(s)
+/ setInstrumentMarginLimit(s); positionCost() -> accountMargin getter;
+getApiVersion()/getTradingDay() -> apiVersion/tradingDay getters; seedPosition
+-> seedPositions; net-mode (PosiDirection "1") positions are rejected; explicit
+OrderRef must be a monotonic decimal; Node engines narrowed. See docs/MIGRATION.md.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+
 # [2.0.0](https://github.com/hitrading/ctp-node/compare/v1.2.0...v2.0.0) (2026-06-17)
 
 
