@@ -1,3 +1,18 @@
+# [4.0.0](https://github.com/hitrading/ctp-node/compare/v3.0.0...v4.0.0) (2026-07-29)
+
+
+* feat(trader)!: strengthen session sync and order policies ([7494a99](https://github.com/hitrading/ctp-node/commit/7494a9981621e50a7336c924a8a1a142ef6da515))
+
+
+### Bug Fixes
+
+* **ci:** restore coverage gate on trader changes ([00f6ae5](https://github.com/hitrading/ctp-node/commit/00f6ae5e0842a19b685c9a4beaafe153dc8bf70b))
+
+
+### BREAKING CHANGES
+
+* session.sync.marginRates now requires { instrumentIds, hedgeFlag } instead of a string array.
+
 # [3.0.0](https://github.com/hitrading/ctp-node/compare/v2.0.0...v3.0.0) (2026-07-12)
 
 
