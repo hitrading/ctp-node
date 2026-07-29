@@ -15,8 +15,8 @@ jobs:
         os: [windows-2022, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22.22.2
       - run: npm ci
@@ -49,8 +49,8 @@ jobs:
     runs-on: macos-13
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22.22.2
       - run: npm ci
@@ -90,10 +90,10 @@ jobs:
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}   # surfaced so the step below can skip when it's unset
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0      # semantic-release needs full history + tags
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22.22.2
           # NOTE: deliberately NO registry-url here. setup-node's registry-url

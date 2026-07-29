@@ -454,11 +454,6 @@ export class Trader extends TraderBase {
       throw new Error("trader login response has an invalid MaxOrderRef");
     }
     const maxRef = maxOrderRef === "" ? 0 : Number(maxOrderRef);
-    if (!Number.isSafeInteger(maxRef) || maxRef > 999_999_999_999) {
-      this.broker = undefined;
-      this.investor = undefined;
-      throw new Error("trader login response has an invalid MaxOrderRef");
-    }
     // A successful CTP response may legally end with an empty payload. The
     // request identity is still authoritative for the synchronization calls
     // below; never retain a previous session's broker/investor in that case.
