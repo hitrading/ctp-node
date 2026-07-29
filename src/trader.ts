@@ -72,6 +72,30 @@ export interface PositionSeed {
   margin: number;
 }
 
+/** A bounded margin-rate sync scoped to the hedge flag used by the orders that
+ * will consume those schedules in the native risk ledger. */
+export interface MarginRateSyncOptions {
+  instrumentIds: string[];
+  hedgeFlag: "1" | "2" | "3" | "5" | "6" | "7";
+}
+
+/** The request-correlated identity established by a successful trader login. */
+export interface TraderSessionIdentity {
+  readonly frontId: number;
+  readonly sessionId: number;
+  /** MaxOrderRef reported by this login response. The process-wide automatic
+   *  allocator may retain a higher high-water mark from earlier sends. */
+  readonly maxOrderRef: number;
+}
+
+export interface TraderSessionResult {
+  identity: TraderSessionIdentity;
+  multipliers: number;
+  marginRates: number;
+  positions: number;
+  orders: number;
+}
+
 /** Options for the one-call post-connect handshake, {@link Trader.session}. */
 export interface SessionOptions {
   brokerId: string;
@@ -89,13 +113,13 @@ export interface SessionOptions {
    *  for environments that don't need it. */
   confirmSettlement?: boolean;
   /** Which risk inputs to fetch after login. Multipliers/positions/orders default
-   *  on; margin rates require an explicit contract list. `multipliers` may
-   *  be `true` (all instruments) or a list of symbols. */
+   *  on; margin rates require an explicit contract list and hedge flag.
+   *  `multipliers` may be `true` (all instruments) or a list of symbols. */
   sync?: {
     multipliers?: boolean | string[];
-    /** Contracts whose speculation margin schedules should be queried. Omitted
-     *  by default because CTP requires one rate query per contract. */
-    marginRates?: string[];
+    /** Contracts and hedge flag whose margin schedules should be queried.
+     *  Omitted by default because CTP requires one rate query per contract. */
+    marginRates?: MarginRateSyncOptions;
     positions?: boolean;
     orders?: boolean;
   };
@@ -171,6 +195,7 @@ const SESSION_KEYS = new Set([
   "confirmSettlement", "sync",
 ]);
 const SESSION_SYNC_KEYS = new Set(["multipliers", "marginRates", "positions", "orders"]);
+const MARGIN_RATE_SYNC_KEYS = new Set(["instrumentIds", "hedgeFlag"]);
 const ARM_SPEC_KEYS = new Set(["instrumentId", "side", "triggerPrice", "order"]);
 const POSITION_LIMIT_KEYS = new Set(["long", "short"]);
 const POSITION_SEED_KEYS = new Set([
@@ -286,12 +311,11 @@ export class Trader extends TraderBase {
    * login → confirm settlement → sync multipliers / margin rates / orders /
    * positions. Each
    * step just wraps the matching req / sync method, so you can hand-roll your
-   * own flow instead when you need finer control. Returns the row counts from
-   * the sync steps. Must run on a connected front (queries need the session up).
+   * own flow instead when you need finer control. Returns the request-correlated
+   * login identity and row counts from the sync steps. Must run on a connected
+   * front (queries need the session up).
    */
-  async session(opts: SessionOptions): Promise<{
-    multipliers: number; marginRates: number; positions: number; orders: number;
-  }> {
+  async session(opts: SessionOptions): Promise<TraderSessionResult> {
     assertObjectKeys(opts, "session options", SESSION_KEYS);
     const cleanOpts = copyOwnRecord(opts, "session options");
     const { brokerId, userId, password, appId, authCode } = cleanOpts;
@@ -323,10 +347,29 @@ export class Trader extends TraderBase {
         cleanSync.multipliers = copyDenseStringArray(
           multipliers, "session.sync.multipliers"
         );
-      if (marginRates !== undefined)
-        cleanSync.marginRates = copyDenseStringArray(
+      if (marginRates !== undefined) {
+        assertObjectKeys(
+          marginRates, "session.sync.marginRates", MARGIN_RATE_SYNC_KEYS
+        );
+        const cleanMarginRates = copyOwnRecord(
           marginRates, "session.sync.marginRates"
         );
+        const instrumentIds = copyDenseStringArray(
+          cleanMarginRates.instrumentIds,
+          "session.sync.marginRates.instrumentIds",
+          false
+        );
+        const hedgeFlag = cleanMarginRates.hedgeFlag;
+        if (typeof hedgeFlag !== "string" || !/^[123567]$/.test(hedgeFlag)) {
+          throw new TypeError(
+            "session.sync.marginRates.hedgeFlag must be 1, 2, 3, 5, 6 or 7"
+          );
+        }
+        cleanSync.marginRates = {
+          instrumentIds,
+          hedgeFlag: hedgeFlag as MarginRateSyncOptions["hedgeFlag"],
+        };
+      }
       if (positions !== undefined && typeof positions !== "boolean")
         throw new TypeError("session.sync.positions must be boolean");
       if (orders !== undefined && typeof orders !== "boolean")
@@ -403,6 +446,19 @@ export class Trader extends TraderBase {
       this.investor = undefined;
       throw new Error("trader login response has missing or mismatched session identity");
     }
+    const maxOrderRef = typeof login.maxOrderRef === "string"
+      ? login.maxOrderRef.trim() : "";
+    if (maxOrderRef !== "" && !/^\d{1,12}$/.test(maxOrderRef)) {
+      this.broker = undefined;
+      this.investor = undefined;
+      throw new Error("trader login response has an invalid MaxOrderRef");
+    }
+    const maxRef = maxOrderRef === "" ? 0 : Number(maxOrderRef);
+    if (!Number.isSafeInteger(maxRef) || maxRef > 999_999_999_999) {
+      this.broker = undefined;
+      this.investor = undefined;
+      throw new Error("trader login response has an invalid MaxOrderRef");
+    }
     // A successful CTP response may legally end with an empty payload. The
     // request identity is still authoritative for the synchronization calls
     // below; never retain a previous session's broker/investor in that case.
@@ -416,11 +472,7 @@ export class Trader extends TraderBase {
     }
     this.broker = brokerId;
     this.investor = investorId;
-    const maxOrderRef = typeof login.maxOrderRef === "string"
-      ? login.maxOrderRef.trim() : "";
-    const maxRef = /^\d{1,12}$/.test(maxOrderRef) ? Number(maxOrderRef) : NaN;
-    if (Number.isFinite(maxRef) && maxRef > this.orderRefSeq)
-      this.orderRefSeq = maxRef;
+    if (maxRef > this.orderRefSeq) this.orderRefSeq = maxRef;
     if (cleanOpts.confirmSettlement ?? true) {
       // idempotent: confirming an already-confirmed statement is fine
       await this.reqSettlementInfoConfirm({ brokerId, investorId });
@@ -428,13 +480,27 @@ export class Trader extends TraderBase {
     }
     const sync = cleanSync;
     const mul = sync.multipliers ?? true;
-    const result = { multipliers: 0, marginRates: 0, positions: 0, orders: 0 };
+    const result: TraderSessionResult = {
+      identity: Object.freeze({
+        frontId: login.frontId,
+        sessionId: login.sessionId,
+        maxOrderRef: maxRef,
+      }),
+      multipliers: 0,
+      marginRates: 0,
+      positions: 0,
+      orders: 0,
+    };
     if (mul) {
       result.multipliers = await this.syncMultipliers(Array.isArray(mul) ? mul : undefined);
       this.assertRequestContext(contextToken, "trader session multiplier sync");
     }
-    if (sync.marginRates?.length) {
-      result.marginRates = await this.syncMarginRates(sync.marginRates);
+    const marginRateSync = sync.marginRates;
+    if (marginRateSync !== undefined) {
+      result.marginRates = await this.syncMarginRates(
+        marginRateSync.instrumentIds,
+        marginRateSync.hedgeFlag
+      );
       this.assertRequestContext(contextToken, "trader session margin sync");
     }
     if (sync.orders ?? true) {
@@ -511,13 +577,16 @@ export class Trader extends TraderBase {
     const value = <K extends keyof InputOrder>(key: K, fallback: InputOrder[K]) =>
       clean[key] === undefined ? fallback : clean[key];
     const empty = (v: unknown) => v === undefined || v === "";
-    // This binding deliberately models only one immediate, single-instrument
-    // GFD limit order. Reject every semantic/dimension the native reservation
-    // ledger does not represent; otherwise an arm could be accepted now and
-    // retry an impossible template forever after its trigger fires.
+    // The reservation ledger models ordinary single-instrument limit orders.
+    // Admit only the three execution policies whose live remainder is fully
+    // represented by CTP order/trade callbacks: GFD, FAK and FOK.
+    const timeCondition = value("timeCondition", "3");
+    const volumeCondition = value("volumeCondition", "1");
+    const supportedExecutionPolicy =
+      (timeCondition === "3" && volumeCondition === "1") ||
+      (timeCondition === "1" && (volumeCondition === "1" || volumeCondition === "3"));
     if (value("orderPriceType", "2") !== "2" ||
-        value("timeCondition", "3") !== "3" || !empty(clean.gtdDate) ||
-        value("volumeCondition", "1") !== "1" ||
+        !supportedExecutionPolicy || !empty(clean.gtdDate) ||
         value("minVolume", 1) !== 1 ||
         value("contingentCondition", "1") !== "1" ||
         value("stopPrice", 0) !== 0 ||
@@ -530,16 +599,16 @@ export class Trader extends TraderBase {
         !empty(clean.currencyId) || !empty(clean.clientId) ||
         value("sessionReqSeq", 0) !== 0) {
       throw new TypeError(
-        `${context}: only an immediate single-instrument GFD limit order is supported`
+        `${context}: only single-instrument GFD, FAK or FOK limit orders are supported`
       );
     }
     return {
       ...clean,
       orderPriceType: "2",
       combHedgeFlag: clean.combHedgeFlag ?? "1",
-      timeCondition: "3",
+      timeCondition,
       gtdDate: "",
-      volumeCondition: "1",
+      volumeCondition,
       minVolume: 1,
       contingentCondition: "1",
       stopPrice: 0,

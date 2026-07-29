@@ -399,12 +399,15 @@ const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 const td2 = new Trader("./flow/td/", ["tcp://182.254.243.31:30002", "tcp://182.254.243.31:30001"]);
 ```
 
-### `td.session(opts)` → `Promise<{ multipliers, marginRates, positions, orders }>`
+### `td.session(opts)` → `Promise<{ identity, multipliers, marginRates, positions, orders }>`
 
 One-call post-connect handshake: **authenticate → login → confirm settlement →
 sync multipliers / optional margin rates / orders / positions**. Call it from the `front-connected`
-handler (and again after a reconnect). Returns the row counts from the sync
-steps. Each step just wraps the matching request/sync method, so you can
+handler (and again after a reconnect). Returns the request-correlated
+`identity: { frontId, sessionId, maxOrderRef }` plus row counts from the sync.
+Here `maxOrderRef` is the value reported by that login response; the Trader's
+automatic allocator may retain a higher process-local high-water mark.
+Each step just wraps the matching request/sync method, so you can
 hand-roll the flow when you need finer control.
 
 At handshake start, held-position and working-order ledgers are marked
@@ -432,7 +435,7 @@ would make the ledger unsafe.
 | `appId` | `string?` | Terminal app id for authentication. SimNow: `"simnow_client_test"`. |
 | `authCode` | `string?` | Terminal auth code. SimNow: 16 zeros. Omit both `appId`/`authCode` to skip authentication. |
 | `confirmSettlement` | `boolean?` | Confirm the settlement statement after login (real accounts must, or orders are rejected). Default `true`. |
-| `sync` | `object?` | `{ multipliers?: boolean \| string[], marginRates?: string[], positions?: boolean, orders?: boolean }`. Multipliers/positions/orders default on; margin rates require an explicit bounded contract list because CTP needs one query per contract. |
+| `sync` | `object?` | `{ multipliers?: boolean \| string[], marginRates?: { instrumentIds: string[], hedgeFlag: "1" \| "2" \| "3" \| "5" \| "6" \| "7" }, positions?: boolean, orders?: boolean }`. Multipliers/positions/orders default on; margin rates require an explicit bounded contract list and hedge flag because CTP needs one query per contract and keeps separate schedules per hedge flag. |
 
 ```ts
 // SimNow full handshake
@@ -441,13 +444,18 @@ td.on("front-connected", async () => {
     brokerId: "9999", userId: "id", password: "pw",
     appId: "simnow_client_test", authCode: "0000000000000000",
   });
-  console.log("synced", counts); // { multipliers, marginRates, positions, orders }
+  console.log("synced", counts); // { identity, multipliers, marginRates, positions, orders }
 });
 
 // scope the multiplier sync to the symbols you trade (faster cold start)
 await td.session({
   brokerId: "9999", userId: "id", password: "pw",
-  sync: { multipliers: ["rb2510", "au2508"], marginRates: ["rb2510", "au2508"], positions: true, orders: true },
+  sync: {
+    multipliers: ["rb2510", "au2508"],
+    marginRates: { instrumentIds: ["rb2510", "au2508"], hedgeFlag: "2" },
+    positions: true,
+    orders: true,
+  },
 });
 
 // skip the settlement confirm (environments that don't need it)
@@ -483,7 +491,7 @@ position/order snapshots cannot be applied to an order for another account.
 | `orderRef` | `string?` | Leave unset for an auto-assigned unique ref; otherwise 1–12 decimal digits. |
 | `orderPriceType` | `OrderPriceType?` | Optional; if set, must be `"2"` (limit). Defaults to limit. |
 
-> **Only an immediate, single-instrument GFD limit order is accepted.** `reqOrderInsert` deliberately rejects (with a `TypeError`) anything the native risk-reservation ledger cannot represent: any `orderPriceType` other than `"2"`, non-`GFD` time conditions, `FAK`/`FOK`/min-volume/conditional/stop/swap/force-close variants, and multi-leg offset/hedge flags. Place those order types through your own CTP flow outside the armed-order path.
+> **Only single-instrument GFD, FAK and FOK limit orders are accepted.** Use `timeCondition: "3", volumeCondition: "1"` for GFD; `"1", "1"` for FAK; and `"1", "3"` for FOK. `reqOrderInsert` deliberately rejects (with a `TypeError`) anything the native risk-reservation ledger cannot represent: other time/volume-condition combinations, min-volume/conditional/stop/swap/force-close variants, and multi-leg offset/hedge flags.
 
 ```ts
 import { Direction, OffsetFlag } from "@hitrading/ctp-node";
@@ -1113,7 +1121,7 @@ const b: InstrumentPositionLimit = { long: 50, short: 5 }; // long ≤ 50, short
 
 ### `SessionOptions`
 
-Options for [`session`](#tdsessionopts--promise-multipliers-marginrates-positions-orders-).
+Options for [`session`](#tdsessionopts--promise-identity-multipliers-marginrates-positions-orders-).
 See the table there.
 
 ```ts

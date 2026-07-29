@@ -21,9 +21,10 @@ mkdirSync("build/cpptest", { recursive: true });
 const suites = [
   { name: "test_risk", src: "src/native/risk.cc", test: "test/cpp/test_risk.cpp" },
   { name: "test_arm", src: "src/native/arm.cc", test: "test/cpp/test_arm.cpp" },
+  { name: "test_order_capability", src: null, test: "test/cpp/test_order_capability.cpp" },
 ];
 
-const base = ["-std=c++17", "-Isrc/native"];
+const base = ["-std=c++17", "-Isrc/native", "-Ictpsdk"];
 const covFlags = !coverage
   ? ["-O0"]
   : isClang
@@ -36,7 +37,7 @@ let failed = false;
 for (const s of suites) {
   const out = `build/cpptest/${s.name}${exe}`;
   try {
-    run(CXX, [...base, ...covFlags, s.test, s.src, "-o", out]);
+    run(CXX, [...base, ...covFlags, s.test, ...(s.src ? [s.src] : []), "-o", out]);
   } catch {
     console.error(`${s.name}: COMPILE FAILED`);
     failed = true;
@@ -57,11 +58,12 @@ if (coverage && !failed) {
   try {
     if (isClang) {
       for (const s of suites) {
+        if (!s.src) continue;
         run("llvm-profdata", ["merge", "-sparse", `build/cpptest/${s.name}.profraw`, "-o", `build/cpptest/${s.name}.profdata`]);
         run("llvm-cov", ["report", `build/cpptest/${s.name}${exe}`, `-instr-profile=build/cpptest/${s.name}.profdata`, s.src]);
       }
     } else {
-      run("gcov", ["-n", ...suites.map((s) => s.src)]);
+      run("gcov", ["-n", ...suites.flatMap((s) => s.src ? [s.src] : [])]);
     }
   } catch {
     console.warn("(coverage report tool unavailable - tests still ran and passed)");

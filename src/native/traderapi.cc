@@ -46,6 +46,28 @@ namespace {
 // the process instead of surfacing a catchable JS RangeError.
 constexpr uint32_t kMaxInstrumentLimitBatch = 65536;
 
+bool readInstrumentLimitBatchLength(const Napi::Array &input,
+                                    const char *label, uint32_t &length) {
+  Napi::Value lengthValue = input.Get("length");
+  if (!lengthValue.IsNumber()) {
+    Napi::TypeError::New(input.Env(), std::string(label) +
+                                          " length must be numeric")
+        .ThrowAsJavaScriptException();
+    return false;
+  }
+  const double rawLength = lengthValue.As<Napi::Number>().DoubleValue();
+  if (!std::isfinite(rawLength) || rawLength < 0.0 ||
+      rawLength > static_cast<double>(kMaxInstrumentLimitBatch)) {
+    Napi::RangeError::New(
+        input.Env(), std::string(label) +
+                         " batch exceeds the maximum of 65536 instruments")
+        .ThrowAsJavaScriptException();
+    return false;
+  }
+  length = static_cast<uint32_t>(rawLength);
+  return true;
+}
+
 bool toStringList(const Napi::Value &v, std::vector<std::string> &out,
                   const char *label) {
   if (v.IsArray()) {
@@ -801,15 +823,12 @@ Napi::Value Trader::SetInstrumentPositionLimits(
     return env.Undefined();
   }
   Napi::Array input = info[0].As<Napi::Array>();
-  if (input.Length() > kMaxInstrumentLimitBatch) {
-    Napi::RangeError::New(
-        env, "position limits batch exceeds the maximum of 65536 instruments")
-        .ThrowAsJavaScriptException();
+  uint32_t length = 0;
+  if (!readInstrumentLimitBatchLength(input, "position limits", length))
     return env.Undefined();
-  }
   std::vector<InstrumentPositionLimitUpdate> updates;
-  updates.reserve(input.Length());
-  for (uint32_t i = 0; i < input.Length(); ++i) {
+  updates.reserve(length);
+  for (uint32_t i = 0; i < length; ++i) {
     Napi::Value rowValue = input.Get(i);
     if (!rowValue.IsObject()) {
       Napi::TypeError::New(env, "each position limit must be an object")
@@ -854,15 +873,12 @@ Napi::Value Trader::SetInstrumentMarginLimits(
     return env.Undefined();
   }
   Napi::Array input = info[0].As<Napi::Array>();
-  if (input.Length() > kMaxInstrumentLimitBatch) {
-    Napi::RangeError::New(
-        env, "margin limits batch exceeds the maximum of 65536 instruments")
-        .ThrowAsJavaScriptException();
+  uint32_t length = 0;
+  if (!readInstrumentLimitBatchLength(input, "margin limits", length))
     return env.Undefined();
-  }
   std::vector<InstrumentMarginLimitUpdate> updates;
-  updates.reserve(input.Length());
-  for (uint32_t i = 0; i < input.Length(); ++i) {
+  updates.reserve(length);
+  for (uint32_t i = 0; i < length; ++i) {
     Napi::Value rowValue = input.Get(i);
     if (!rowValue.IsObject()) {
       Napi::TypeError::New(env, "each margin limit must be an object")

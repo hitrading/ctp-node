@@ -366,10 +366,12 @@ const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 const td2 = new Trader("./flow/td/", ["tcp://182.254.243.31:30002", "tcp://182.254.243.31:30001"]);
 ```
 
-### `td.session(opts)` → `Promise<{ multipliers, marginRates, positions, orders }>`
+### `td.session(opts)` → `Promise<{ identity, multipliers, marginRates, positions, orders }>`
 
 连接后的一站式握手：**认证 → 登录 → 确认结算单 → 同步乘数 / 可选保证金率 / 报单 / 持仓**。在 `front-connected`
-处理函数里调用（重连后再调一次）。返回各同步步骤的行数。每一步只是包装了对应的请求/同步方法，
+处理函数里调用（重连后再调一次）。返回经请求关联确认的
+`identity: { frontId, sessionId, maxOrderRef }` 以及各同步步骤的行数。其中 `maxOrderRef`
+是本次登录响应报告的值；Trader 的自动分配器可能保留更高的进程内高水位。每一步只是包装了对应的请求/同步方法，
 所以需要更细控制时你也可以自己手写流程。
 
 握手一开始，持仓账本和工作单账本就会被标记为不确定，使所有开仓请求在潜在重连缺口期间
@@ -392,7 +394,7 @@ fail-closed。成功的 `syncPositions()` 与 `syncOrders()` 只清除各自的�
 | `appId` | `string?` | 终端认证的 app id。SimNow：`"simnow_client_test"`。 |
 | `authCode` | `string?` | 终端授权码。SimNow：16 个零。两者都省略则跳过认证。 |
 | `confirmSettlement` | `boolean?` | 登录后确认结算单（实盘账户必须确认，否则报单被拒）。默认 `true`。 |
-| `sync` | `object?` | `{ multipliers?: boolean \| string[], marginRates?: string[], positions?: boolean, orders?: boolean }`。乘数/持仓/报单默认拉取；保证金表必须显式给出有限合约列表，因为 CTP 每个合约需一次查询。 |
+| `sync` | `object?` | `{ multipliers?: boolean \| string[], marginRates?: { instrumentIds: string[], hedgeFlag: "1" \| "2" \| "3" \| "5" \| "6" \| "7" }, positions?: boolean, orders?: boolean }`。乘数/持仓/报单默认拉取；保证金表必须显式给出有限合约列表和套保标志，因为 CTP 每个合约需一次查询，且不同套保标志使用不同费率表。 |
 
 ```ts
 // SimNow 完整握手
@@ -401,13 +403,18 @@ td.on("front-connected", async () => {
     brokerId: "9999", userId: "id", password: "pw",
     appId: "simnow_client_test", authCode: "0000000000000000",
   });
-  console.log("已同步", counts); // { multipliers, marginRates, positions, orders }
+  console.log("已同步", counts); // { identity, multipliers, marginRates, positions, orders }
 });
 
 // 把乘数同步限定到你交易的合约（冷启动更快）
 await td.session({
   brokerId: "9999", userId: "id", password: "pw",
-  sync: { multipliers: ["rb2510", "au2508"], marginRates: ["rb2510", "au2508"], positions: true, orders: true },
+  sync: {
+    multipliers: ["rb2510", "au2508"],
+    marginRates: { instrumentIds: ["rb2510", "au2508"], hedgeFlag: "2" },
+    positions: true,
+    orders: true,
+  },
 });
 
 // 跳过结算单确认（不需要的环境）
@@ -440,7 +447,7 @@ await td.session({ brokerId: "9999", userId: "id", password: "pw", confirmSettle
 | `orderRef` | `string?` | 留空则自动分配；显式值必须是 1–12 位十进制数字。 |
 | `orderPriceType` | `OrderPriceType?` | 可选；若设置必须为 `"2"`（限价）。默认限价。 |
 
-> **只接受即时、单合约的 GFD 限价单。** `reqOrderInsert` 会主动拒绝（抛 `TypeError`）本地风控预留台账无法表示的任何形态：非 `"2"` 的 `orderPriceType`、非 `GFD` 时间条件、`FAK`/`FOK`/最小成交量/触发/止损/互换/强平等变体，以及多腿的 offset/hedge 标志。这些单型请走 armed-order 之外你自己的 CTP 流程下单。
+> **只接受单合约的 GFD、FAK 和 FOK 限价单。** GFD 使用 `timeCondition: "3", volumeCondition: "1"`，FAK 使用 `"1", "1"`，FOK 使用 `"1", "3"`。`reqOrderInsert` 会主动拒绝（抛 `TypeError`）本地风控预留台账无法表示的其它时间/成交量条件组合、最小成交量、触发、止损、互换、强平等变体，以及多腿的 offset/hedge 标志。
 
 ```ts
 import { Direction, OffsetFlag } from "@hitrading/ctp-node";
@@ -974,7 +981,7 @@ const b: InstrumentPositionLimit = { long: 50, short: 5 }; // 多 ≤ 50，空 �
 
 ### `SessionOptions`
 
-[`session`](#tdsessionopts--promise-multipliers-marginrates-positions-orders-) 的选项。字段见那里的表格。
+[`session`](#tdsessionopts--promise-identity-multipliers-marginrates-positions-orders-) 的选项。字段见那里的表格。
 
 ```ts
 const opts: SessionOptions = {

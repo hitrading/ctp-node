@@ -105,9 +105,16 @@ td.setInstrumentMarginLimits({ ag2608: 2_000_000, au2608: 5_000_000 });         
 
 td.on("front-connected", async () => {
   // One-call handshake (call again after a reconnect). Margin-rate queries need
-  // an explicit bounded trading universe (one CTP query per contract).
-  await td.session({ brokerId, userId, password, appId, authCode,
-    sync: { marginRates: ["rb2510", "ag2608", "au2608"] } });
+  // an explicit bounded trading universe and hedge flag (one CTP query per contract).
+  await td.session({
+    brokerId, userId, password, appId, authCode,
+    sync: {
+      marginRates: {
+        instrumentIds: ["rb2510", "ag2608", "au2608"],
+        hedgeFlag: "1",
+      },
+    },
+  });
 
   // ...or hand-roll it if you need finer control:
   //   await td.reqAuthenticate({ brokerId, userId, appId, authCode });

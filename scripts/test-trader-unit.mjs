@@ -182,6 +182,27 @@ throwsRange(() => td.native._setInstrumentPositionLimits(new Array(4294967295)),
   "native _setInstrumentPositionLimits rejects an over-cap array length with a catchable RangeError (no abort)");
 throwsRange(() => td.native._setInstrumentMarginLimits(new Array(4294967295)),
   "native _setInstrumentMarginLimits rejects an over-cap array length with a catchable RangeError (no abort)");
+const shrinkingPositionLimits = [undefined, { instrumentId: "late", long: 1 }];
+Object.defineProperty(shrinkingPositionLimits, 0, {
+  configurable: true,
+  get() {
+    shrinkingPositionLimits.length = 1;
+    return { instrumentId: "first", long: 1 };
+  },
+});
+throws(() => td.native._setInstrumentPositionLimits(shrinkingPositionLimits),
+  "native position-limit batching rejects an array shortened during its fixed-length snapshot");
+const growingMarginLimits = [undefined];
+Object.defineProperty(growingMarginLimits, 0, {
+  configurable: true,
+  get() {
+    growingMarginLimits.push(null);
+    return { instrumentId: "first", limit: 1 };
+  },
+});
+td.native._setInstrumentMarginLimits(growingMarginLimits);
+ok(growingMarginLimits.length === 2,
+  "native margin-limit batching ignores rows appended after its fixed-length snapshot");
 ok(typeof td.native._seedPositions === "undefined",
   "incremental native _seedPositions compatibility API is absent");
 {
@@ -343,8 +364,30 @@ for (const flags of ["00", "30", "03"]) {
     `multi-leg offset ${flags} is rejected before it can bypass local risk`
   );
 }
-throws(() => td.reqOrderInsert({ instrumentId: "rb", direction: "0", combOffsetFlag: "0", volumeTotalOriginal: 1, limitPrice: 3500, timeCondition: "5" }),
-  "reqOrderInsert rejects a non-GFD time condition (only an immediate single-instrument GFD limit is modelled)");
+for (const policy of [
+  { name: "FAK", timeCondition: "1", volumeCondition: "1" },
+  { name: "FOK", timeCondition: "1", volumeCondition: "3" },
+]) {
+  const result = td.reqOrderInsert({
+    instrumentId: "rb", direction: "0", combOffsetFlag: "1",
+    volumeTotalOriginal: 1, limitPrice: 3500,
+    timeCondition: policy.timeCondition, volumeCondition: policy.volumeCondition,
+  });
+  ok(result instanceof Promise, `reqOrderInsert accepts a native ${policy.name} limit order`);
+  const outcome = await result.then(() => undefined, (error) => error);
+  ok(outcome?.ctpReturnCode !== -10008,
+    `native ordinary-order capability accepts ${policy.name}`);
+}
+for (const invalidPolicy of [
+  { timeCondition: "5", volumeCondition: "1" },
+  { timeCondition: "3", volumeCondition: "3" },
+  { timeCondition: "1", volumeCondition: "2" },
+]) {
+  throws(() => td.reqOrderInsert({
+    instrumentId: "rb", direction: "0", combOffsetFlag: "0",
+    volumeTotalOriginal: 1, limitPrice: 3500, ...invalidPolicy,
+  }), "reqOrderInsert rejects an unsupported time/volume condition combination");
+}
 ok(td.shouldTimeoutRequest(999_999, false) === true, "a non-session-transition request always times out");
 ok(td.shouldTimeoutRequest(999_999, true) === false, "an unmatched session-transition timeout is linearized natively (no pending -> false)");
 
@@ -413,17 +456,21 @@ td.reqUserLogin = async () => {
 td.reqSettlementInfoConfirm = async () => ({});
 td.reqQryInstrument = async () => [{ instrumentId: "rb2510", volumeMultiple: 10 }, { instrumentId: "x", volumeMultiple: 0 }];
 let exchangeMarginQueries = 0;
-td.reqQryExchangeMarginRate = async () => { exchangeMarginQueries++; return [{
-  instrumentId: "rb2510", hedgeFlag: "1",
+td.reqQryExchangeMarginRate = async (request) => { exchangeMarginQueries++; return [{
+  instrumentId: "rb2510", hedgeFlag: request.hedgeFlag,
   longMarginRatioByMoney: 0.08, longMarginRatioByVolume: 0,
   shortMarginRatioByMoney: 0.08, shortMarginRatioByVolume: 0,
 }]; };
-td.reqQryInstrumentMarginRate = async () => [{
-  instrumentId: "rb2510", hedgeFlag: "1",
+const sessionMarginHedgeFlags = [];
+td.reqQryInstrumentMarginRate = async (request) => {
+  sessionMarginHedgeFlags.push(request.hedgeFlag);
+  return [{
+  instrumentId: "rb2510", hedgeFlag: request.hedgeFlag,
   isRelative: 0,
   longMarginRatioByMoney: 0.1, longMarginRatioByVolume: 0,
   shortMarginRatioByMoney: 0.1, shortMarginRatioByVolume: 0,
 }];
+};
 td.reqQryInvestorPosition = async () => [
   { brokerId: "9999", investorId: "u", instrumentId: "rb2510", posiDirection: "2", hedgeFlag: "1", position: 3, useMargin: 30000 },
 ];
@@ -440,9 +487,44 @@ const res2 = await td.session({ brokerId: "9999", userId: "u", password: "p", co
 ok(res2.multipliers === 1 && res2.marginRates === 0 && res2.positions === 0 && res2.orders === 0, "session: auth skipped + settlement off + sync subset");
 const res3 = await td.session({
   brokerId: "9999", userId: "u", password: "p", confirmSettlement: false,
-  sync: { multipliers: false, marginRates: ["rb2510"], positions: false, orders: false },
+  sync: {
+    multipliers: false,
+    marginRates: { instrumentIds: ["rb2510"], hedgeFlag: "1" },
+    positions: false,
+    orders: false,
+  },
 });
 ok(res3.marginRates === 1, "session executes an explicitly bounded margin-rate synchronization");
+ok(res3.identity.frontId === 1 && res3.identity.sessionId === 7 &&
+   res3.identity.maxOrderRef === 100 && td.orderRefSeq > res3.identity.maxOrderRef &&
+   Object.isFrozen(res3.identity),
+  "session returns the immutable MaxOrderRef from this login, not the process high-water mark");
+const res4 = await td.session({
+  brokerId: "9999", userId: "u", password: "p", confirmSettlement: false,
+  sync: {
+    multipliers: false,
+    marginRates: { instrumentIds: ["rb2510"], hedgeFlag: "2" },
+    positions: false,
+    orders: false,
+  },
+});
+ok(res4.marginRates === 1 && sessionMarginHedgeFlags.at(-1) === "2",
+  "session synchronizes margin schedules for the explicitly selected hedge flag");
+const validSessionLogin = td.reqUserLogin;
+td.reqUserLogin = async () => {
+  td.native._injectTestLogin(1, 7, "9999", "u");
+  return {
+    brokerId: "9999", userId: "u", frontId: 1, sessionId: 7,
+    maxOrderRef: "not-a-number",
+  };
+};
+await rejects(td.session({
+  brokerId: "9999", userId: "u", password: "p", confirmSettlement: false,
+  sync: { multipliers: false, positions: false, orders: false },
+}), "session rejects an invalid correlated MaxOrderRef");
+ok(td.broker === undefined && td.investor === undefined,
+  "an invalid MaxOrderRef does not leave a usable JS session identity");
+td.reqUserLogin = validSessionLogin;
 
 // Exercise the production generated-login context transition (the ordinary
 // stubs above intentionally skip it) and the fail-closed multiple-transition
@@ -645,6 +727,22 @@ await rejects(td.session({ brokerId: "9999", userId: "u", password: "p", sync: {
   "session rejects a non-boolean position-sync selector");
 await rejects(td.session({ brokerId: "9999", userId: "u", password: "p", sync: { orders: 1 } }),
   "session rejects a non-boolean order-sync selector");
+await rejects(td.session({
+  brokerId: "9999", userId: "u", password: "p",
+  sync: { marginRates: { instrumentIds: ["rb2510"], hedgeFlag: "4" } },
+}), "session rejects an invalid margin-rate hedge flag");
+await rejects(td.session({
+  brokerId: "9999", userId: "u", password: "p",
+  sync: { marginRates: ["rb2510"] },
+}), "session rejects the removed implicit speculation margin-rate form");
+await rejects(td.session({
+  brokerId: "9999", userId: "u", password: "p",
+  sync: { marginRates: { instrumentIds: [], hedgeFlag: "1" } },
+}), "session rejects an empty explicit margin-rate universe");
+await rejects(td.session({
+  brokerId: "9999", userId: "u", password: "p",
+  sync: { marginRates: { instrumentIds: ["rb2510"], hedgeFlag: "1", legacy: true } },
+}), "session rejects unknown explicit margin-rate fields");
 await rejects(td.session({ brokerId: "9999", userId: "u", password: "" }),
   "session rejects missing credentials before changing context");
 await rejects(td.session({

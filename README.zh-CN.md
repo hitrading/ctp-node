@@ -99,9 +99,16 @@ td.setInstrumentPositionLimits({ rb2610: 100, au2610: 10, ru2610: { long: 100, s
 td.setInstrumentMarginLimits({ ag2608: 2_000_000, au2608: 5_000_000 });              // 按合约的计划保证金上限
 
 td.on("front-connected", async () => {
-  // 一站式握手。保证金表需显式给出有限交易合约集（CTP 每合约一次查询）。
-  await td.session({ brokerId, userId, password, appId, authCode,
-    sync: { marginRates: ["rb2510", "ag2608", "au2608"] } });
+  // 一站式握手。保证金表需显式给出有限交易合约集和套保标志（CTP 每合约一次查询）。
+  await td.session({
+    brokerId, userId, password, appId, authCode,
+    sync: {
+      marginRates: {
+        instrumentIds: ["rb2510", "ag2608", "au2608"],
+        hedgeFlag: "1",
+      },
+    },
+  });
 
   // ……或在需要更细控制时手写：
   //   await td.reqAuthenticate({ brokerId, userId, appId, authCode });

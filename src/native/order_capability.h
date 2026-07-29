@@ -1,8 +1,8 @@
 /*
  * order_capability.h - the deliberately narrow ordinary-order capability.
  *
- * Local reservation/margin accounting models one single-instrument, immediate
- * GFD limit order in the confirmed InvestorID.  Every other InputOrder mode is
+ * Local reservation/margin accounting models single-instrument GFD, FAK and
+ * FOK limit orders in the confirmed InvestorID. Every other InputOrder mode is
  * rejected before it reaches CTP; accepting it as an "ordinary" order would
  * silently claim risk coverage for dimensions the ledger does not represent.
  */
@@ -52,6 +52,10 @@ inline bool decodeOrdinaryOrder(
                           f.CombHedgeFlag[0] == '5' ||
                           f.CombHedgeFlag[0] == '6' ||
                           f.CombHedgeFlag[0] == '7';
+  const bool supportedExecutionPolicy =
+      (f.TimeCondition == '3' && f.VolumeCondition == '1') ||
+      (f.TimeCondition == '1' &&
+       (f.VolumeCondition == '1' || f.VolumeCondition == '3'));
   return !identity.brokerId.empty() && !identity.investorId.empty() &&
          !identity.orderRef.empty() && !identity.instrumentId.empty() &&
          (f.Direction == '0' || f.Direction == '1') &&
@@ -60,8 +64,7 @@ inline bool decodeOrdinaryOrder(
          f.CombHedgeFlag[1] == '\0' && f.OrderPriceType == '2' &&
          std::isfinite(f.LimitPrice) && f.LimitPrice > 0.0 &&
          f.LimitPrice < 1e300 && f.VolumeTotalOriginal > 0 &&
-         f.TimeCondition == '3' && gtdDate.empty() &&
-         f.VolumeCondition == '1' && f.MinVolume == 1 &&
+         supportedExecutionPolicy && gtdDate.empty() && f.MinVolume == 1 &&
          f.ContingentCondition == '1' && f.StopPrice == 0.0 &&
          f.ForceCloseReason == '0' && f.IsAutoSuspend == 0 &&
          businessUnit.empty() && f.RequestID == 0 &&
