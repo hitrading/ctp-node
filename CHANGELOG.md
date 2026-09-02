@@ -1,3 +1,10 @@
+## [4.0.1](https://github.com/hitrading/ctp-node/compare/v4.0.0...v4.0.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* **trader:** accept signed non-zero session IDs ([5d7b6b0](https://github.com/hitrading/ctp-node/commit/5d7b6b0dfcb0cc399a60f57e3d475cebf7a930bf))
+
 # [4.0.0](https://github.com/hitrading/ctp-node/compare/v3.0.0...v4.0.0) (2026-07-29)
 
 
