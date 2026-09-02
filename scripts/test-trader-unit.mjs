@@ -8,6 +8,9 @@ import { mkdirSync } from "node:fs";
 
 mkdirSync("flow-tu", { recursive: true });
 mkdirSync("flow-tu-md", { recursive: true });
+mkdirSync("flow-tu-signed-login", { recursive: true });
+mkdirSync("flow-tu-signed-session", { recursive: true });
+mkdirSync("flow-tu-zero-session", { recursive: true });
 let pass = 0, fail = 0;
 const ok = (c, m) => { c ? (pass++, console.log("  PASS:", m)) : (fail++, console.log("  FAIL:", m)); };
 const throws = (fn, m) => { try { fn(); ok(false, m + " (did not throw)"); } catch { ok(true, m); } };
