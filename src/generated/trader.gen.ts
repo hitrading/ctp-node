@@ -379,7 +379,7 @@ export abstract class TraderBase extends CtpClient {
     this.beginRequestContextTransition("trader session transition started");
     return this.request((id) => this.native._req(2, encoded, id), true, undefined, true).then((value) => {
       const row = value as { brokerId?: unknown; userId?: unknown; frontId?: unknown; sessionId?: unknown } | undefined;
-      if (!row || typeof row.brokerId !== "string" || !row.brokerId || typeof row.userId !== "string" || !row.userId || !Number.isInteger(row.frontId) || Number(row.frontId) <= 0 || !Number.isInteger(row.sessionId) || Number(row.sessionId) <= 0 || (typeof cleanReq.brokerId === "string" && cleanReq.brokerId && row.brokerId !== cleanReq.brokerId) || (typeof cleanReq.userId === "string" && cleanReq.userId && row.userId !== cleanReq.userId)) throw new Error("trader login response has missing or mismatched session identity");
+      if (!row || typeof row.brokerId !== "string" || !row.brokerId || typeof row.userId !== "string" || !row.userId || !Number.isInteger(row.frontId) || Number(row.frontId) <= 0 || !Number.isInteger(row.sessionId) || Number(row.sessionId) === 0 || (typeof cleanReq.brokerId === "string" && cleanReq.brokerId && row.brokerId !== cleanReq.brokerId) || (typeof cleanReq.userId === "string" && cleanReq.userId && row.userId !== cleanReq.userId)) throw new Error("trader login response has missing or mismatched session identity");
       return value;
     });
   }
@@ -412,7 +412,7 @@ export abstract class TraderBase extends CtpClient {
     this.beginRequestContextTransition("trader session transition started");
     return this.request((id) => this.native._req(9, encoded, id), true, undefined, true).then((value) => {
       const row = value as { brokerId?: unknown; userId?: unknown; frontId?: unknown; sessionId?: unknown } | undefined;
-      if (!row || typeof row.brokerId !== "string" || !row.brokerId || typeof row.userId !== "string" || !row.userId || !Number.isInteger(row.frontId) || Number(row.frontId) <= 0 || !Number.isInteger(row.sessionId) || Number(row.sessionId) <= 0 || (typeof cleanReq.brokerId === "string" && cleanReq.brokerId && row.brokerId !== cleanReq.brokerId) || (typeof cleanReq.userId === "string" && cleanReq.userId && row.userId !== cleanReq.userId)) throw new Error("trader login response has missing or mismatched session identity");
+      if (!row || typeof row.brokerId !== "string" || !row.brokerId || typeof row.userId !== "string" || !row.userId || !Number.isInteger(row.frontId) || Number(row.frontId) <= 0 || !Number.isInteger(row.sessionId) || Number(row.sessionId) === 0 || (typeof cleanReq.brokerId === "string" && cleanReq.brokerId && row.brokerId !== cleanReq.brokerId) || (typeof cleanReq.userId === "string" && cleanReq.userId && row.userId !== cleanReq.userId)) throw new Error("trader login response has missing or mismatched session identity");
       return value;
     });
   }
@@ -423,7 +423,7 @@ export abstract class TraderBase extends CtpClient {
     this.beginRequestContextTransition("trader session transition started");
     return this.request((id) => this.native._req(10, encoded, id), true, undefined, true).then((value) => {
       const row = value as { brokerId?: unknown; userId?: unknown; frontId?: unknown; sessionId?: unknown } | undefined;
-      if (!row || typeof row.brokerId !== "string" || !row.brokerId || typeof row.userId !== "string" || !row.userId || !Number.isInteger(row.frontId) || Number(row.frontId) <= 0 || !Number.isInteger(row.sessionId) || Number(row.sessionId) <= 0 || (typeof cleanReq.brokerId === "string" && cleanReq.brokerId && row.brokerId !== cleanReq.brokerId) || (typeof cleanReq.userId === "string" && cleanReq.userId && row.userId !== cleanReq.userId)) throw new Error("trader login response has missing or mismatched session identity");
+      if (!row || typeof row.brokerId !== "string" || !row.brokerId || typeof row.userId !== "string" || !row.userId || !Number.isInteger(row.frontId) || Number(row.frontId) <= 0 || !Number.isInteger(row.sessionId) || Number(row.sessionId) === 0 || (typeof cleanReq.brokerId === "string" && cleanReq.brokerId && row.brokerId !== cleanReq.brokerId) || (typeof cleanReq.userId === "string" && cleanReq.userId && row.userId !== cleanReq.userId)) throw new Error("trader login response has missing or mismatched session identity");
       return value;
     });
   }
@@ -434,7 +434,7 @@ export abstract class TraderBase extends CtpClient {
     this.beginRequestContextTransition("trader session transition started");
     return this.request((id) => this.native._req(11, encoded, id), true, undefined, true).then((value) => {
       const row = value as { brokerId?: unknown; userId?: unknown; frontId?: unknown; sessionId?: unknown } | undefined;
-      if (!row || typeof row.brokerId !== "string" || !row.brokerId || typeof row.userId !== "string" || !row.userId || !Number.isInteger(row.frontId) || Number(row.frontId) <= 0 || !Number.isInteger(row.sessionId) || Number(row.sessionId) <= 0 || (typeof cleanReq.brokerId === "string" && cleanReq.brokerId && row.brokerId !== cleanReq.brokerId) || (typeof cleanReq.userId === "string" && cleanReq.userId && row.userId !== cleanReq.userId)) throw new Error("trader login response has missing or mismatched session identity");
+      if (!row || typeof row.brokerId !== "string" || !row.brokerId || typeof row.userId !== "string" || !row.userId || !Number.isInteger(row.frontId) || Number(row.frontId) <= 0 || !Number.isInteger(row.sessionId) || Number(row.sessionId) === 0 || (typeof cleanReq.brokerId === "string" && cleanReq.brokerId && row.brokerId !== cleanReq.brokerId) || (typeof cleanReq.userId === "string" && cleanReq.userId && row.userId !== cleanReq.userId)) throw new Error("trader login response has missing or mismatched session identity");
       return value;
     });
   }

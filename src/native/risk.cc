@@ -1294,7 +1294,7 @@ bool RiskEngine::acceptLoginSession(int requestId, int frontId, int sessionId,
   std::lock_guard<std::mutex> lk(posMutex_);
   if (requestId <= 0 || requestId != pendingSessionRequestId_ ||
       !pendingSessionExpectsLogin_ || brokerId.empty() || userId.empty() ||
-      frontId <= 0 || sessionId <= 0 ||
+      frontId <= 0 || sessionId == 0 ||
       (!pendingSessionBrokerId_.empty() &&
        brokerId != pendingSessionBrokerId_) ||
       (!pendingSessionUserId_.empty() && userId != pendingSessionUserId_))
@@ -1329,7 +1329,7 @@ bool RiskEngine::confirmSessionAccount(
     const std::string &investorId) {
   std::lock_guard<RiskSendMutex> send(sendModeMutex_);
   std::lock_guard<std::mutex> lk(posMutex_);
-  if (!loginSessionKnown_ || frontId <= 0 || sessionId <= 0 ||
+  if (!loginSessionKnown_ || frontId <= 0 || sessionId == 0 ||
       frontId != myFrontId_ || sessionId != mySessionId_ || brokerId.empty() ||
       investorId.empty() || brokerId != myBrokerId_)
     return false;

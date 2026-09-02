@@ -238,7 +238,8 @@ export class Trader extends TraderBase {
     }
     if (eventName !== "rsp-user-login") return;
     // A matched login response updates the confirmed identity, but only from a
-    // row carrying the COMPLETE, usable identity (FrontID/SessionID > 0 plus
+    // row carrying the COMPLETE, usable identity (FrontID > 0, non-zero signed
+    // SessionID, plus
     // BrokerID/UserID) — the same acceptance condition the generated login
     // validator enforces before it resolves. A partial/abnormal success row
     // (e.g. FrontID 0) is rejected downstream, so caching broker/investor from
@@ -266,7 +267,7 @@ export class Trader extends TraderBase {
       Number.isInteger(r.frontId) &&
       Number(r.frontId) > 0 &&
       Number.isInteger(r.sessionId) &&
-      Number(r.sessionId) > 0
+      Number(r.sessionId) !== 0
     ) {
       this.broker = r.brokerId;
       this.investor = r.userId;
@@ -436,7 +437,7 @@ export class Trader extends TraderBase {
       RspUserLogin | undefined;
     this.assertRequestContext(contextToken, "trader session login");
     if (!login || !Number.isInteger(login.frontId) || login.frontId <= 0 ||
-        !Number.isInteger(login.sessionId) || login.sessionId <= 0 ||
+        !Number.isInteger(login.sessionId) || login.sessionId === 0 ||
         login.brokerId !== brokerId ||
         login.userId !== userId) {
       // FrontID/SessionID are part of the reservation identity. Treating an

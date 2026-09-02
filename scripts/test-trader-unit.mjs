@@ -73,6 +73,12 @@ ok(td.broker === undefined && td.investor === undefined,
 resolveSession("rsp-user-login", { brokerId: "7777", userId: "z", frontId: 1, sessionId: 0 });
 ok(td.broker === undefined && td.investor === undefined,
   "a login row with SessionID 0 does not cache a confirmed identity");
+resolveSession("rsp-user-login", {
+  brokerId: "7777", userId: "z", maxOrderRef: "6", frontId: 1, sessionId: -2147483647,
+});
+ok(td.broker === "7777" && td.investor === "z",
+  "a non-zero negative signed SessionID caches the confirmed identity");
+resolveSession("rsp-user-logout", undefined);
 resolveSession("rsp-user-login", { brokerId: "7777", userId: "z" });
 ok(td.broker === undefined && td.investor === undefined,
   "a login row without FrontID/SessionID at all does not cache a confirmed identity");
@@ -98,6 +104,40 @@ identityRevokingLogout.catch(() => {});
 ok(td.broker === undefined && td.investor === undefined,
   "a valid login/logout transition revokes confirmed identity immediately");
 resolveSession("rsp-user-login", { brokerId: "9999", userId: "u", maxOrderRef: "101", frontId: 1, sessionId: 7 });
+
+// The generated login validator must preserve CTP's signed 32-bit SessionID.
+// SimNow can return a negative non-zero value; only zero means no session.
+const signedLoginTrader = new Trader("./flow-tu-signed-login/", "tcp://127.0.0.1:1");
+const signedLoginNative = signedLoginTrader.native;
+let generatedSessionId = -2147483647;
+signedLoginTrader.native = new Proxy(signedLoginNative, {
+  get(target, prop) {
+    if (prop === "_req") return (_opcode, _encoded, requestId) => {
+      queueMicrotask(() => signedLoginTrader.deliver({
+        evt: 8192 + 6,
+        value: {
+          brokerId: "9999", userId: "signed", frontId: 1,
+          sessionId: generatedSessionId, maxOrderRef: "0",
+        },
+        options: { requestId, isLast: true },
+      }));
+      return 0;
+    };
+    const value = Reflect.get(target, prop, target);
+    return typeof value === "function" ? value.bind(target) : value;
+  },
+});
+const generatedNegativeLogin = await signedLoginTrader.reqUserLogin({
+  brokerId: "9999", userId: "signed", password: "p",
+});
+ok(generatedNegativeLogin.sessionId === -2147483647,
+  "generated reqUserLogin accepts and preserves a negative non-zero SessionID");
+generatedSessionId = 0;
+await rejects(signedLoginTrader.reqUserLogin({
+  brokerId: "9999", userId: "signed", password: "p",
+}), "generated reqUserLogin still rejects SessionID 0");
+signedLoginTrader.native = signedLoginNative;
+signedLoginTrader.close();
 
 // Generated queries snapshot their request before entering the paced queue; a
 // later accessor result or object mutation cannot change the wire payload.
@@ -444,6 +484,28 @@ td.trackMarketData(md);
     "trackMarketData wires the MD snapshot: near-reference order passes the deviation gate, a far one is blocked (would fail closed on 'reference' if unwired)");
   tdTrack.close(); mdTrack.close();
 }
+
+const signedSessionTrader = new Trader("./flow-tu-signed-session/", "tcp://127.0.0.1:1");
+signedSessionTrader.reqUserLogin = async () => {
+  const sessionId = -2147483647;
+  ok(signedSessionTrader.native._injectTestLogin(1, sessionId, "9999", "signed"),
+    "native login/account confirmation accepts a negative non-zero SessionID");
+  return {
+    brokerId: "9999", userId: "signed", maxOrderRef: "0", frontId: 1, sessionId,
+  };
+};
+const signedSession = await signedSessionTrader.session({
+  brokerId: "9999", userId: "signed", password: "p", confirmSettlement: false,
+  sync: { multipliers: false, positions: false, orders: false },
+});
+ok(signedSession.identity.sessionId === -2147483647,
+  "session() preserves the exact negative signed SessionID");
+signedSessionTrader.close();
+
+const zeroSessionTrader = new Trader("./flow-tu-zero-session/", "tcp://127.0.0.1:1");
+ok(!zeroSessionTrader.native._injectTestLogin(1, 0, "9999", "zero"),
+  "native login/account confirmation still rejects SessionID 0");
+zeroSessionTrader.close();
 
 // session() + sync* with the leaf req methods stubbed (no network).
 td.reqAuthenticate = async () => ({});

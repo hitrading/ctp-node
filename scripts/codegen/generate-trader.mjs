@@ -504,7 +504,7 @@ req.forEach((r, i) => {
       } else if (r.name !== "ReqUserLogout") {
         ts += `    return this.request((id) => this.native._req(${i + 1}, encoded, id), true, undefined, true).then((value) => {\n`;
         ts += `      const row = value as { brokerId?: unknown; userId?: unknown; frontId?: unknown; sessionId?: unknown } | undefined;\n`;
-        ts += `      if (!row || typeof row.brokerId !== "string" || !row.brokerId || typeof row.userId !== "string" || !row.userId || !Number.isInteger(row.frontId) || Number(row.frontId) <= 0 || !Number.isInteger(row.sessionId) || Number(row.sessionId) <= 0 || (typeof cleanReq.brokerId === "string" && cleanReq.brokerId && row.brokerId !== cleanReq.brokerId) || (typeof cleanReq.userId === "string" && cleanReq.userId && row.userId !== cleanReq.userId)) throw new Error("trader login response has missing or mismatched session identity");\n`;
+        ts += `      if (!row || typeof row.brokerId !== "string" || !row.brokerId || typeof row.userId !== "string" || !row.userId || !Number.isInteger(row.frontId) || Number(row.frontId) <= 0 || !Number.isInteger(row.sessionId) || Number(row.sessionId) === 0 || (typeof cleanReq.brokerId === "string" && cleanReq.brokerId && row.brokerId !== cleanReq.brokerId) || (typeof cleanReq.userId === "string" && cleanReq.userId && row.userId !== cleanReq.userId)) throw new Error("trader login response has missing or mismatched session identity");\n`;
         ts += `      return value;\n    });\n`;
       } else {
         ts += `    return this.request((id) => this.native._req(${i + 1}, encoded, id), true, undefined, true);\n`;

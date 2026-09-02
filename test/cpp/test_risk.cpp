@@ -1408,6 +1408,22 @@ int main() {
   }
   {
     RiskEngine r;
+    constexpr int signedSessionId = -2147483647;
+    r.beginSessionTransition(2999, true, "9999", "signed-user");
+    CHECK(!r.acceptLoginSession(2999, 1, 0, "9999", "signed-user"),
+          "SessionID zero is not a concrete login identity");
+    CHECK(r.acceptLoginSession(2999, 1, signedSessionId, "9999", "signed-user"),
+          "a negative non-zero signed SessionID is a valid CTP login identity");
+    CHECK(r.confirmSessionAccount(1, signedSessionId, "9999", "signed-user"),
+          "account confirmation preserves the exact negative SessionID");
+    CHECK(r.replacePositionsIfRevision(r.revision(), {}) &&
+              r.rebuildOpenReservationsIfRevision(r.revision(), {}) &&
+              r.tryReserveOpen("signed-session-ready", "rb", true, 3500, 1) ==
+                  OpenGate::Ok,
+          "a reconciled negative SessionID session receives normal order authority");
+  }
+  {
+    RiskEngine r;
     r.beginSessionTransition(3001, true);
     r.beginSessionTransition(3002, false); // supersedes the pending login
     CHECK(!r.acceptLoginSession(3001, 1, 7, "old", "old-user"),
