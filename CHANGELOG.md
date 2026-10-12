@@ -1,3 +1,10 @@
+# [4.1.0-rc.2](https://github.com/hitrading/ctp-node/compare/v4.1.0-rc.1...v4.1.0-rc.2) (2026-10-12)
+
+
+### Bug Fixes
+
+* **trader:** 以最终合约目录统一品种归属和费率失效范围 ([f4e7147](https://github.com/hitrading/ctp-node/commit/f4e714741f0cab91c52860c7ebc3d1d1dcef967d))
+
 # [4.1.0-rc.1](https://github.com/hitrading/ctp-node/compare/v4.0.1...v4.1.0-rc.1) (2026-10-12)
 
 
