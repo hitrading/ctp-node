@@ -221,9 +221,9 @@ void TraderSpi::OnRspQryProduct(CThostFtdcProductField *p, CThostFtdcRspInfoFiel
 
 void TraderSpi::OnRspQryInstrument(CThostFtdcInstrumentField *p, CThostFtdcRspInfoField *e, int id, bool last) {
   if (p && risk_ && eid(e) == 0) {
-    std::string instrument;
-    if (boundedField(p->InstrumentID, instrument))
-      risk_->setInstrument(instrument, p->VolumeMultiple, p->ProductClass);
+    std::string instrument, product;
+    if (boundedField(p->InstrumentID, instrument) && boundedField(p->ProductID, product))
+      risk_->setInstrument(instrument, p->VolumeMultiple, p->ProductClass, product);
     else
       risk_->invalidateInstrument("");
   }

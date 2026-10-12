@@ -547,6 +547,8 @@ console.log(n, "个合约带有乘数");
 
 ### `td.syncMarginRates(instrumentIds, hedgeFlag?)` → `Promise<number>`
 
+投资者保证金按当次完整合约目录中的 ProductID 分组查询，柜台品种设置由具体合约设置覆盖。特殊合约即使返回非法值也不能继承品种设置。C++ 在完整成功回报后原子展开到合约风控；相对保证金仍逐合约查询交易所基础值。`readMarginRates(instrumentIds, hedgeFlag)` 只读取本会话完整同步成功的合约费率副本；失败、缺项、重连或同品种重查使旧结果失效，不回退旧费率。
+
 为有限交易合约集查询投资者表（套保标志默认 `"1"`，投机）；仅当返回 `IsRelative` 时才追加
 交易所基础表查询，共享调度器会自动间隔发送。相对投资者表会与交易所基础表逐字段相加；任一缺失
 仍 fail-closed。

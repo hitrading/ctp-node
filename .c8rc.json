@@ -8,7 +8,8 @@
     "dist/trader.js",
     "dist/market-data.js",
     "dist/native-binding.js",
-    "dist/validation.js"
+    "dist/validation.js",
+    "dist/product-rates.js"
   ],
   "exclude": ["dist/generated/**", "dist/index.cjs", "**/*.d.ts"],
   "check-coverage": true,

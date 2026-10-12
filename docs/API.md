@@ -606,6 +606,8 @@ console.log(n, "contracts with a multiplier");
 
 ### `td.syncMarginRates(instrumentIds, hedgeFlag?)` → `Promise<number>`
 
+Investor margin queries are grouped by the ProductID in a fresh complete CTP catalog. Contract overrides take precedence even when invalid. C++ expands the complete successful response atomically into contract risk schedules. Relative schedules still require per-contract exchange bases. `readMarginRates(instrumentIds, hedgeFlag)` returns copies of completed synchronization results from the current session only; incomplete queries, reconnects and product refreshes invalidate old snapshots.
+
 Query investor long/short by-money/by-volume schedules for a bounded contract
 universe (default hedge flag `"1"`, speculation). A second exchange-base query
 is issued only for a relative row; the shared scheduler spaces every query.

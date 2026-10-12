@@ -175,7 +175,7 @@ public:
   // futures notional formula would misrepresent, say, an option premium. The
   // multiplier is still recorded for every class.
   void setInstrument(const std::string &instrumentId, double multiplier,
-                     char productClass);
+                     char productClass, const std::string &productId);
   // Called immediately before the corresponding CTP metadata query is sent.
   // Old values must not remain usable while a refresh is in flight or when the
   // refresh comes back empty/invalid.
@@ -496,6 +496,7 @@ private:
   // so held-position replacement/reset does not wipe them.
   std::unordered_map<std::string, double> multipliers_;
   std::unordered_map<std::string, bool> futuresMarginFormula_;
+  std::unordered_map<std::string, std::string> instrumentProducts_;
   // Per-instrument margin rates (fraction of notional), same lifetime as
   // multipliers_ (static metadata; survives resetPositions). Missing schedules
   // fail closed whenever a monetary cap needs them.
@@ -513,6 +514,8 @@ private:
   std::string activeMarginQueryInstrument_;
   char activeMarginQueryHedgeFlag_ = '\0';
   std::unordered_map<std::string, MarginSchedule> stagedMarginRates_;
+  std::unordered_set<std::string> activeMarginQueryMembers_;
+  std::unordered_set<std::string> invalidStagedMarginKeys_;
   // Per-instrument, per-side lot caps (config metadata; like multipliers,
   // survives resets). 0 on a side = that side is uncapped.
   struct VolCap {

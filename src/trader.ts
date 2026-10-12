@@ -7,10 +7,12 @@
  */
 
 import { native } from "./native-binding.js";
+import { groupCtpInstrumentsByProduct, selectCtpProductRate } from "./product-rates.js";
+import type { CtpResolvedMarginRate } from "./product-rates.js";
 import { TraderBase, TRADER_EVENTS, TraderEvent } from "./generated/trader.gen.js";
 import { STRUCT_ID } from "./generated/structs.gen.js";
 import type { CallbackOptions } from "./client.js";
-import type { Order, Trade, InputOrder, RspUserLogin } from "./generated/structs.gen.js";
+import type { Order, Trade, InputOrder, RspUserLogin, Instrument } from "./generated/structs.gen.js";
 import type { MarketData } from "./market-data.js";
 import {
   assertPlainRecord,
@@ -203,6 +205,8 @@ const POSITION_SEED_KEYS = new Set([
 ]);
 
 export class Trader extends TraderBase {
+  private readonly resolvedMarginRates = new Map<string, CtpResolvedMarginRate>();
+  private resolvedMarginContext = 0;
   private broker?: string;
   private investor?: string;
   private orderRefSeq = 0;
@@ -214,6 +218,7 @@ export class Trader extends TraderBase {
       TRADER_EVENTS
     );
     const clearConfirmedIdentity = () => {
+      this.resolvedMarginRates.clear();
       this.broker = undefined;
       this.investor = undefined;
     };
@@ -286,6 +291,7 @@ export class Trader extends TraderBase {
    * transition boundary, so a concurrent sync helper cannot start with the old
    * identity while native risk state is already fail-closed for the new session. */
   protected override beginRequestContextTransition(reason: string): void {
+    this.resolvedMarginRates.clear();
     this.broker = undefined;
     this.investor = undefined;
     super.beginRequestContextTransition(reason);
@@ -1040,8 +1046,16 @@ export class Trader extends TraderBase {
     if (!brokerId || !investorId) {
       throw new Error("syncMarginRates requires a successful trader login first");
     }
+    for (const id of instrumentIds) this.resolvedMarginRates.delete(`${id}|${hedgeFlag}`);
+    const completed: CtpResolvedMarginRate[] = [];
+    // A fresh catalog supplies authoritative ProductID membership to JS and C++.
+    // It is one request, independent of the number of traded months.
+    const catalog = await this.queryWithRetry(() => this.reqQryInstrument({}), true, contextToken) as Instrument[];
+    const groups = groupCtpInstrumentsByProduct(instrumentIds, catalog);
     let count = 0;
-    for (const instrumentId of new Set(instrumentIds)) {
+    for (const [productId, members] of groups) {
+      for (const contract of catalog)
+        if (contract.productId === productId) this.resolvedMarginRates.delete(`${contract.instrumentId}|${hedgeFlag}`);
       type InvestorMarginRow = {
         instrumentId: string;
         hedgeFlag: string;
@@ -1055,15 +1069,18 @@ export class Trader extends TraderBase {
         ((await this.reqQryInstrumentMarginRate({
           brokerId,
           investorId,
-          instrumentId,
+          instrumentId: productId,
           hedgeFlag,
         })) as InvestorMarginRow[]).filter(
-          (row) => row.instrumentId === instrumentId && row.hedgeFlag === hedgeFlag
+          (row) => row.hedgeFlag === hedgeFlag && (row.instrumentId === productId ||
+            catalog.some(contract => contract.instrumentId === row.instrumentId && contract.productId === productId))
         ), true, contextToken);
       // The native map is keyed by instrument+hedge and processes callbacks in
       // order, so its final state is the final row, not "any usable row".
-      const investor = investorRows.at(-1)!;
-      const relative = investor.isRelative !== 0;
+      const rates = new Map(investorRows.map(row => [row.instrumentId, row]));
+      for (const instrumentId of members) {
+      const investor = selectCtpProductRate(rates, instrumentId, productId);
+      const relative = investor.isRelative === 1;
       type ExchangeMarginRow = {
         instrumentId: string;
         hedgeFlag: string;
@@ -1102,11 +1119,33 @@ export class Trader extends TraderBase {
         component(investor.longMarginRatioByVolume) &&
         component(investor.shortMarginRatioByMoney) &&
         component(investor.shortMarginRatioByVolume);
-      if (investorComponentsValid &&
-          (relative ? scheduleUsable(base) : scheduleUsable(investor)))
-        count++;
+      if ((investor.isRelative === 0 || investor.isRelative === 1) && investorComponentsValid &&
+          (relative ? scheduleUsable(base) : scheduleUsable(investor))) {
+        const value: CtpResolvedMarginRate = { instrumentId, hedgeFlag,
+          longMarginRatioByMoney: investor.longMarginRatioByMoney + (base?.longMarginRatioByMoney ?? 0),
+          longMarginRatioByVolume: investor.longMarginRatioByVolume + (base?.longMarginRatioByVolume ?? 0),
+          shortMarginRatioByMoney: investor.shortMarginRatioByMoney + (base?.shortMarginRatioByMoney ?? 0),
+          shortMarginRatioByVolume: investor.shortMarginRatioByVolume + (base?.shortMarginRatioByVolume ?? 0) };
+        if (scheduleUsable(value)) { completed.push(value); count++; }
+      }
+      }
+    }
+    if (count === new Set(instrumentIds).size) {
+      this.resolvedMarginContext = contextToken;
+      for (const rate of completed) this.resolvedMarginRates.set(`${rate.instrumentId}|${hedgeFlag}`, rate);
     }
     return count;
+  }
+
+  /** Only completed synchronization results from the current authenticated
+   * session; failed/incomplete refreshes never expose previous schedules. */
+  readMarginRates(instrumentIds: readonly string[], hedgeFlag: CtpResolvedMarginRate['hedgeFlag']): CtpResolvedMarginRate[] {
+    this.assertRequestContext(this.resolvedMarginContext, 'margin snapshot');
+    return instrumentIds.map(instrumentId => {
+      const rate = this.resolvedMarginRates.get(`${instrumentId}|${hedgeFlag}`);
+      if (!rate) throw new Error(`CTP synchronized margin rate is missing: ${instrumentId}/${hedgeFlag}`);
+      return { ...rate };
+    });
   }
 
   /** Replace held position margin from CTP (`reqQryInvestorPosition`). The

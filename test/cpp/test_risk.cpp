@@ -43,7 +43,7 @@ static void setReference(RiskEngine &r, const std::string &instrument,
 
 static void setFuture(RiskEngine &r, const std::string &instrument,
                       double multiplier) {
-  r.setInstrument(instrument, multiplier, '1');
+  r.setInstrument(instrument, multiplier, '1', "");
 }
 
 static void setSimpleMargin(RiskEngine &r, const std::string &instrument,
@@ -123,7 +123,7 @@ int main() {
     CHECK(!r.check("rb", 3500, 3500, 1).ok,
           "a metadata refresh invalidates stale multiplier data before query results arrive");
     setFuture(r, "rb", 10);
-    r.setInstrument("rb", DMAX, '1');
+    r.setInstrument("rb", DMAX, '1', "rb");
     CHECK(!r.check("rb", 3500, 3500, 1).ok,
           "an invalid multiplier response clears the old value instead of retaining it");
   }
@@ -1707,7 +1707,7 @@ int main() {
     RiskLimits c;
     c.maxAccountMargin = 100000;
     r.configure(c);
-    r.setInstrument("m2409-C-2500", 10, '2'); // option
+    r.setInstrument("m2409-C-2500", 10, '2', "m"); // option
     setSimpleMargin(r, "m2409-C-2500", 0.1);
     CHECK(r.tryReserveOpen("1", "m2409-C-2500", true, 100, 1) ==
               OpenGate::MetadataUnavailable,
@@ -1719,7 +1719,7 @@ int main() {
     RiskLimits c;
     c.maxNotional = 100000;
     r.configure(c);
-    r.setInstrument("m2409-C-2500", 10, '2'); // option premium is not futures notional
+    r.setInstrument("m2409-C-2500", 10, '2', "m"); // option premium is not futures notional
     CHECK(!r.check("m2409-C-2500", 100, 100, 1, true).ok,
           "non-futures products cannot masquerade premium as futures notional");
   }

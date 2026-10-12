@@ -237,7 +237,7 @@ double RiskEngine::refPrice(const std::string &instrumentId) const {
 }
 
 void RiskEngine::setInstrument(const std::string &instrumentId, double mult,
-                               char productClass) {
+                               char productClass, const std::string &productId) {
   if (instrumentId.empty())
     return;
   // Metadata changes can increase the computed exposure of a just-reserved
@@ -248,12 +248,15 @@ void RiskEngine::setInstrument(const std::string &instrumentId, double mult,
   if (!sanePositive(mult)) {
     multipliers_.erase(instrumentId);
     futuresMarginFormula_.erase(instrumentId);
+    instrumentProducts_.erase(instrumentId);
     invalidateHeldCostsLocked(instrumentId);
     refreshReservationCostsLocked(instrumentId);
     revision_.fetch_add(1, std::memory_order_release);
     return;
   }
   multipliers_[instrumentId] = mult;
+  if (productId.empty()) instrumentProducts_.erase(instrumentId);
+  else instrumentProducts_[instrumentId] = productId;
   // Futures and TAS use the futures margin schedule represented here. Options,
   // combinations and spot products require product-specific fields/formulas.
   futuresMarginFormula_[instrumentId] =
@@ -269,11 +272,13 @@ void RiskEngine::invalidateInstrument(const std::string &instrumentId) {
   if (instrumentId.empty()) {
     multipliers_.clear();
     futuresMarginFormula_.clear();
+    instrumentProducts_.clear();
     invalidateHeldCostsLocked("");
     refreshAllReservationCostsLocked();
   } else {
     multipliers_.erase(instrumentId);
     futuresMarginFormula_.erase(instrumentId);
+    instrumentProducts_.erase(instrumentId);
     invalidateHeldCostsLocked(instrumentId);
     refreshReservationCostsLocked(instrumentId);
   }
@@ -396,6 +401,12 @@ void RiskEngine::beginMarginScheduleQuery(
   activeMarginQueryInstrument_ = instrumentId;
   activeMarginQueryHedgeFlag_ = hedgeFlag;
   stagedMarginRates_.clear();
+  activeMarginQueryMembers_.clear();
+  invalidStagedMarginKeys_.clear();
+  if (!instrumentId.empty() && !multipliers_.count(instrumentId)) {
+    for (const auto &entry : instrumentProducts_)
+      if (entry.second == instrumentId) activeMarginQueryMembers_.insert(entry.first);
+  }
   const bool brokerMatches = brokerId.empty() ||
                              (!myBrokerId_.empty() && brokerId == myBrokerId_);
   const bool investorMatches = exchange || investorId.empty() ||
@@ -412,13 +423,11 @@ void RiskEngine::beginMarginScheduleQuery(
       rates.clear();
       return;
     }
-    if (hedgeFlag != '\0') {
-      rates.erase(marginKey(instrumentId, hedgeFlag));
-      return;
-    }
-    const std::string prefix = instrumentId + "|";
     for (auto it = rates.begin(); it != rates.end();) {
-      if (it->first.rfind(prefix, 0) == 0)
+      const auto split = it->first.rfind('|');
+      const auto id = it->first.substr(0, split);
+      if ((id == instrumentId || activeMarginQueryMembers_.count(id)) &&
+          (hedgeFlag == '\0' || it->first == marginKey(id, hedgeFlag)))
         it = rates.erase(it);
       else
         ++it;
@@ -444,6 +453,10 @@ void RiskEngine::beginMarginScheduleQuery(
     }
     invalidateHeldCostsLocked(instrumentId);
     refreshReservationCostsLocked(instrumentId);
+    for (const auto &member : activeMarginQueryMembers_) {
+      invalidateHeldCostsLocked(member);
+      refreshReservationCostsLocked(member);
+    }
   }
   revision_.fetch_add(1, std::memory_order_release);
 }
@@ -462,7 +475,8 @@ void RiskEngine::applyInvestorMarginSchedule(
       accountScopeLocked(brokerId, investorId) != AccountScope::Current ||
       !investUnitId.empty() ||
       (!activeMarginQueryInstrument_.empty() &&
-       instrumentId != activeMarginQueryInstrument_) ||
+       instrumentId != activeMarginQueryInstrument_ &&
+       !activeMarginQueryMembers_.count(instrumentId)) ||
       (activeMarginQueryHedgeFlag_ != '\0' &&
        hedgeFlag != activeMarginQueryHedgeFlag_))
     return;
@@ -476,11 +490,14 @@ void RiskEngine::applyInvestorMarginSchedule(
                        ((longByMoney > 0.0 || longByVolume > 0.0) &&
                         (shortByMoney > 0.0 || shortByVolume > 0.0)));
   const std::string key = marginKey(instrumentId, hedgeFlag);
-  if (usable)
+  if (usable) {
+    invalidStagedMarginKeys_.erase(key);
     stagedMarginRates_[key] = MarginSchedule{
         longByMoney, longByVolume, shortByMoney, shortByVolume, isRelative};
-  else
+  } else {
+    invalidStagedMarginKeys_.insert(key);
     stagedMarginRates_.erase(key);
+  }
 }
 
 void RiskEngine::applyExchangeMarginSchedule(
@@ -494,7 +511,8 @@ void RiskEngine::applyExchangeMarginSchedule(
       !activeMarginQueryAuthorized_ || !sessionIdentityKnown_ ||
       myBrokerId_.empty() || brokerId != myBrokerId_ ||
       (!activeMarginQueryInstrument_.empty() &&
-       instrumentId != activeMarginQueryInstrument_) ||
+       instrumentId != activeMarginQueryInstrument_ &&
+       !activeMarginQueryMembers_.count(instrumentId)) ||
       (activeMarginQueryHedgeFlag_ != '\0' &&
        hedgeFlag != activeMarginQueryHedgeFlag_))
     return;
@@ -507,11 +525,14 @@ void RiskEngine::applyExchangeMarginSchedule(
                       (longByMoney > 0.0 || longByVolume > 0.0) &&
                       (shortByMoney > 0.0 || shortByVolume > 0.0);
   const std::string key = marginKey(instrumentId, hedgeFlag);
-  if (usable)
+  if (usable) {
+    invalidStagedMarginKeys_.erase(key);
     stagedMarginRates_[key] = MarginSchedule{
         longByMoney, longByVolume, shortByMoney, shortByVolume, false};
-  else
+  } else {
+    invalidStagedMarginKeys_.insert(key);
     stagedMarginRates_.erase(key);
+  }
 }
 
 void RiskEngine::finishMarginScheduleQuery(int requestId, bool success) {
@@ -525,6 +546,20 @@ void RiskEngine::finishMarginScheduleQuery(int requestId, bool success) {
                        : marginRates_;
     for (const auto &entry : stagedMarginRates_)
       target[entry.first] = entry.second;
+    // Expand only after the complete, successful response. A malformed explicit
+    // contract override must never inherit the product schedule.
+    for (const auto &member : activeMarginQueryMembers_) {
+      for (const char hedge : {'1', '2', '3', '5', '6', '7'}) {
+        const auto key = marginKey(member, hedge);
+        if (invalidStagedMarginKeys_.count(key)) continue;
+        auto row = stagedMarginRates_.find(key);
+        if (row == stagedMarginRates_.end())
+          row = stagedMarginRates_.find(marginKey(activeMarginQueryInstrument_, hedge));
+        if (row != stagedMarginRates_.end()) target[key] = row->second;
+      }
+      invalidateHeldCostsLocked(member);
+      refreshReservationCostsLocked(member);
+    }
     invalidateHeldCostsLocked(activeMarginQueryInstrument_);
     if (activeMarginQueryInstrument_.empty())
       refreshAllReservationCostsLocked();
@@ -538,6 +573,8 @@ void RiskEngine::finishMarginScheduleQuery(int requestId, bool success) {
   activeMarginQueryInstrument_.clear();
   activeMarginQueryHedgeFlag_ = '\0';
   stagedMarginRates_.clear();
+  activeMarginQueryMembers_.clear();
+  invalidStagedMarginKeys_.clear();
 }
 
 bool RiskEngine::setInstrumentPositionLimits(
@@ -1221,6 +1258,8 @@ RiskEngine::AccountScope RiskEngine::accountScopeLocked(
 }
 
 void RiskEngine::clearAccountMarginMetadataLocked() {
+  activeMarginQueryMembers_.clear();
+  invalidStagedMarginKeys_.clear();
   marginRates_.clear();
   exchangeMarginRates_.clear();
   activeMarginQueryRequestId_ = 0;

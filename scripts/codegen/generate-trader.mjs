@@ -234,7 +234,7 @@ for (const s of spi) {
   } else if (s.name === "OnRspQryInstrument") {
     // feed the contract multiplier straight into the risk engine (no JS round-
     // trip) - idempotent metadata, same pattern as the margin rate above.
-    c += `  if (p && risk_ && eid(e) == 0) {\n    std::string instrument;\n    if (boundedField(p->InstrumentID, instrument))\n      risk_->setInstrument(instrument, p->VolumeMultiple, p->ProductClass);\n    else\n      risk_->invalidateInstrument("");\n  }\n`;
+    c += `  if (p && risk_ && eid(e) == 0) {\n    std::string instrument, product;\n    if (boundedField(p->InstrumentID, instrument) && boundedField(p->ProductID, product))\n      risk_->setInstrument(instrument, p->VolumeMultiple, p->ProductClass, product);\n    else\n      risk_->invalidateInstrument("");\n  }\n`;
   }
   c += `  ch_->push(ET_${member(s.name)}, ${reqId}, ${isLast}, ${errId}, ${errMsg}, ${sid}, ${ptr}, ${len});\n`;
   c += `}\n\n`;

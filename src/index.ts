@@ -17,6 +17,8 @@ export type {
   ArmHandle,
 } from "./trader.js";
 export { CtpClient } from "./client.js";
+export { groupCtpInstrumentsByProduct, selectCtpProductRate } from "./product-rates.js";
+export type { CtpProductInstrument, CtpResolvedMarginRate } from "./product-rates.js";
 export type { CallbackOptions, RspInfo } from "./client.js";
 
 // Generated CTP enums (values) and struct interfaces (types).

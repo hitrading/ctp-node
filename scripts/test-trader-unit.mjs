@@ -519,7 +519,7 @@ td.reqUserLogin = async () => {
   return { brokerId: "9999", userId: "u", maxOrderRef: "100", frontId: 1, sessionId: 7 };
 };
 td.reqSettlementInfoConfirm = async () => ({});
-td.reqQryInstrument = async () => [{ instrumentId: "rb2510", volumeMultiple: 10 }, { instrumentId: "x", volumeMultiple: 0 }];
+td.reqQryInstrument = async () => [{ instrumentId: "rb2510", productId: "rb", volumeMultiple: 10 }, { instrumentId: "x", volumeMultiple: 0 }];
 let exchangeMarginQueries = 0;
 td.reqQryExchangeMarginRate = async (request) => { exchangeMarginQueries++; return [{
   instrumentId: "rb2510", hedgeFlag: request.hedgeFlag,
@@ -729,6 +729,26 @@ td.reqQryOrder = validOrderQuery;
 // deliberately keeps positions uncertain until the final position snapshot.
 await td.syncOrders();
 await td.syncPositions();
+{
+  const oldCatalog = td.reqQryInstrument, oldMargins = td.reqQryInstrumentMarginRate;
+  const requests = [];
+  td.reqQryInstrument = async () => [{ instrumentId: 'rb2510', productId: 'rb', volumeMultiple: 10 },
+    { instrumentId: 'rb2601', productId: 'rb', volumeMultiple: 10 }, { instrumentId: 'hc2610', productId: 'hc', volumeMultiple: 10 }];
+  const rate = (instrumentId, isRelative = 0) => ({ instrumentId, hedgeFlag: '1', isRelative,
+    longMarginRatioByMoney: .1, longMarginRatioByVolume: 0, shortMarginRatioByMoney: .1, shortMarginRatioByVolume: 0 });
+  td.reqQryInstrumentMarginRate = async q => { requests.push(q.instrumentId); return [rate('rb2601'), rate('rb'), rate('hc2610'), { ...rate('rb'), hedgeFlag: '2' }]; };
+  ok(await td.syncMarginRates(['rb2510', 'rb2601']) === 2 && requests.join() === 'rb', 'one product query covers multiple months and filters unrelated rows');
+  const snapshot = td.readMarginRates(['rb2510', 'rb2601'], '1');
+  ok(snapshot.length === 2 && snapshot[0].longMarginRatioByMoney === .1, 'completed product rates expose per-contract snapshots');
+  snapshot[0].longMarginRatioByMoney = 9;
+  ok(td.readMarginRates(['rb2510'], '1')[0].longMarginRatioByMoney === .1, 'snapshot caller cannot mutate stored rates');
+  td.reqQryInstrumentMarginRate = async () => [rate('rb'), rate('rb2601', 2)];
+  ok(await td.syncMarginRates(['rb2510', 'rb2601']) === 1, 'invalid relative flag cannot inherit product schedule');
+  throws(() => td.readMarginRates(['rb2510'], '1'), 'incomplete refresh exposes neither stale nor partial product rates');
+  td.reqQryInstrumentMarginRate = async () => [rate('rb2601')];
+  await rejects(td.syncMarginRates(['rb2510']), 'missing product and contract rows fail closed');
+  td.reqQryInstrument = oldCatalog; td.reqQryInstrumentMarginRate = oldMargins;
+}
 ok((await td.syncMarginRates(["rb2510"])) === 1,
   "syncMarginRates counts usable investor/base schedules");
 ok(exchangeMarginQueries === 0,
@@ -741,6 +761,7 @@ td.reqQryInstrumentMarginRate = async () => [{
 }];
 ok((await td.syncMarginRates(["rb2510"])) === 1,
   "syncMarginRates accepts a relative schedule when its exchange base is loaded");
+ok(td.readMarginRates(['rb2510'], '1')[0].longMarginRatioByMoney === .08, 'relative snapshot includes exchange base');
 ok(exchangeMarginQueries === 1,
   "syncMarginRates queries the exchange base exactly once for a relative row");
 td.reqQryInstrumentMarginRate = async () => [{
@@ -866,12 +887,12 @@ td.resume();
 let scopedMultiplierCalls = 0;
 td.reqQryInstrument = async () => ++scopedMultiplierCalls === 1
   ? [{ instrumentId: "other", volumeMultiple: 99 }]
-  : [{ instrumentId: "rb2510", volumeMultiple: 10 }];
+  : [{ instrumentId: "rb2510", productId: "rb", volumeMultiple: 10 }];
 ok((await td.syncMultipliers(["rb2510"])) === 1 && scopedMultiplierCalls === 2,
   "scoped multiplier sync retries non-target rows instead of accepting them");
 td.reqQryInstrument = async () => [
-  { instrumentId: "rb2510", volumeMultiple: 10 },
-  { instrumentId: "rb2510", volumeMultiple: Number.MAX_VALUE },
+  { instrumentId: "rb2510", productId: "rb", volumeMultiple: 10 },
+  { instrumentId: "rb2510", productId: "rb", volumeMultiple: Number.MAX_VALUE },
 ];
 ok((await td.syncMultipliers(["rb2510"])) === 0,
   "syncMultipliers reports the final native multiplier state for duplicate rows");
@@ -885,7 +906,7 @@ ok(threw, "syncMultipliers throws after retries when the query keeps failing");
 let transientCalls = 0;
 td.reqQryInstrument = async () => {
   if (++transientCalls === 1) throw Object.assign(new Error("flow limited"), { ctpReturnCode: -3 });
-  return [{ instrumentId: "rb2510", volumeMultiple: 10 }];
+  return [{ instrumentId: "rb2510", productId: "rb", volumeMultiple: 10 }];
 };
 ok((await td.syncMultipliers(["rb2510"])) === 1 && transientCalls === 2,
   "sync helpers retry only typed transient CTP flow-control failures");
