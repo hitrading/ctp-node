@@ -1,3 +1,10 @@
+# [4.1.0-rc.1](https://github.com/hitrading/ctp-node/compare/v4.0.1...v4.1.0-rc.1) (2026-10-12)
+
+
+### Features
+
+* **trader:** 按品种批量同步保证金并原子应用合约覆盖 ([c52819b](https://github.com/hitrading/ctp-node/commit/c52819b932153859c71168377ca6f8d3bc6d6963))
+
 ## [4.0.1](https://github.com/hitrading/ctp-node/compare/v4.0.0...v4.0.1) (2026-09-02)
 
 
