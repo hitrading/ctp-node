@@ -1051,11 +1051,12 @@ export class Trader extends TraderBase {
     // A fresh catalog supplies authoritative ProductID membership to JS and C++.
     // It is one request, independent of the number of traded months.
     const catalog = await this.queryWithRetry(() => this.reqQryInstrument({}), true, contextToken) as Instrument[];
+    const productByInstrument = new Map(catalog.map(row => [row.instrumentId, row.productId]));
     const groups = groupCtpInstrumentsByProduct(instrumentIds, catalog);
     let count = 0;
     for (const [productId, members] of groups) {
-      for (const contract of catalog)
-        if (contract.productId === productId) this.resolvedMarginRates.delete(`${contract.instrumentId}|${hedgeFlag}`);
+      for (const [contractId, currentProduct] of productByInstrument)
+        if (currentProduct === productId) this.resolvedMarginRates.delete(`${contractId}|${hedgeFlag}`);
       type InvestorMarginRow = {
         instrumentId: string;
         hedgeFlag: string;
@@ -1073,7 +1074,7 @@ export class Trader extends TraderBase {
           hedgeFlag,
         })) as InvestorMarginRow[]).filter(
           (row) => row.hedgeFlag === hedgeFlag && (row.instrumentId === productId ||
-            catalog.some(contract => contract.instrumentId === row.instrumentId && contract.productId === productId))
+            productByInstrument.get(row.instrumentId) === productId)
         ), true, contextToken);
       // The native map is keyed by instrument+hedge and processes callbacks in
       // order, so its final state is the final row, not "any usable row".

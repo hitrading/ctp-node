@@ -747,6 +747,13 @@ await td.syncPositions();
   throws(() => td.readMarginRates(['rb2510'], '1'), 'incomplete refresh exposes neither stale nor partial product rates');
   td.reqQryInstrumentMarginRate = async () => [rate('rb2601')];
   await rejects(td.syncMarginRates(['rb2510']), 'missing product and contract rows fail closed');
+  td.reqQryInstrumentMarginRate = async q => [rate(q.instrumentId)];
+  await td.syncMarginRates(['hc2610']);
+  td.reqQryInstrument = async () => [{ instrumentId: 'hc2610', productId: 'rb', volumeMultiple: 10 },
+    { instrumentId: 'hc2610', productId: 'hc', volumeMultiple: 10 }, { instrumentId: 'rb2510', productId: 'rb', volumeMultiple: 10 }];
+  await td.syncMarginRates(['rb2510']);
+  ok(td.readMarginRates(['hc2610'], '1')[0].longMarginRatioByMoney === .1,
+    'final catalog membership matches native metadata and preserves unrelated product snapshots');
   td.reqQryInstrument = oldCatalog; td.reqQryInstrumentMarginRate = oldMargins;
 }
 ok((await td.syncMarginRates(["rb2510"])) === 1,
