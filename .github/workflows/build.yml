@@ -36,6 +36,31 @@ jobs:
             ubuntu-latest) cp ctpsdk/linux/*.so "$dir" ;;
           esac
           ls -la "$dir"
+      - name: verify the Linux prebuild is relocatable (bare NEEDED names, RUNPATH=$ORIGIN only)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          addon=$(ls prebuilds/linux-x64/*.node)
+          dyn=$(readelf -d "$addon")
+          grep -E 'NEEDED|RPATH|RUNPATH' <<<"$dyn"
+          if grep -E '\(NEEDED\).*\[[^]]*/' <<<"$dyn"; then
+            echo "::error::DT_NEEDED contains a path; the prebuild would only load on the build host"; exit 1
+          fi
+          runpath=$(sed -n 's/.*(\(RPATH\|RUNPATH\)).*\[\(.*\)\]/\2/p' <<<"$dyn")
+          if [ "$runpath" != '$ORIGIN' ]; then
+            echo "::error::expected RUNPATH \$ORIGIN only, got: $runpath"; exit 1
+          fi
+          # Load from a different directory so only $ORIGIN can resolve the CTP .so files.
+          tmp=$(mktemp -d)
+          cp -r prebuilds/linux-x64 "$tmp/"
+          moved="$tmp/linux-x64/$(basename "$addon")"
+          deps=$(ldd "$moved")
+          echo "$deps"
+          if grep 'not found' <<<"$deps"; then
+            echo "::error::relocated prebuild has unresolved dependencies"; exit 1
+          fi
+          node -e 'require(process.argv[1])' "$moved"
       - uses: actions/upload-artifact@v4
         with:
           name: prebuilds-${{ matrix.os }}
