@@ -1,3 +1,10 @@
+## [4.1.3-rc.2](https://github.com/hitrading/ctp-node/compare/v4.1.3-rc.1...v4.1.3-rc.2) (2026-11-13)
+
+
+### Bug Fixes
+
+* **macos:** 换上 CTP v6.7.13 MacOS framework，恢复 macOS 构建 ([c1a1950](https://github.com/hitrading/ctp-node/commit/c1a1950c0bd6d57fee99fa64b84c5ca41e0b0f15))
+
 ## [4.1.3-rc.1](https://github.com/hitrading/ctp-node/compare/v4.1.2...v4.1.3-rc.1) (2026-11-13)
 
 
