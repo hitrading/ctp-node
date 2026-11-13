@@ -12,7 +12,9 @@ On every push to `master` (stable) or `next` (`rc` prerelease), the CI
 [`build & prebuild`](.github/workflows/build.yml) workflow:
 
 1. builds + tests + prebuilds on Windows / Linux, plus a decoupled best-effort
-   macOS build;
+   macOS build (currently disabled: the bundled CTP macOS frameworks are 6.7.7
+   while the headers and Windows/Linux libraries are 6.7.13, see the
+   `build-macos` comment in the workflow);
 2. runs `semantic-release`, which reads the commits since the last release and:
    - **decides the next version** from the commit types (see below),
    - updates [`CHANGELOG.md`](CHANGELOG.md) and the `package.json` version,

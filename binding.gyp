@@ -69,6 +69,15 @@
           ]
         }],
         ["OS=='mac'", {
+          # The vendored frameworks must be the same CTP version as ctpsdk/*.h and
+          # the Windows/Linux libraries: a mismatched build still links (node-gyp
+          # uses -undefined dynamic_lookup on macOS) but segfaults at runtime. The
+          # check prints nothing when the versions match and otherwise fails
+          # configure with an explanation. gyp expands only the condition branch
+          # that applies, so it never runs on Windows/Linux.
+          "variables": {
+            "ctp_macos_sdk_check": "<!(node scripts/check-macos-sdk.cjs)"
+          },
           "include_dirs": [
             "<(module_root_dir)/ctpsdk/macos/thostmduserapi_se.framework/Versions/A/Headers",
             "<(module_root_dir)/ctpsdk/macos/thosttraderapi_se.framework/Versions/A/Headers"

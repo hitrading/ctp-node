@@ -130,6 +130,9 @@ jobs:
   # test-md.mjs SIGSEGV (exit 139). A prebuild from it would be broken, so the
   # job is off instead of failing on every run. Re-enable by deleting the `if:`
   # once ctpsdk/macos holds a 6.7.13 Mac build; attach-macos needs no change.
+  # binding.gyp now runs scripts/check-macos-sdk.cjs on macOS, which stops
+  # configure while the framework and ctpsdk/linux versions differ, so with the
+  # `if:` removed too early this job fails at `npm run build`, not in npm test.
   build-macos:
     if: false
     runs-on: macos-latest
