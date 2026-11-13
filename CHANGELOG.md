@@ -1,3 +1,10 @@
+## [4.1.1-rc.2](https://github.com/hitrading/ctp-node/compare/v4.1.1-rc.1...v4.1.1-rc.2) (2026-11-13)
+
+
+### Bug Fixes
+
+* **build:** Linux 预编译件附带未经改动的 CTP 官方动态库 ([3b333c3](https://github.com/hitrading/ctp-node/commit/3b333c339b1799b495f6cf7cd9a5ef711a0b4f21))
+
 ## [4.1.1-rc.1](https://github.com/hitrading/ctp-node/compare/v4.1.0...v4.1.1-rc.1) (2026-11-13)
 
 
