@@ -78,6 +78,35 @@ jobs:
           name: prebuilds-${{ matrix.os }}
           path: prebuilds/
 
+  # Newest Ubuntu, test-only (ships nothing) and release-gating: the vendor CTP
+  # libraries and the shipped ubuntu-24.04 prebuild must also work on Ubuntu
+  # 26.04. Added after the vendor Release() on a never-Init()ed API was found to
+  # segfault there (glibc 2.43) while every ubuntu-24.04 test stayed green.
+  test-ubuntu-26:
+    needs: build
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.22.2
+      - run: npm ci
+      - run: npm run build # compile on 26.04 and run the full suite against it
+      - run: git diff --exit-code -- src/generated/
+      - run: npm run coverage
+      - uses: actions/download-artifact@v4
+        with:
+          name: prebuilds-ubuntu-24.04
+          path: prebuilds/
+      - name: the shipped ubuntu-24.04 prebuild on Ubuntu 26.04
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build   # make node-gyp-build load prebuilds/linux-x64, as an installed package does
+          node -e 'console.log("addon:", require("node-gyp-build").path("."))'
+          node scripts/smoke-cjs.cjs
+          node scripts/test-lifecycle.mjs
+
   # macOS is best-effort and DECOUPLED from the release gate: it builds a prebuild
   # when a macOS runner is free, but the release never waits on it. The CTP vendor
   # framework can't be validated from the dev host, and macOS runners queue
@@ -113,7 +142,7 @@ jobs:
   # attached), and publishes @hitrading/ctp-node to npm. If no release-worthy
   # commits exist, it does nothing. Requires the NPM_TOKEN secret.
   release:
-    needs: build              # Windows + Linux only; macOS (build-macos) never gates the release
+    needs: [build, test-ubuntu-26]   # Windows + Linux (+ 26.04 tests); macOS (build-macos) never gates the release
     if: (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/next') && github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
