@@ -36,7 +36,10 @@ jobs:
           dir=$(ls -d prebuilds/*/ | head -n1)
           case "${{ matrix.os }}" in
             windows-2022)  cp ctpsdk/windows/*.dll "$dir" ;;
-            ubuntu-24.04)  cp ctpsdk/linux/*.so "$dir" ;;
+            # gyp's `copies` hard-links ctpsdk/linux/*.so into build/Release and
+            # `prebuildify --strip` strips them there in place, so the checkout's
+            # SDK files are stripped too by now. Restore the vendor originals first.
+            ubuntu-24.04)  git checkout -- ctpsdk/linux && cp --remove-destination ctpsdk/linux/*.so "$dir" ;;
           esac
           ls -la "$dir"
       - name: verify the Linux prebuild is relocatable (bare NEEDED names, RUNPATH=$ORIGIN only)
@@ -54,6 +57,12 @@ jobs:
           if [ "$runpath" != '$ORIGIN' ]; then
             echo "::error::expected RUNPATH \$ORIGIN only, got: $runpath"; exit 1
           fi
+          # The bundled CTP libs must be the unmodified vendor files from the repo.
+          for so in ctpsdk/linux/*.so; do
+            if ! git cat-file blob "HEAD:$so" | cmp - "prebuilds/linux-x64/$(basename "$so")"; then
+              echo "::error::prebuilds/linux-x64/$(basename "$so") differs from the committed $so"; exit 1
+            fi
+          done
           # Load from a different directory so only $ORIGIN can resolve the CTP .so files.
           tmp=$(mktemp -d)
           cp -r prebuilds/linux-x64 "$tmp/"
