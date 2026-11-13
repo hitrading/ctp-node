@@ -1,3 +1,10 @@
+## [4.1.1-rc.3](https://github.com/hitrading/ctp-node/compare/v4.1.1-rc.2...v4.1.1-rc.3) (2026-11-13)
+
+
+### Bug Fixes
+
+* **build:** 去掉 prebuildify --strip，构建不再改动 CTP SDK 原件 ([5010d58](https://github.com/hitrading/ctp-node/commit/5010d582e5dd579efbd2ac8819269bb5d09a7f71))
+
 ## [4.1.1-rc.2](https://github.com/hitrading/ctp-node/compare/v4.1.1-rc.1...v4.1.1-rc.2) (2026-11-13)
 
 
