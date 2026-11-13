@@ -48,11 +48,14 @@
           ]
         }],
         ["OS=='linux'", {
+          # The CTP .so files carry no SONAME, so linking them by path would bake
+          # that build-host path into DT_NEEDED. Link by bare file name instead and
+          # resolve only via $ORIGIN (the .so files sit next to the addon).
+          "library_dirs": [ "<(module_root_dir)/ctpsdk/linux" ],
           "libraries": [
-            "<(module_root_dir)/ctpsdk/linux/thostmduserapi_se.so",
-            "<(module_root_dir)/ctpsdk/linux/thosttraderapi_se.so",
-            "-Wl,-rpath,'$$ORIGIN'",
-            "-Wl,-rpath,<(module_root_dir)/ctpsdk/linux"
+            "-l:thostmduserapi_se.so",
+            "-l:thosttraderapi_se.so",
+            "-Wl,-rpath,'$$ORIGIN'"
           ],
           "cflags_cc": [ "-std=c++17", "-fexceptions" ],
           "copies": [
