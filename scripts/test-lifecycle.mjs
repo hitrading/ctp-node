@@ -52,9 +52,6 @@ const require = createRequire(import.meta.url);
 // prebuild by removing build/. This is the same binary dist/index.js loaded.
 const native = require(require("node-gyp-build").path(fileURLToPath(new URL("..", import.meta.url))));
 
-// Vendor Init()/Release() costs ~2-3 MB per MD+Trader pair (measured on Ubuntu
-// 26.04); a leaked event ring alone would add ~31 MB per pair (~310 MB here).
-const STARTED_CYCLE_RSS_BOUND_MB = 200;
 let pass = 0, fail = 0;
 const check = (c, m) => (c ? (pass++, console.log("  PASS:", m)) : (fail++, console.error("  FAIL:", m)));
 const rss = () => Math.round(process.memoryUsage().rss / 1048576);
@@ -77,18 +74,10 @@ check(after - before < 120, `no ring leak on close (RSS ${before} -> ${after} MB
 // close() never calls the vendor Release() on an un-Init()ed instance, which
 // joins a never-started thread and segfaults on glibc 2.43 (Ubuntu 26.04).
 check(true, "close() of never-started raw MD/Trader does not crash (no vendor Release() without Init())");
-
-// ----- real CTP lifecycle: started clients (Init) closed repeatedly (Release) -----
-{
-  const startedBefore = rss();
-  for (let i = 0; i < 10; i++) {
-    new MarketData("./flow-md/", "tcp://127.0.0.1:1").close();
-    new Trader("./flow-td/", "tcp://127.0.0.1:1").close();
-  }
-  const startedAfter = rss();
-  check(startedAfter - startedBefore < STARTED_CYCLE_RSS_BOUND_MB,
-    `started MD/Trader Init()->Release() x10 survive (RSS ${startedBefore} -> ${startedAfter} MB)`);
-}
+// (Started clients - real Init() then Release() - are exercised by the public
+// MarketData/Trader sections below. No create/close loop of started clients on
+// purpose: each vendor Release() takes ~5 s on Windows, and repeated cycles are
+// unsupported by design - see the CTP_RECREATE_WARN guidance.)
 
 // _buffer() exposes native ring storage. It must be a single cached external
 // ArrayBuffer and close() must detach it before deleting that storage; otherwise
