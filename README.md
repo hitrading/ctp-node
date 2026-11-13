@@ -12,7 +12,7 @@
   <a href="https://github.com/hitrading/ctp-node/actions/workflows/build.yml"><img alt="CI" src="https://github.com/hitrading/ctp-node/actions/workflows/build.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/hitrading/ctp-node?color=blue"></a>
   <img alt="Node" src="https://img.shields.io/badge/node-22.22.2%2B-brightgreen">
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-lightgrey">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6">
   <img alt="decode" src="https://img.shields.io/badge/decode-~8M%20ticks%2Fs-ff7f0e">
 </p>
@@ -41,7 +41,7 @@
 
 ## Requirements
 
-Node 22.22.2+ on supported even-numbered release lines (`^22.22.2 || ^24.15.0 || >=26.0.0`). This mirrors the Node.js range required by the bundled `node-gyp`; odd-numbered/EOL releases and Node 24.0–24.14 are not supported. Prebuilt binaries are shipped for **Windows and Linux (x64)** — most users need no compiler there. **macOS is not supported at the moment**: the bundled CTP macOS frameworks are CTP 6.7.7, while the headers and the Windows/Linux libraries are 6.7.13. An addon built from that mix links but crashes at runtime, so on macOS the install-time build stops with an explanation instead; use a Windows or Linux x64 host. Where no prebuild matches, the addon builds from source on install, which needs a C++ toolchain (Windows: VS Build Tools; Linux: clang/gcc). The CTP shared libraries are bundled next to the loaded addon and resolved automatically.
+Node 22.22.2+ on supported even-numbered release lines (`^22.22.2 || ^24.15.0 || >=26.0.0`). This mirrors the Node.js range required by the bundled `node-gyp`; odd-numbered/EOL releases and Node 24.0–24.14 are not supported. Prebuilt binaries are shipped for **Windows and Linux (x64)** — most users need no compiler there. **macOS (and any other platform) builds from source on install**, which needs a C++ toolchain (macOS: Xcode Command Line Tools; Windows: VS Build Tools; Linux: clang/gcc). The bundled CTP macOS frameworks are SFIT's universal (arm64 + x86_64) 6.7.13 build, the same CTP version as the Windows/Linux libraries; CI builds and tests macOS on Apple Silicon only. The CTP shared libraries are bundled next to the loaded addon and resolved automatically.
 
 ## Install
 

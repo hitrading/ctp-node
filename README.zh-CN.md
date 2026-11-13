@@ -12,7 +12,7 @@
   <a href="https://github.com/hitrading/ctp-node/actions/workflows/build.yml"><img alt="CI" src="https://github.com/hitrading/ctp-node/actions/workflows/build.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/hitrading/ctp-node?color=blue"></a>
   <img alt="Node" src="https://img.shields.io/badge/node-22.22.2%2B-brightgreen">
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-lightgrey">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6">
   <img alt="decode" src="https://img.shields.io/badge/decode-~8M%20ticks%2Fs-ff7f0e">
 </p>
@@ -37,7 +37,7 @@
 
 ## 环境要求
 
-受支持的偶数版本线要求 Node 22.22.2+（`^22.22.2 || ^24.15.0 || >=26.0.0`）。该范围与内置 `node-gyp` 的 Node.js 要求一致；不支持奇数/EOL 版本及 Node 24.0–24.14。**Windows 与 Linux（x64）提供预编译二进制**，这两个平台多数用户无需编译器。**目前不支持 macOS**：随包的 CTP macOS 框架是 6.7.7，而头文件和 Windows/Linux 库是 6.7.13，混在一起编出的插件能链接、运行时却会崩溃，所以在 macOS 上安装时的构建会直接中止并给出说明；请使用 Windows 或 Linux x64 主机。没有匹配的预编译件时，安装时从源码构建，需要 C++ 工具链（Windows：VS Build Tools；Linux：clang/gcc）。CTP 共享库随插件一起打包在旁并自动解析。
+受支持的偶数版本线要求 Node 22.22.2+（`^22.22.2 || ^24.15.0 || >=26.0.0`）。该范围与内置 `node-gyp` 的 Node.js 要求一致；不支持奇数/EOL 版本及 Node 24.0–24.14。**Windows 与 Linux（x64）提供预编译二进制**，这两个平台多数用户无需编译器。**macOS（及其他平台）在安装时从源码构建**，需要 C++ 工具链（macOS：Xcode Command Line Tools；Windows：VS Build Tools；Linux：clang/gcc）。随包的 CTP macOS 框架是上期技术的 6.7.13 通用版（arm64 + x86_64），与 Windows/Linux 库是同一 CTP 版本；CI 只在 Apple Silicon 上构建和测试 macOS。CTP 共享库随插件一起打包在旁并自动解析。
 
 ## 安装
 

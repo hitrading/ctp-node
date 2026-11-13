@@ -48,11 +48,11 @@ and margin schedule for an instrument have arrived (call `session()` or the
 
 ## Platform / toolchain
 
-- **macOS** is no longer shipped as a prebuild (Windows and Linux prebuilds are
-  unchanged), and building it from source does not work either: the bundled
-  CTP macOS frameworks are 6.7.7, while the headers and Windows/Linux libraries
-  have been 6.7.13 since 1.2.0, so a macOS source build linked but crashed at
-  runtime. The macOS build now stops at configure time with an explanation;
-  macOS stays unsupported until a matching CTP Mac SDK is bundled.
+- **macOS** is no longer shipped as a prebuild — it builds from source on
+  install (Windows and Linux prebuilds are unchanged). Use a release that
+  bundles the 6.7.13 Mac frameworks (4.1.3-rc.2 or later): from 1.2.0 the
+  bundled CTP macOS frameworks were still 6.7.7 under the 6.7.13 headers, so a
+  macOS source build linked but crashed at runtime (4.1.3-rc.1 refused to build
+  instead).
 - **Node `engines`** is restricted to the range required by `node-gyp` 13
   (`^22.22.2 || ^24.15.0 || >=26.0.0`); Node 20 and older 22 lines are excluded.

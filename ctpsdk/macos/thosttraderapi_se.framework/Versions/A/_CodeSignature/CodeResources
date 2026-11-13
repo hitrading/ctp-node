@@ -8,6 +8,18 @@
 		<data>
 		VUxdF9Vsqsjm2nN6RDpWJxe/ttg=
 		</data>
+		<key>Resources/demo.txt</key>
+		<data>
+		6rxOq+3qQg1borsuR7Ac321LS+E=
+		</data>
+		<key>Resources/package.des</key>
+		<data>
+		jrbZMIOlX3HAhwEAlKH6eoboUTE=
+		</data>
+		<key>Resources/readme.txt</key>
+		<data>
+		87xms+eK0V0empcfgo58JvOJZrc=
+		</data>
 	</dict>
 	<key>files2</key>
 	<dict>
@@ -15,21 +27,21 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			XOwoHYsnMXiRjCVhgOIQgb+mqapnf7LP1GV5fMix3Yo=
+			CUGGj4827GSKJrXca19TmDIRtHKxo44v1+voQZPIqeo=
 			</data>
 		</dict>
 		<key>Headers/ThostFtdcUserApiDataType.h</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			jeG/TAar2HshrQ9+4jkob94MKMFWLoH4Xl/HcKjIgww=
+			g4JFK88Lt2FgJODNwoC7123C6Ak3xx9PwK3oCcvvY+c=
 			</data>
 		</dict>
 		<key>Headers/ThostFtdcUserApiStruct.h</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			E0WAQNGnhA4Om36nesySUQiOWRpOfovob8bEQ0DXibU=
+			VrO9rvXwzJ3b9d8xx+CJ+pklJVMSCofxkkFeS+Qua/c=
 			</data>
 		</dict>
 		<key>Resources/Info.plist</key>
@@ -37,6 +49,27 @@
 			<key>hash2</key>
 			<data>
 			WyUVnuil9tugvcHJcCw76ljlp1tONfIfxoKvod2ek+k=
+			</data>
+		</dict>
+		<key>Resources/demo.txt</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			Sv/7zVEvIJxPhI6ykmfoynT9luvqXVqastUUyaNWfdg=
+			</data>
+		</dict>
+		<key>Resources/package.des</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			JjdY5xqmxTc+E5YJvqbOVaT+iSdofhuurOan2GO5Eg8=
+			</data>
+		</dict>
+		<key>Resources/readme.txt</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			O9VEXNXxOJY5+eHYiEBPMYxtGDk0l/iJMVZqtSc/sK0=
 			</data>
 		</dict>
 	</dict>

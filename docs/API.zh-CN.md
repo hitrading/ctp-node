@@ -34,9 +34,9 @@ npm install @hitrading/ctp-node
 ```
 
 支持的 Node.js 版本线为 `^22.22.2 || ^24.15.0 || >=26.0.0`，与内置 node-gyp 13 的要求一致。
-npm 包提供 win32-x64 与 linux-x64 预编译二进制。目前不支持 macOS：随包的 CTP macOS 框架（6.7.7）
-与 6.7.13 头文件不匹配，由它编出的插件运行时会崩溃，所以在 macOS 上安装时的构建会中止并给出说明。
-没有匹配的预编译件时，安装时从源码编译，需要 C++ 工具链与 Python。
+npm 包提供 win32-x64 与 linux-x64 预编译二进制；macOS 及其他平台在安装时从源码编译，需要
+C++ 工具链与 Python（macOS 上为 Xcode Command Line Tools）。随包的 CTP macOS 框架是 6.7.13 通用版，
+与 Windows/Linux 库是同一 CTP 版本。
 
 ---
 

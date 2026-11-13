@@ -183,8 +183,8 @@ npm run bench:fullmarket
 | `LNK1104: cannot open file ... ctp.node` | 一个卡死/僵尸 `node` 进程还占着该插件 | 找到并 `taskkill /F` 掉游离的 node 进程，再重新构建。 |
 | `fatal error LNK1103: 调试信息损坏` | 陈旧/损坏的构建产物（如被中断/并行构建） | `npx node-gyp rebuild`（干净重建）。 |
 | 使用方安装时 `MODULE_NOT_FOUND: node-addon-api` | 源码构建但缺构建依赖 | 已修复——`node-addon-api`/`node-gyp` 是运行时 `dependencies`；在未预编译的平台上仍需 C++ 工具链 + Python。 |
-| macOS 安装失败：`ctp-node: refusing to build on macOS - CTP SDK version mismatch` | 随包的 CTP macOS 框架（6.7.7）比 6.7.13 头文件和 Windows/Linux 库旧；由它编出的插件能链接（`-undefined dynamic_lookup`），但首次调用 API 就段错误，所以 `binding.gyp` 直接中止构建 | 目前不支持 macOS；请使用 Windows 或 Linux x64 主机。（旧版本若在 macOS 上编译成功，运行时同样会因此崩溃。） |
-| linux arm64 上 `.node` 加载失败 | 该平台无预编译 | 安装时从源码构建；确保有工具链。 |
+| macOS：首次调用 API（如创建 `MarketData`）就段错误，或安装时报 `ctp-node: refusing to build on macOS - CTP SDK version mismatch` | 1.2.0 至 4.1.3-rc.1 随包的是 CTP 6.7.7 macOS 框架，头文件却是 6.7.13；能链接（`-undefined dynamic_lookup`），但工厂函数和虚表对不上（4.1.3-rc.1 改为直接中止构建） | 升级到带 6.7.13 Mac 框架的版本（4.1.3-rc.2 及以后）并重新安装，让插件重新编译。 |
+| macOS / linux arm64 上 `.node` 加载失败 | 该平台无预编译 | 安装时从源码构建；确保有工具链（macOS：Xcode Command Line Tools）。 |
 | 构建时 C4819 代码页警告 | GBK 代码页下 `.cc` 里的中文注释 | 无害；忽略。 |
 
 ---

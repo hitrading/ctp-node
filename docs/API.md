@@ -37,11 +37,10 @@ npm install @hitrading/ctp-node
 
 Supported Node.js release lines are `^22.22.2 || ^24.15.0 || >=26.0.0`, matching
 the bundled node-gyp 13 requirement. Prebuilt binaries ship in the npm package
-for win32-x64 and linux-x64. macOS is not supported at the moment: the bundled
-CTP macOS frameworks (6.7.7) do not match the 6.7.13 headers, and a build from
-them crashes at runtime, so the install-time build stops on macOS with an
-explanation. Where no prebuild matches, the addon builds from source on install
-(a C++ toolchain + Python are required).
+for win32-x64 and linux-x64. macOS and other platforms build from source on
+install (a C++ toolchain + Python are required; on macOS, the Xcode Command Line
+Tools). The bundled CTP macOS frameworks are the universal 6.7.13 build, the
+same CTP version as the Windows/Linux libraries.
 
 ---
 

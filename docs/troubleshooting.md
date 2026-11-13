@@ -218,8 +218,8 @@ CTP reconnects on its own — re-run your handshake **in place** on every
 | `LNK1104: cannot open file ... ctp.node` | a wedged/zombie `node` process still holds the addon | find and `taskkill /F` the stray node process, then rebuild. |
 | `fatal error LNK1103: 调试信息损坏` | stale/corrupt build object (e.g. interrupted/parallel build) | `npx node-gyp rebuild` (clean rebuild). |
 | `MODULE_NOT_FOUND: node-addon-api` on a consumer install | source build with the build deps missing | fixed — `node-addon-api`/`node-gyp` are runtime `dependencies`; on an unshipped platform a C++ toolchain + Python are still required. |
-| macOS install fails: `ctp-node: refusing to build on macOS - CTP SDK version mismatch` | the bundled CTP macOS frameworks (6.7.7) are older than the 6.7.13 headers and Windows/Linux libraries; a build from them links (`-undefined dynamic_lookup`) but segfaults on the first API call, so `binding.gyp` stops it | macOS is not supported at the moment; use a Windows or Linux x64 host. (An older version that did build on macOS crashes at runtime for the same reason.) |
-| `.node` won't load on linux arm64 | no prebuild for that platform | it builds from source on install; ensure a toolchain is present. |
+| macOS: segfault on the first API call (e.g. creating `MarketData`), or install stops with `ctp-node: refusing to build on macOS - CTP SDK version mismatch` | 1.2.0 through 4.1.3-rc.1 bundled CTP 6.7.7 macOS frameworks under the 6.7.13 headers; the build links (`-undefined dynamic_lookup`) but the factory functions and vtables don't match (4.1.3-rc.1 refuses to build instead) | upgrade to a release that bundles the 6.7.13 Mac frameworks (4.1.3-rc.2 or later) and reinstall so the addon is rebuilt. |
+| `.node` won't load on macOS / linux arm64 | no prebuild for that platform | it builds from source on install; ensure a toolchain is present (macOS: Xcode Command Line Tools). |
 | C4819 codepage warning during build | Chinese comments in `.cc` under a GBK code page | harmless; ignore. |
 
 ---

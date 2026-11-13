@@ -119,22 +119,16 @@ jobs:
   # binary's minimum macOS is fixed by MACOSX_DEPLOYMENT_TARGET in binding.gyp,
   # not by the build host, so following -latest costs no compatibility.
   #
-  # DISABLED (2026-11-13) until ctpsdk/macos is upgraded: the vendored frameworks
-  # are CTP v6.7.7_MacOS_20240716, but the addon compiles against the v6.7.13
-  # headers in ctpsdk/ (the Windows/Linux libraries are 6.7.13). The frameworks
-  # do not export the 6.7.13 factories CreateFtdcMdApi(const char*, bool, bool,
-  # bool) / CreateFtdcTraderApi(const char*, bool), and the Trader API/SPI vtables
-  # differ (SubscribePrivateTopic, ReqUserLogin, ~20 missing callbacks). node-gyp
-  # links macOS addons with -undefined dynamic_lookup, so the build still links,
-  # then crashes at runtime: the first run on macos-latest failed npm test with
-  # test-md.mjs SIGSEGV (exit 139). A prebuild from it would be broken, so the
-  # job is off instead of failing on every run. Re-enable by deleting the `if:`
-  # once ctpsdk/macos holds a 6.7.13 Mac build; attach-macos needs no change.
-  # binding.gyp now runs scripts/check-macos-sdk.cjs on macOS, which stops
-  # configure while the framework and ctpsdk/linux versions differ, so with the
-  # `if:` removed too early this job fails at `npm run build`, not in npm test.
+  # History (2026-11-13): the vendored frameworks used to be CTP
+  # v6.7.7_MacOS_20240716 under the v6.7.13 headers in ctpsdk/. They lacked the
+  # 6.7.13 factories and had different Trader API/SPI vtables, but node-gyp links
+  # macOS addons with -undefined dynamic_lookup, so the build linked and npm test
+  # then segfaulted (test-md.mjs, exit 139); the job was disabled for that. They
+  # are now SFIT's v6.7.13_MacOS_20260529 build, and binding.gyp runs
+  # scripts/check-macos-sdk.cjs on macOS, which stops configure (so this job
+  # fails at `npm run build`) if the frameworks and ctpsdk/linux ever diverge
+  # in CTP version again.
   build-macos:
-    if: false
     runs-on: macos-latest
     timeout-minutes: 30
     continue-on-error: true
