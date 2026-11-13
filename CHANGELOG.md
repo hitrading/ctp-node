@@ -1,3 +1,12 @@
+## [4.1.1](https://github.com/hitrading/ctp-node/compare/v4.1.0...v4.1.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **build:** Linux 预编译件按库名链接 CTP 动态库，只经 $ORIGIN 解析 ([4de6bdd](https://github.com/hitrading/ctp-node/commit/4de6bdd0b921d271f56112b6ec5f773569d5bdfc))
+* **build:** Linux 预编译件附带未经改动的 CTP 官方动态库 ([3b333c3](https://github.com/hitrading/ctp-node/commit/3b333c339b1799b495f6cf7cd9a5ef711a0b4f21))
+* **build:** 去掉 prebuildify --strip，构建不再改动 CTP SDK 原件 ([5010d58](https://github.com/hitrading/ctp-node/commit/5010d582e5dd579efbd2ac8819269bb5d09a7f71))
+
 ## [4.1.1-rc.3](https://github.com/hitrading/ctp-node/compare/v4.1.1-rc.2...v4.1.1-rc.3) (2026-11-13)
 
 
