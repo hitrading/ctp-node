@@ -146,13 +146,40 @@ jobs:
         shell: bash
         run: |
           dir=$(ls -d prebuilds/*/ | head -n1)
+          # -R copies the framework symlinks (Headers, Resources, Versions/Current,
+          # the top-level binary) as symlinks.
           cp -R ctpsdk/macos/*.framework "$dir"
           ls -la "$dir"
           file "$dir"*.node
+      # Package on the macOS runner: upload-artifact stores symlink targets as plain
+      # files, which turned every framework symlink into a full copy (each binary
+      # 3x) and broke the bundle layout. tar keeps them, so the tgz itself is the
+      # artifact and attach-macos uploads it unchanged.
+      - name: package the macOS prebuild (keeps framework symlinks) + load it relocated
+        shell: bash
+        run: |
+          set -euo pipefail
+          COPYFILE_DISABLE=1 tar -czf ctp-node-macos-prebuild.tgz prebuilds/   # no ._ AppleDouble entries
+          tar -tvzf ctp-node-macos-prebuild.tgz
+          links=$(tar -tvzf ctp-node-macos-prebuild.tgz | grep -c '^l' || true)
+          if [ "$links" -ne 8 ]; then
+            echo "::error::expected 8 framework symlinks (4 per framework) in the tgz, found $links"; exit 1
+          fi
+          if tar -tzf ctp-node-macos-prebuild.tgz | grep -q '/\._'; then
+            echo "::error::tgz contains AppleDouble ._ entries"; exit 1
+          fi
+          # The shipped addon must load from the unpacked tgz alone (@loader_path),
+          # so hide ctpsdk/macos, which the build-host rpath would otherwise find.
+          tmp=$(mktemp -d)
+          tar -xzf ctp-node-macos-prebuild.tgz -C "$tmp"
+          mv ctpsdk/macos ctpsdk/macos.hidden
+          node -e 'require(process.argv[1]); console.log("loaded", process.argv[1])' "$(ls "$tmp"/prebuilds/darwin-*/*.node)"
+          mv ctpsdk/macos.hidden ctpsdk/macos
+          ls -la ctp-node-macos-prebuild.tgz
       - uses: actions/upload-artifact@v7
         with:
           name: prebuilds-macos
-          path: prebuilds/
+          path: ctp-node-macos-prebuild.tgz
 
   # Fully automatic release: on pushes to master/next, semantic-release reads the
   # Conventional Commits since the last release, decides the next version (feat ->
@@ -217,7 +244,8 @@ jobs:
   # when a release was actually published, and no-ops gracefully if the macOS build
   # failed/timed out (no artifact). The npm tarball ships Windows/Linux prebuilds;
   # macOS installed from npm builds from source — this enriches the GitHub Release
-  # asset for anyone grabbing the prebuild bundle directly.
+  # asset for anyone grabbing the prebuild bundle directly. build-macos already
+  # packaged the tgz (to keep the framework symlinks); this only uploads it.
   attach-macos:
     needs: [build-macos, release]
     if: ${{ always() && needs.release.outputs.published == 'true' }}
@@ -230,14 +258,14 @@ jobs:
         continue-on-error: true   # build-macos may have failed/timed out -> no artifact
         with:
           name: prebuilds-macos
-          path: prebuilds/
-      - name: package + attach the macOS prebuild to ${{ needs.release.outputs.tag }}
+          path: macos-prebuild/
+      - name: attach the macOS prebuild to ${{ needs.release.outputs.tag }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -d prebuilds ] && [ -n "$(ls -A prebuilds 2>/dev/null)" ]; then
-            tar -czf ctp-node-macos-prebuild.tgz prebuilds/
-            gh release upload "${{ needs.release.outputs.tag }}" ctp-node-macos-prebuild.tgz --clobber --repo "$GITHUB_REPOSITORY"
+          tgz=macos-prebuild/ctp-node-macos-prebuild.tgz
+          if [ -f "$tgz" ]; then
+            gh release upload "${{ needs.release.outputs.tag }}" "$tgz" --clobber --repo "$GITHUB_REPOSITORY"
             echo "attached ctp-node-macos-prebuild.tgz to ${{ needs.release.outputs.tag }}"
           else
             echo "no macOS prebuild artifact (build-macos skipped, failed or timed out); nothing to attach"
