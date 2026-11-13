@@ -163,7 +163,12 @@ private:
   Napi::Value BurstTicks(const Napi::CallbackInfo &info);
   Napi::Value ProduceTestTicks(const Napi::CallbackInfo &info);
 
+  // Non-null only between _start() (CreateFtdcMdApi + Init) and close(): CTP's
+  // Release() on an instance that never ran Init() joins a reactor thread that
+  // was never started, which crashes on newer glibc (Ubuntu 26.04 / 2.43).
   CThostFtdcMdApi *api_ = nullptr;
+  std::string flowPath_;
+  std::vector<std::string> fronts_;
   MdSpi *spi_ = nullptr;
   EventChannel *ch_ = nullptr;
   std::shared_ptr<ArmRegistry> armReg_;
@@ -248,21 +253,17 @@ MarketData::MarketData(const Napi::CallbackInfo &info)
     return;
   }
 
-  api_ = CThostFtdcMdApi::CreateFtdcMdApi(flowPath.c_str());
-  if (!api_) {
-    Napi::Error::New(env, "CreateFtdcMdApi failed").ThrowAsJavaScriptException();
-    return;
-  }
+  // The CTP API itself is created in _start(), immediately before Init() (see
+  // api_): an instance that is closed or finalized without ever starting then
+  // owns no CTP object, so close() never calls Release() on an un-Init()ed API.
+  flowPath_ = std::move(flowPath);
+  fronts_ = std::move(fronts);
   // Market data drops the OLDEST record under backpressure: a full-market feed
   // wants the freshest quote, not a stale one, when the JS loop falls behind.
   ch_ = new EventChannel(8192, static_cast<size_t>(ctpMaxStructSize()),
                          DropPolicy::Oldest);
   spi_ = new MdSpi(ch_);
   spi_->setSnapshotCache(snap_.get());
-  api_->RegisterSpi(spi_);
-
-  for (auto &addr : fronts)
-    api_->RegisterFront(const_cast<char *>(addr.c_str()));
 }
 
 MarketData::~MarketData() { doClose(); }
@@ -519,7 +520,7 @@ Napi::Value MarketData::ReqQryMulticastInstrument(
 
 Napi::Value MarketData::Start(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
-  if (started_ || !api_)
+  if (started_ || closed_ || !ch_)
     return env.Undefined();
   napi_status st = ch_->start(env, info[0]);
   if (st != napi_ok) {
@@ -527,8 +528,19 @@ Napi::Value MarketData::Start(const Napi::CallbackInfo &info) {
         .ThrowAsJavaScriptException();
     return env.Undefined();
   }
-  api_->Init();
-  started_ = true;
+  started_ = true; // the channel is live; never start it twice, even on failure below
+  // Create, wire and Init() back to back with no failure point in between, so
+  // a non-null api_ always means Init() ran and Release() is safe.
+  CThostFtdcMdApi *api = CThostFtdcMdApi::CreateFtdcMdApi(flowPath_.c_str());
+  if (!api) {
+    Napi::Error::New(env, "CreateFtdcMdApi failed").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  api->RegisterSpi(spi_);
+  for (auto &addr : fronts_)
+    api->RegisterFront(const_cast<char *>(addr.c_str()));
+  api->Init();
+  api_ = api;
   return env.Undefined();
 }
 

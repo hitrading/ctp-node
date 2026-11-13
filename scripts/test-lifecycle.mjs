@@ -8,7 +8,7 @@
 import { MarketData, Trader } from "../dist/index.js";
 process.env.CTP_NODE_TEST_HOOKS = "1";
 import { createRequire } from "node:module";
-import { existsSync, mkdirSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -33,8 +33,11 @@ if (process.env.CTP_LIFECYCLE_WORKER !== "1") {
       console.error("LIFECYCLE TEST: FAIL (worker spawn)", error);
       resolve(1);
     });
-    child.once("exit", (status) => {
+    child.once("exit", (status, signal) => {
       clearTimeout(timer);
+      // A native crash (e.g. SIGSEGV inside the vendor library) leaves no JS
+      // output at all; name the signal so the failure is never silent.
+      if (signal) console.error(`LIFECYCLE TEST: FAIL (worker killed by ${signal})`);
       resolve(status ?? 1);
     });
   });
@@ -44,9 +47,14 @@ if (process.env.CTP_LIFECYCLE_WORKER !== "1") {
 mkdirSync("flow-md", { recursive: true });
 mkdirSync("flow-td", { recursive: true });
 const require = createRequire(import.meta.url);
-const native = require(["../build/Release/ctp.node", "../build/Debug/ctp.node"]
-  .find((p) => existsSync(new URL(p, import.meta.url))));
+// Resolve the addon exactly as the package does (build/Release, else the
+// prebuilds/<platform> bundle), so CI can also run this against a shipped
+// prebuild by removing build/. This is the same binary dist/index.js loaded.
+const native = require(require("node-gyp-build").path(fileURLToPath(new URL("..", import.meta.url))));
 
+// Vendor Init()/Release() costs ~2-3 MB per MD+Trader pair (measured on Ubuntu
+// 26.04); a leaked event ring alone would add ~31 MB per pair (~310 MB here).
+const STARTED_CYCLE_RSS_BOUND_MB = 200;
 let pass = 0, fail = 0;
 const check = (c, m) => (c ? (pass++, console.log("  PASS:", m)) : (fail++, console.error("  FAIL:", m)));
 const rss = () => Math.round(process.memoryUsage().rss / 1048576);
@@ -64,6 +72,23 @@ const after = rss();
 // 40 MD(~21 MB) + 40 Trader(~10 MB) rings = ~1.2 GB if leaked; a sane bound is
 // well under that. Without the fix this hit ~700 MB by cycle 20.
 check(after - before < 120, `no ring leak on close (RSS ${before} -> ${after} MB across 80 close() calls)`);
+// Reaching here also proves close() of a never-started client is safe: such a
+// client owns no CTP API (it is created in _start() right before Init()), so
+// close() never calls the vendor Release() on an un-Init()ed instance, which
+// joins a never-started thread and segfaults on glibc 2.43 (Ubuntu 26.04).
+check(true, "close() of never-started raw MD/Trader does not crash (no vendor Release() without Init())");
+
+// ----- real CTP lifecycle: started clients (Init) closed repeatedly (Release) -----
+{
+  const startedBefore = rss();
+  for (let i = 0; i < 10; i++) {
+    new MarketData("./flow-md/", "tcp://127.0.0.1:1").close();
+    new Trader("./flow-td/", "tcp://127.0.0.1:1").close();
+  }
+  const startedAfter = rss();
+  check(startedAfter - startedBefore < STARTED_CYCLE_RSS_BOUND_MB,
+    `started MD/Trader Init()->Release() x10 survive (RSS ${startedBefore} -> ${startedAfter} MB)`);
+}
 
 // _buffer() exposes native ring storage. It must be a single cached external
 // ArrayBuffer and close() must detach it before deleting that storage; otherwise
@@ -195,6 +220,16 @@ for (const [label, Ctor, flow] of [
   check(surfaced >= 1, `throwing handler: error re-surfaced via 'error' event (${surfaced}x)`);
   md.close();
 }
+
+// ----- never-started clients left to the exit-time finalizer -----
+// Not closed on purpose: environment teardown finalizes them (doClose() from the
+// destructor). Before the deferred-creation fix this path called the vendor
+// Release() on an un-Init()ed API and the process died with SIGSEGV on exit,
+// which the supervisor above reports as a failure even after this summary.
+globalThis.__lifecycleUnclosed = [
+  new native.MarketData("./flow-md/", "tcp://127.0.0.1:1"),
+  new native.Trader("./flow-td/", "tcp://127.0.0.1:1"),
+];
 
 console.log(`LIFECYCLE TEST: ${pass} pass, ${fail} fail`);
 process.exitCode = fail ? 1 : 0;

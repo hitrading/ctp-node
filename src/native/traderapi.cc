@@ -207,7 +207,12 @@ private:
   Napi::Value InjectTestLogin(const Napi::CallbackInfo &info);
   int nextArmRequestId();
 
+  // Non-null only between _start() (CreateFtdcTraderApi + Init) and close():
+  // CTP's Release() on an instance that never ran Init() joins a reactor thread
+  // that was never started, which crashes on newer glibc (Ubuntu 26.04 / 2.43).
   CThostFtdcTraderApi *api_ = nullptr;
+  std::string flowPath_;
+  std::vector<std::string> fronts_;
   TraderSpi *spi_ = nullptr;
   EventChannel *ch_ = nullptr;
   RiskEngine risk_;
@@ -303,12 +308,11 @@ Trader::Trader(const Napi::CallbackInfo &info)
     return;
   }
 
-  api_ = CThostFtdcTraderApi::CreateFtdcTraderApi(flowPath.c_str());
-  if (!api_) {
-    Napi::Error::New(env, "CreateFtdcTraderApi failed")
-        .ThrowAsJavaScriptException();
-    return;
-  }
+  // The CTP API itself is created in _start(), immediately before Init() (see
+  // api_): an instance that is closed or finalized without ever starting then
+  // owns no CTP object, so close() never calls Release() on an un-Init()ed API.
+  flowPath_ = std::move(flowPath);
+  fronts_ = std::move(fronts);
   // Trader uses a lossless staged overflow: order/trade/query returns must never
   // be silently discarded under backpressure.
   ch_ = new EventChannel(4096, static_cast<size_t>(ctpMaxStructSize()),
@@ -321,13 +325,11 @@ Trader::Trader(const Napi::CallbackInfo &info)
   // snapshots, never from a timing window during construction/initial login.
   risk_.markTradeLedgerUncertain();
   risk_.markOrderLedgerUncertain();
-  api_->RegisterSpi(spi_);
-  arm_->setSink(this); // armed triggers fire orders through this Trader
-  api_->SubscribePublicTopic(THOST_TERT_QUICK);
-  api_->SubscribePrivateTopic(THOST_TERT_QUICK);
-
-  for (auto &addr : fronts)
-    api_->RegisterFront(const_cast<char *>(addr.c_str()));
+  // Armed triggers fire orders through this Trader. fireArmed() reads api_ on
+  // the MD callback thread, but only for arms registered via Arm(), which
+  // requires api_ to be set already (on the JS thread, before the arm is
+  // published under the registry lock), so the deferred creation adds no race.
+  arm_->setSink(this);
 }
 
 Trader::~Trader() { doClose(); }
@@ -1056,7 +1058,7 @@ Napi::Value Trader::ResetPositions(const Napi::CallbackInfo &info) {
 
 Napi::Value Trader::Start(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
-  if (started_ || !api_)
+  if (started_ || closed_ || !ch_)
     return env.Undefined();
   napi_status st = ch_->start(env, info[0]);
   if (st != napi_ok) {
@@ -1064,8 +1066,23 @@ Napi::Value Trader::Start(const Napi::CallbackInfo &info) {
         .ThrowAsJavaScriptException();
     return env.Undefined();
   }
-  api_->Init();
-  started_ = true;
+  started_ = true; // the channel is live; never start it twice, even on failure below
+  // Create, wire and Init() back to back with no failure point in between, so
+  // a non-null api_ always means Init() ran and Release() is safe.
+  CThostFtdcTraderApi *api =
+      CThostFtdcTraderApi::CreateFtdcTraderApi(flowPath_.c_str());
+  if (!api) {
+    Napi::Error::New(env, "CreateFtdcTraderApi failed")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  api->RegisterSpi(spi_);
+  api->SubscribePublicTopic(THOST_TERT_QUICK);
+  api->SubscribePrivateTopic(THOST_TERT_QUICK);
+  for (auto &addr : fronts_)
+    api->RegisterFront(const_cast<char *>(addr.c_str()));
+  api->Init();
+  api_ = api;
   return env.Undefined();
 }
 
