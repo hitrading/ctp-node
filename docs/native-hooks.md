@@ -209,10 +209,18 @@ missing metadata fails closed. Live soak remains a separate release gate.
 ## Process lifecycle: create once, reuse
 
 `MarketData` and `Trader` are **create-once, reuse-for-the-life-of-the-process**
-objects. The wrapper constructor calls the native `_start()`, which calls the
-vendor `Init()`; `close()` calls the vendor `Release()`
+objects. The wrapper constructor calls the native `_start()`, which creates the
+vendor API (`CreateFtdcMdApi` / `CreateFtdcTraderApi`) and immediately calls its
+`Init()`; `close()` calls the vendor `Release()`
 (`CThostFtdcMdApi::Release()` / `CThostFtdcTraderApi::Release()` — see
 `doClose()` in `src/native/mdapi.cc` and `src/native/traderapi.cc`).
+
+**Never `Release()` an API that was not `Init()`ed.** The vendor `Release()`
+joins an internal reactor thread that only `Init()` starts; on a never-initialised
+instance it takes an undefined teardown path that segfaults on Ubuntu 26.04
+(glibc 2.43). The native objects therefore create the vendor API only inside
+`_start()`, right before `Init()`: a raw object that is closed or garbage-collected
+without `_start()` owns no vendor object, and its `close()` releases nothing.
 
 **The observed hazard.** On the bundled Windows vendor DLLs, repeated
 `Init()`→`Release()` cycles in one process have reproducibly hung inside
@@ -220,8 +228,8 @@ vendor `Init()`; `close()` calls the vendor `Release()`
 internal reconnect-thread state. The binding cannot recover a process once a
 closed-source vendor call is stuck, so this candidate deliberately adopts a
 create-once lifecycle. (For comparison: the raw native object *without*
-`_start()` survives 80+ create/close cycles; the trigger is specifically the
-`Init()`+`Release()` pairing. A front like `tcp://127.0.0.1:1` that never
+`_start()` survives any number of create/close cycles, since it never creates a
+vendor API; the trigger is specifically the `Init()`+`Release()` pairing. A front like `tcp://127.0.0.1:1` that never
 connects makes it worse, because CTP's reconnect machinery is what wedges.)
 
 **The rule: never reconnect by destroying and recreating the client.** CTP

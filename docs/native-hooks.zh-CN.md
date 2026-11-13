@@ -153,14 +153,19 @@ armed.disarm();                           // 移除触发器
 ## 进程生命周期 一次创建并复用
 
 `MarketData` 和 `Trader` 是**一次创建、进程内一直复用**的对象。包装构造函数调用原生 `_start()`，
-后者调用厂商 `Init()`；`close()` 调用厂商 `Release()`（`CThostFtdcMdApi::Release()` /
-`CThostFtdcTraderApi::Release()`——见 `src/native/mdapi.cc` 和 `src/native/traderapi.cc` 里的
-`doClose()`）。
+后者创建厂商 API（`CreateFtdcMdApi` / `CreateFtdcTraderApi`）并立即调用其 `Init()`；`close()` 调用
+厂商 `Release()`（`CThostFtdcMdApi::Release()` / `CThostFtdcTraderApi::Release()`——见
+`src/native/mdapi.cc` 和 `src/native/traderapi.cc` 里的 `doClose()`）。
+
+**绝不对未 `Init()` 的 API 调用 `Release()`。** 厂商 `Release()` 会 join 一个只有 `Init()` 才启动的
+内部反应器线程；对从未初始化的实例，它会走未定义的销毁路径，在 Ubuntu 26.04（glibc 2.43）上段错误。
+因此原生对象只在 `_start()` 里、紧挨 `Init()` 之前创建厂商 API：未经 `_start()` 就被关闭或回收的
+裸原生对象不持有任何厂商对象，其 `close()` 不释放任何东西。
 
 **已观测风险。** 在当前随包的 Windows 厂商 DLL 上，同一进程反复
 `Init()`→`Release()` 会可重现地卡在 `Release()` 内部——经验上 4–11 次，随时机和 CTP 内部
 重连线程状态而变。闭源厂商调用一旦卡住，本绑定无法让该进程恢复，因此当前候选版明确采用
-“一次创建”生命周期。（对照：*不*调用 `_start()` 的裸原生对象能扛过 80+ 次 create/close 循环；触发点
+“一次创建”生命周期。（对照：*不*调用 `_start()` 的裸原生对象能扛过任意次 create/close 循环，因为它根本不创建厂商 API；触发点
 正是 `Init()`+`Release()` 这一对。一个永不连上的前置（如 `tcp://127.0.0.1:1`）会让它更糟，因为
 卡住的正是 CTP 的重连机制。）
 
