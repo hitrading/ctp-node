@@ -25,7 +25,11 @@ On every push to `master` (stable) or `next` (`rc` prerelease), the CI
 
 If there are no release-worthy commits since the last release, it does nothing.
 The macOS artifact is attached separately if its non-gating build succeeds; it
-is not included in the npm tarball created by the release job.
+is not included in the npm tarball created by the release job. If it is missing
+or needs repackaging, run the `build & prebuild` workflow by hand (Actions → Run
+workflow) with `macos_release_tag` set to that release's tag, e.g. `v4.1.3`: it
+builds the tag's source on macOS and replaces the release's
+`ctp-node-macos-prebuild.tgz`.
 
 ## Commit message format
 

@@ -4,9 +4,20 @@ on:
   push:
     branches: [master, next]   # master=stable; next=rc prerelease
   pull_request:
+  # Manual: rebuild the macOS prebuild from an existing release tag and attach it
+  # to that release (e.g. build-macos timed out in the queue at release time, or
+  # the asset needs repackaging). Runs only build-macos + attach-macos; the
+  # source is the tag, the packaging steps are this file's.
+  workflow_dispatch:
+    inputs:
+      macos_release_tag:
+        description: "Existing release tag to build and attach the macOS prebuild for (e.g. v4.1.3)"
+        required: true
+        type: string
 
 jobs:
   build:
+    if: github.event_name != 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -84,6 +95,7 @@ jobs:
   # segfault there (glibc 2.43) while every ubuntu-24.04 test stayed green.
   test-ubuntu-26:
     needs: build
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
@@ -134,6 +146,8 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.macos_release_tag }}   # empty except on workflow_dispatch -> the pushed commit
       - uses: actions/setup-node@v7
         with:
           node-version: 22.22.2
@@ -246,9 +260,11 @@ jobs:
   # macOS installed from npm builds from source — this enriches the GitHub Release
   # asset for anyone grabbing the prebuild bundle directly. build-macos already
   # packaged the tgz (to keep the framework symlinks); this only uploads it.
+  # On workflow_dispatch it attaches to the given existing release tag instead,
+  # and a missing artifact is an error there.
   attach-macos:
     needs: [build-macos, release]
-    if: ${{ always() && needs.release.outputs.published == 'true' }}
+    if: ${{ always() && (needs.release.outputs.published == 'true' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write   # upload the asset to the release
@@ -259,14 +275,18 @@ jobs:
         with:
           name: prebuilds-macos
           path: macos-prebuild/
-      - name: attach the macOS prebuild to ${{ needs.release.outputs.tag }}
+      - name: attach the macOS prebuild to ${{ needs.release.outputs.tag || inputs.macos_release_tag }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release.outputs.tag || inputs.macos_release_tag }}
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           tgz=macos-prebuild/ctp-node-macos-prebuild.tgz
           if [ -f "$tgz" ]; then
-            gh release upload "${{ needs.release.outputs.tag }}" "$tgz" --clobber --repo "$GITHUB_REPOSITORY"
-            echo "attached ctp-node-macos-prebuild.tgz to ${{ needs.release.outputs.tag }}"
+            gh release upload "$TAG" "$tgz" --clobber --repo "$GITHUB_REPOSITORY"
+            echo "attached ctp-node-macos-prebuild.tgz to $TAG"
+          elif [ "$MANUAL" = true ]; then
+            echo "::error::no macOS prebuild artifact; build-macos failed for $TAG"; exit 1
           else
             echo "no macOS prebuild artifact (build-macos skipped, failed or timed out); nothing to attach"
           fi
