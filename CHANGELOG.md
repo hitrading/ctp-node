@@ -1,3 +1,10 @@
+## [4.1.3-rc.1](https://github.com/hitrading/ctp-node/compare/v4.1.2...v4.1.3-rc.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **macos:** CTP 框架与头文件版本不一致时在构建期中止，不再编出运行时崩溃的插件 ([88de78f](https://github.com/hitrading/ctp-node/commit/88de78f956a12e43082a0bc6eb577694df96e94c))
+
 ## [4.1.2](https://github.com/hitrading/ctp-node/compare/v4.1.1...v4.1.2) (2026-11-13)
 
 
