@@ -1,3 +1,10 @@
+## [4.1.2-rc.1](https://github.com/hitrading/ctp-node/compare/v4.1.1...v4.1.2-rc.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **native:** CTP API 推迟到 start() 创建，未启动的实例关闭时不再调用 Release() ([266a1a8](https://github.com/hitrading/ctp-node/commit/266a1a84842d489ba2b06712a11d134beb990a6a))
+
 ## [4.1.1](https://github.com/hitrading/ctp-node/compare/v4.1.0...v4.1.1) (2026-11-13)
 
 
