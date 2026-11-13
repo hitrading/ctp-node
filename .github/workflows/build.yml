@@ -73,7 +73,7 @@ jobs:
             echo "::error::relocated prebuild has unresolved dependencies"; exit 1
           fi
           node -e 'require(process.argv[1])' "$moved"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: prebuilds-${{ matrix.os }}
           path: prebuilds/
@@ -94,7 +94,7 @@ jobs:
       - run: npm run build # compile on 26.04 and run the full suite against it
       - run: git diff --exit-code -- src/generated/
       - run: npm run coverage
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: prebuilds-ubuntu-24.04
           path: prebuilds/
@@ -111,8 +111,16 @@ jobs:
   # when a macOS runner is free, but the release never waits on it. The CTP vendor
   # framework can't be validated from the dev host, and macOS runners queue
   # unpredictably — so it must never block (or delay) shipping Windows/Linux.
+  # Runner: macos-latest (Apple Silicon -> prebuilds/darwin-arm64; the vendored
+  # .framework binaries are universal x86_64+arm64). Deliberately -latest, unlike
+  # the pinned Windows/Linux images: pinned macOS labels keep being retired
+  # (macos-13, then macos-14 on 2026-11-02), and a job on a retired label sits
+  # queued for 24h before GitHub cancels it, holding the whole run open. The
+  # binary's minimum macOS is fixed by MACOSX_DEPLOYMENT_TARGET in binding.gyp,
+  # not by the build host, so following -latest costs no compatibility.
   build-macos:
-    runs-on: macos-13
+    runs-on: macos-latest
+    timeout-minutes: 30
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
@@ -130,9 +138,10 @@ jobs:
           dir=$(ls -d prebuilds/*/ | head -n1)
           cp -R ctpsdk/macos/*.framework "$dir"
           ls -la "$dir"
-      - uses: actions/upload-artifact@v4
+          file "$dir"*.node
+      - uses: actions/upload-artifact@v7
         with:
-          name: prebuilds-macos-13
+          name: prebuilds-macos
           path: prebuilds/
 
   # Fully automatic release: on pushes to master/next, semantic-release reads the
@@ -166,11 +175,11 @@ jobs:
           # writes an .npmrc with _authToken=${NODE_AUTH_TOKEN}, which collides
           # with @semantic-release/npm's own NPM_TOKEN auth and yields a 401
           # ("EINVALIDNPMTOKEN"). semantic-release configures the registry itself.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: prebuilds-windows-2022
           path: prebuilds/
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: prebuilds-ubuntu-24.04
           path: prebuilds/
@@ -207,10 +216,10 @@ jobs:
       contents: write   # upload the asset to the release
       actions: read     # download the build-macos artifact
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         continue-on-error: true   # build-macos may have failed/timed out -> no artifact
         with:
-          name: prebuilds-macos-13
+          name: prebuilds-macos
           path: prebuilds/
       - name: package + attach the macOS prebuild to ${{ needs.release.outputs.tag }}
         env:
