@@ -452,6 +452,10 @@ private:
     char hedgeFlag = '\0';
     bool conflictingTerminal = false;
     double originalVolume = 0.0;
+    void recordTerminalConflict(const std::string &sys) {
+      if (terminal && !sys.empty() && sys == orderSysKey)
+        conflictingTerminal = true;
+    }
     bool matchesFinalVolume(double original, double traded, bool final) const {
       return original == originalVolume &&
              (final ? traded == reportedTraded : traded <= reportedTraded);

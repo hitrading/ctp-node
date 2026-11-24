@@ -1727,8 +1727,7 @@ void RiskEngine::onOrderUpdate(int frontId, int sessionId,
   if (sit != orderStates_.end() &&
       (sit->second.conflictingTerminal || !sit->second.matchesOpening(instrumentId, isLong, hedgeFlag) ||
        (sit->second.terminal && !sit->second.matchesFinalVolume(volTotal, volTraded, terminal)))) {
-    if (sit->second.terminal && terminal && sit->second.orderSysKey == orderSysKey)
-      sit->second.conflictingTerminal = true;
+    sit->second.recordTerminalConflict(orderSysKey);
     orderLedgerUncertain_ = true;
     revision_.fetch_add(1, std::memory_order_release);
     return;
@@ -1889,8 +1888,7 @@ void RiskEngine::onUnsupportedOrderUpdate(int frontId, int sessionId,
   auto state = orderStates_.find(key);
   if (state != orderStates_.end()) {
     if (!state->second.instrumentId.empty()) {
-      if (state->second.terminal && terminalOrderStatus(status) && state->second.orderSysKey == orderSysKey)
-        state->second.conflictingTerminal = true;
+      state->second.recordTerminalConflict(orderSysKey);
       orderLedgerUncertain_ = true;
       revision_.fetch_add(1, std::memory_order_release);
       return;
@@ -2214,14 +2212,21 @@ bool RiskEngine::rebuildOpenReservationsLocked(
   // skipped. A different concrete id proves key reuse and may supersede the
   // tombstone. Without both fingerprints the snapshot is ambiguous and must
   // leave the current ledger intact and fail closed.
+  bool canRebuild = true;
   for (const auto &o : orders) {
     const std::string key = resvKey(o.frontId, o.sessionId, o.orderRef);
     auto tomb = orderStates_.find(key);
     if (tomb != orderStates_.end() && tomb->second.terminal &&
         !tomb->second.canReconcileWorking(o)) {
-      orderLedgerUncertain_ = true;
-      return false;
+      // Contradictory evidence for a concrete exchange order survives retries.
+      // A later row that agrees with the old final count cannot restore proof.
+      tomb->second.recordTerminalConflict(o.orderSysKey);
+      canRebuild = false;
     }
+  }
+  if (!canRebuild) {
+    orderLedgerUncertain_ = true;
+    return false;
   }
   clearPendingLocked();
   for (const auto &o : orders) {
