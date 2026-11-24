@@ -98,6 +98,20 @@ int main() {
     row.vol = 5; row.traded = 1;
     check(!r.rebuildOpenReservationsIfRevision(r.revision(), {row}), "conflicting original size");
   }
+  {
+    RiskEngine r;
+    r.setSession(1, 7);
+    r.setInstrumentPositionLimits({{"rb", true, 10, false, 0}});
+    r.onOrderUpdate(3, 8, "1", "rb", true, true, '1', '1', 3000, 5, 1, "Q0");
+    r.onOrderUpdate(3, 8, "1", "rb", true, true, '1', '5', 3000, 4, 1, "Q0");
+    check(r.tryReserveOpen("blocked", "rb", true, 3000, 1) == OpenGate::MetadataUnavailable,
+          "a terminal report for a different original size cannot release an active order");
+    OpenOrderInfo row{3, 8, "1", "rb", true, '1', 4, 3000, 1, "Q0"};
+    check(r.rebuildOpenReservationsIfRevision(r.revision(), {row}), "known live order can reconcile after a malformed terminal");
+    check(r.replacePositionsIfRevision(r.revision(), {}), "reconcile held positions after malformed terminal");
+    r.setInstrumentPositionLimits({{"rb", true, 4, false, 0}});
+    check(r.tryReserveOpen("blocked", "rb", true, 3000, 1) == OpenGate::VolumeLimit, "four working lots survive a malformed terminal");
+  }
   for (int source = 0; source < 4; ++source) {
     RiskEngine r;
     r.setSession(1, 7, "9999", "investor");
