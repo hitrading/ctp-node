@@ -98,6 +98,27 @@ int main() {
     row.vol = 5; row.traded = 1;
     check(!r.rebuildOpenReservationsIfRevision(r.revision(), {row}), "conflicting original size");
   }
+  for (int source = 0; source < 4; ++source) {
+    RiskEngine r;
+    r.setSession(1, 7, "9999", "investor");
+    r.onOrderUpdate(3, -7, "1", "rb", true, true, '1', '5', 3000, 5, 1, "Q0", "9999", "investor");
+    OpenOrderInfo row{3, -7, "1", "rb", true, '1', 3, 3000, 2, "Q0"};
+    if (source < 2)
+      r.onOrderUpdate(3, -7, "1", "rb", true, true, '1', source == 0 ? '1' : '5',
+                      3000, 5, 2, "Q0", "9999", "investor");
+    if (source == 3)
+      r.onUnsupportedOrderUpdate(3, -7, "1", '3', "Q0", "9999", "investor");
+    check(!r.rebuildOpenReservationsIfRevision(r.revision(), {row}), "conflicting same-system snapshot");
+    row.traded = 1; row.vol = 4;
+    check(!r.rebuildOpenReservationsIfRevision(r.revision(), {row}), "later matching count cannot reinstate contradicted terminal");
+    row.orderSysKey = "N0";
+    check(r.rebuildOpenReservationsIfRevision(r.revision(), {row}), "independent system id restores four working lots");
+    check(r.replacePositionsIfRevision(r.revision(), {}), "reconcile empty held positions");
+    r.setInstrumentPositionLimits({{"rb", true, 4, false, 0}});
+    check(r.tryReserveOpen("probe", "rb", true, 3000, 1) == OpenGate::VolumeLimit, "four working lots are occupied");
+    r.setInstrumentPositionLimits({{"rb", true, 5, false, 0}});
+    check(r.tryReserveOpen("probe", "rb", true, 3000, 1) == OpenGate::Ok, "exactly four working lots are occupied");
+  }
   for (bool tradeFirst : {false, true}) {
     {
       RiskEngine r;
