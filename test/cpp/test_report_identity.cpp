@@ -99,6 +99,17 @@ int main() {
     check(!r.rebuildOpenReservationsIfRevision(r.revision(), {row}), "conflicting original size");
   }
   for (bool tradeFirst : {false, true}) {
+    {
+      RiskEngine r;
+      r.setSession(1, 7);
+      r.setInstrumentPositionLimits({{"rb", true, 10, false, 0}});
+      if (!tradeFirst)
+        r.onOrderUpdate(2, 9, "1", "rb", true, true, '1', '3', 3500, 5, 0, "sys");
+      r.onTrade("20261124|fill", "1", "sys", "rb", true, true, '1', 3500, 2);
+      r.onOrderUpdate(2, 9, "1", "rb", true, true, '1', '5', 3500, 5, 1, "sys");
+      check(r.tryReserveOpen("over", "rb", true, 3500, 1) == OpenGate::MetadataUnavailable,
+            "terminal cumulative volume cannot be less than the delivered fills");
+    }
     for (int conflict = 0; conflict < 3; ++conflict) {
       RiskEngine r;
       r.setSession(1, 7);

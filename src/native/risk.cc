@@ -1803,7 +1803,8 @@ void RiskEngine::onOrderUpdate(int frontId, int sessionId,
   if (!orderSysKey.empty()) {
     auto unmatched = unmatchedFillsBySys_.find(orderSysKey);
     if (unmatched != unmatchedFillsBySys_.end()) {
-      if (!unmatched->second.matches(orderRef, instrumentId, isLong, hedgeFlag)) {
+      if (!unmatched->second.matches(orderRef, instrumentId, isLong, hedgeFlag) ||
+          (terminal && state.appliedTraded + unmatched->second.volume > volTraded)) {
         if (terminal) state.conflictingTerminal = true;
         orderLedgerUncertain_ = true;
         revision_.fetch_add(1, std::memory_order_release);
