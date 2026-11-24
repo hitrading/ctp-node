@@ -1,3 +1,10 @@
+## [4.2.1-rc.3](https://github.com/hitrading/ctp-node/compare/v4.2.1-rc.2...v4.2.1-rc.3) (2026-11-24)
+
+
+### Bug Fixes
+
+* **risk:** 首次终态也须核对已知委托的原始手数 ([f35c682](https://github.com/hitrading/ctp-node/commit/f35c682870f7b0959c3aa7a69661f28b17239fd0))
+
 ## [4.2.1-rc.2](https://github.com/hitrading/ctp-node/compare/v4.2.1-rc.1...v4.2.1-rc.2) (2026-11-24)
 
 
