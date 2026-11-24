@@ -1,3 +1,14 @@
+## [4.2.1](https://github.com/hitrading/ctp-node/compare/v4.2.0...v4.2.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **risk:** 对成交先到的终态核验实际成交手数 ([f5f8ad3](https://github.com/hitrading/ctp-node/commit/f5f8ad3842ee3962df68f213c98781bf4ea8bf05))
+* **risk:** 核对成交身份与开仓委托终态凭证 ([0649ec1](https://github.com/hitrading/ctp-node/commit/0649ec1daaca390598655b0345e36cbf8752d736))
+* **risk:** 核验成交数量并统一交易所回报编号 ([4bdac73](https://github.com/hitrading/ctp-node/commit/4bdac733d9783ae045953962490eeb1ec90ab754))
+* **risk:** 禁止同号快照恢复已矛盾的委托终态凭证 ([c25e49c](https://github.com/hitrading/ctp-node/commit/c25e49c5ae4b6830990120e15bc263fc5adff9ff))
+* **risk:** 首次终态也须核对已知委托的原始手数 ([f35c682](https://github.com/hitrading/ctp-node/commit/f35c682870f7b0959c3aa7a69661f28b17239fd0))
+
 # [4.2.0](https://github.com/hitrading/ctp-node/compare/v4.1.3...v4.2.0) (2026-11-24)
 
 
