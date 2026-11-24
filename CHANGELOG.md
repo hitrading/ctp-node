@@ -1,3 +1,10 @@
+# [4.2.0](https://github.com/hitrading/ctp-node/compare/v4.1.3...v4.2.0) (2026-11-24)
+
+
+### Features
+
+* **risk:** report the margin breakdown at opening admission ([8c2f3f6](https://github.com/hitrading/ctp-node/commit/8c2f3f6aac4efa6014a2313d7681c95abaa902cb))
+
 ## [4.1.3](https://github.com/hitrading/ctp-node/compare/v4.1.2...v4.1.3) (2026-11-13)
 
 
