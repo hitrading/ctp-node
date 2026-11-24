@@ -19,6 +19,7 @@ const exe = process.platform === "win32" ? ".exe" : "";
 mkdirSync("build/cpptest", { recursive: true });
 
 const suites = [
+  { name: "test_report_identity", src: "src/native/risk.cc", test: "test/cpp/test_report_identity.cpp" },
   { name: "test_risk", src: "src/native/risk.cc", test: "test/cpp/test_risk.cpp" },
   { name: "test_product_margins", src: "src/native/risk.cc", test: "test/cpp/test_product_margins.cpp" },
   { name: "test_arm", src: "src/native/arm.cc", test: "test/cpp/test_arm.cpp" },

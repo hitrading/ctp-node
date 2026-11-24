@@ -32,6 +32,13 @@ static inline bool saneNonNegativeLots(double x) {
   return x == 0.0 || saneLots(x);
 }
 
+// Broker, investor, local reference and instrument identifiers cannot be padded.
+static bool validIdentity(const std::string &s) {
+  return !s.empty() && static_cast<unsigned char>(s.front()) > ' ' &&
+         static_cast<unsigned char>(s.back()) > ' ' &&
+         s.find('\0') == std::string::npos;
+}
+
 static inline bool validHedgeFlag(char flag) {
   return flag == '1' || flag == '2' || flag == '3' || flag == '5' ||
          flag == '6' || flag == '7';
@@ -892,7 +899,7 @@ bool RiskEngine::replacePositionsIfRevision(
   // malformed row after clearing held positions would turn bad input into an
   // authoritative flat book and fail open.
   for (const auto &s : seeds)
-    if (s.instrumentId.empty() || !saneNonNegativeLots(s.volume) ||
+    if (!validIdentity(s.instrumentId) || !saneNonNegativeLots(s.volume) ||
         !std::isfinite(s.margin) || s.margin < 0.0 ||
         !validHedgeFlag(s.hedgeFlag))
       return false;
@@ -970,7 +977,7 @@ void RiskEngine::onTrade(const std::string &tradeKey,
     revision_.fetch_add(1, std::memory_order_release);
     return;
   }
-  if (instrumentId.empty()) {
+  if (!validIdentity(instrumentId)) {
     ledgerUncertain_ = true;
     revision_.fetch_add(1, std::memory_order_release);
     return;
@@ -1250,7 +1257,7 @@ RiskEngine::AccountScope RiskEngine::accountScopeLocked(
   // strict branch below.
   if (myBrokerId_.empty() && myInvestorId_.empty())
     return AccountScope::Current;
-  if (brokerId.empty() || investorId.empty())
+  if (!validIdentity(brokerId) || !validIdentity(investorId))
     return AccountScope::Ambiguous;
   return brokerId == myBrokerId_ && investorId == myInvestorId_
              ? AccountScope::Current
@@ -1513,7 +1520,7 @@ OpenGate RiskEngine::tryReserveOpen(const std::string &orderRef,
     return OpenGate::DuplicateOrderRef;
   if (sessionIdentityRequired_ && !sessionIdentityKnown_)
     return OpenGate::MetadataUnavailable;
-  if (instrumentId.empty() || !saneLots(volume) || !validHedgeFlag(hedgeFlag) ||
+  if (!validIdentity(instrumentId) || !saneLots(volume) || !validHedgeFlag(hedgeFlag) ||
       !std::isfinite(price) || price < 0.0)
     return OpenGate::MetadataUnavailable;
 
@@ -1644,7 +1651,7 @@ OpenGate RiskEngine::tryReserveOpen(const std::string &orderRef,
                                    hedgeFlag, volume,
                                    costKnown ? addCost : 0.0, price, costKnown};
   indexReservationLocked(key);
-  orderStates_[key] = OrderState{false, volume, 0.0, 0.0, ""};
+  orderStates_[key] = OrderState{false, volume, 0.0, 0.0, "", instrumentId, isLong, hedgeFlag};
   revision_.fetch_add(1, std::memory_order_release);
   return OpenGate::Ok;
 }
@@ -1670,7 +1677,7 @@ void RiskEngine::onOrderUpdate(int frontId, int sessionId,
     revision_.fetch_add(1, std::memory_order_release);
     return;
   }
-  if (orderRef.empty() || instrumentId.empty() || !validHedgeFlag(hedgeFlag) ||
+  if (!validIdentity(orderRef) || !validIdentity(instrumentId) || !validHedgeFlag(hedgeFlag) ||
       (limitPrice != 0.0 && !sanePositive(limitPrice)) ||
       !saneNonNegativeLots(volTotal) ||
       !saneNonNegativeLots(volTraded)) {
@@ -1712,6 +1719,15 @@ void RiskEngine::onOrderUpdate(int frontId, int sessionId,
   }
   const double working = terminal ? 0.0 : volTotal - volTraded;
 
+  auto sit = orderStates_.find(key);
+  if (sit != orderStates_.end() &&
+      (sit->second.conflictingTerminal || !sit->second.matchesOpening(instrumentId, isLong, hedgeFlag))) {
+    if (sit->second.terminal && terminal && sit->second.orderSysKey == orderSysKey)
+      sit->second.conflictingTerminal = true;
+    orderLedgerUncertain_ = true;
+    revision_.fetch_add(1, std::memory_order_release);
+    return;
+  }
   auto rit = reservations_.find(key);
   if (rit != reservations_.end()) {
     const Reservation &r = rit->second;
@@ -1728,7 +1744,6 @@ void RiskEngine::onOrderUpdate(int frontId, int sessionId,
     }
   }
 
-  auto sit = orderStates_.find(key);
   if (sit != orderStates_.end()) {
     OrderState &s = sit->second;
     if (s.terminal) {
@@ -1780,7 +1795,7 @@ void RiskEngine::onOrderUpdate(int frontId, int sessionId,
   } else {
     sit = orderStates_
               .emplace(key, OrderState{terminal, working, volTraded, 0.0,
-                                       orderSysKey})
+                                       orderSysKey, instrumentId, isLong, hedgeFlag})
               .first;
   }
   OrderState &state = sit->second;
@@ -1873,6 +1888,13 @@ void RiskEngine::onUnsupportedOrderUpdate(int frontId, int sessionId,
   bool changed = false;
   auto state = orderStates_.find(key);
   if (state != orderStates_.end()) {
+    if (!state->second.instrumentId.empty()) {
+      if (state->second.terminal && terminalOrderStatus(status) && state->second.orderSysKey == orderSysKey)
+        state->second.conflictingTerminal = true;
+      orderLedgerUncertain_ = true;
+      revision_.fetch_add(1, std::memory_order_release);
+      return;
+    }
     if (state->second.terminal && terminalOrderStatus(status)) {
       if (!state->second.orderSysKey.empty() && !orderSysKey.empty() &&
           state->second.orderSysKey == orderSysKey)
@@ -2160,7 +2182,7 @@ bool RiskEngine::validOpenOrderSnapshot(
   std::unordered_map<std::string, const OpenOrderInfo *> byKey;
   std::unordered_map<std::string, std::string> bySys;
   for (const auto &o : orders) {
-    if (o.orderRef.empty() || o.instrumentId.empty() ||
+    if (!validIdentity(o.orderRef) || !validIdentity(o.instrumentId) ||
         (o.supportedSingleLeg && !validHedgeFlag(o.hedgeFlag)) ||
         !saneNonNegativeLots(o.vol) || !saneNonNegativeLots(o.traded) ||
         (o.price != 0.0 && !sanePositive(o.price)))
@@ -2196,7 +2218,7 @@ bool RiskEngine::rebuildOpenReservationsLocked(
     const std::string key = resvKey(o.frontId, o.sessionId, o.orderRef);
     auto tomb = orderStates_.find(key);
     if (tomb != orderStates_.end() && tomb->second.terminal &&
-        (tomb->second.orderSysKey.empty() || o.orderSysKey.empty())) {
+        !tomb->second.canReconcileWorking(o)) {
       orderLedgerUncertain_ = true;
       return false;
     }
@@ -2239,7 +2261,7 @@ bool RiskEngine::rebuildOpenReservationsLocked(
     // metadata represented as unknown so monetary gates fail closed.
     updateReservationExposureLocked(reservations_[key], o.vol, o.price);
     orderStates_[key] =
-        OrderState{false, o.vol, o.traded, o.traded, o.orderSysKey};
+        OrderState{false, o.vol, o.traded, o.traded, o.orderSysKey, o.instrumentId, o.isLong, o.hedgeFlag};
   }
   return true;
 }

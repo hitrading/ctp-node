@@ -446,6 +446,21 @@ private:
     // Exchange/day/instrument/OrderSysID fingerprint. It distinguishes a known
     // stale replay from a genuinely new order after front/session/ref reuse.
     std::string orderSysKey;
+    // Empty only for unsupported (multi-leg) orders.
+    std::string instrumentId{};
+    bool isLong = false;
+    char hedgeFlag = '\0';
+    bool conflictingTerminal = false;
+    bool canReconcileWorking(const OpenOrderInfo &row) const {
+      if (orderSysKey.empty() || row.orderSysKey.empty()) return false;
+      if (orderSysKey != row.orderSysKey) return true; // independently identified reuse
+      if (conflictingTerminal) return false;
+      return row.supportedSingleLeg ? matchesOpening(row.instrumentId, row.isLong, row.hedgeFlag)
+                                    : instrumentId.empty();
+    }
+    bool matchesOpening(const std::string &id, bool side, char hedge) const {
+      return instrumentId == id && isLong == side && hedgeFlag == hedge;
+    }
   };
   // Tombstones make terminal state monotonic: an old non-terminal replay can no
   // longer resurrect a completed order. Exact tombstones are retained in a

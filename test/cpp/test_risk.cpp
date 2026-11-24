@@ -1175,8 +1175,8 @@ int main() {
           "unsupported-terminal setup reserves a normal opening order");
     r.onUnsupportedOrderUpdate(1, 7, "unsupported-terminal", '5');
     CHECK(r.tryReserveOpen("after-unsupported-terminal", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "an unsupported-format terminal callback releases its known reservation");
+              OpenGate::MetadataUnavailable,
+          "an unsupported-format terminal cannot release a known single-leg reservation");
   }
   {
     RiskEngine r;
