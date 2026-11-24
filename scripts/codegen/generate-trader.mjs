@@ -89,6 +89,7 @@ function rawDecl(s) {
 let c = `/* AUTO-GENERATED. Do not edit. */
 #include "traderspi.gen.h"
 #include "structids.gen.h"
+#include "../native/ctp_field.h"
 #include <string>
 
 namespace ctp {
@@ -109,17 +110,6 @@ static bool validHedgeFlag(char flag) {
 static bool validSingleHedge(const char *flags, size_t capacity) {
   return capacity > 0 && validHedgeFlag(flags[0]) &&
          (capacity == 1 || flags[1] == '\\0');
-}
-
-template <size_t N>
-static bool boundedField(const char (&field)[N], std::string &out) {
-  size_t length = 0;
-  while (length < N && field[length] != '\\0')
-    ++length;
-  if (length == N)
-    return false;
-  out.assign(field, length);
-  return true;
 }
 
 `;
@@ -201,11 +191,11 @@ for (const s of spi) {
     // order before the new login completes.
     c += `  if (arm_)\n    arm_->clear();\n  if (risk_)\n    risk_->invalidateSession();\n`;
   } else if (s.name === "OnRtnTrade") {
-    c += `  if (p && risk_) {\n    std::string tradingDay, tradeDate, broker, investor, exchange, instrument, tradeId, orderSysId, orderRef;\n    const bool stringsValid = boundedField(p->TradingDay, tradingDay) && boundedField(p->TradeDate, tradeDate) && boundedField(p->BrokerID, broker) && boundedField(p->InvestorID, investor) && boundedField(p->ExchangeID, exchange) && boundedField(p->InstrumentID, instrument) && boundedField(p->TradeID, tradeId) && boundedField(p->OrderSysID, orderSysId) && boundedField(p->OrderRef, orderRef);\n    if (stringsValid && !instrument.empty() && !broker.empty() && !investor.empty() && (p->Direction == '0' || p->Direction == '1') && p->OffsetFlag >= '0' && p->OffsetFlag <= '6' && validHedgeFlag(p->HedgeFlag)) {\n      const std::string &day = !tradingDay.empty() ? tradingDay : tradeDate;\n      std::string key;\n      if (!day.empty() && !exchange.empty() && !tradeId.empty())\n        key = day + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|trade|" + tradeId;\n      else if (!day.empty() && !exchange.empty() && p->SequenceNo != 0)\n        key = day + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|sequence|" + std::to_string(p->SequenceNo);\n      const std::string sys = !tradingDay.empty() && !exchange.empty() && !orderSysId.empty() ? tradingDay + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|" + orderSysId : std::string();\n      risk_->onTrade(key, orderRef, sys, instrument, p->Direction == '0', p->OffsetFlag == '0', p->HedgeFlag, p->Price, p->Volume, broker, investor);\n    } else {\n      risk_->markTradeLedgerUncertain();\n    }\n  }\n`;
+    c += `  if (p && risk_) {\n    std::string tradingDay, tradeDate, broker, investor, exchange, instrument, tradeId, orderSysId, orderRef;\n    const bool stringsValid = boundedCtpField(p->TradingDay, tradingDay) && boundedCtpField(p->TradeDate, tradeDate) && boundedCtpField(p->BrokerID, broker) && boundedCtpField(p->InvestorID, investor) && boundedCtpField(p->ExchangeID, exchange) && boundedCtpField(p->InstrumentID, instrument) && boundedExchangeId(p->TradeID, tradeId) && boundedExchangeId(p->OrderSysID, orderSysId) && boundedCtpField(p->OrderRef, orderRef);\n    if (stringsValid && !instrument.empty() && !broker.empty() && !investor.empty() && (p->Direction == '0' || p->Direction == '1') && p->OffsetFlag >= '0' && p->OffsetFlag <= '6' && validHedgeFlag(p->HedgeFlag)) {\n      const std::string &day = !tradingDay.empty() ? tradingDay : tradeDate;\n      std::string key;\n      if (!day.empty() && !exchange.empty() && !tradeId.empty())\n        key = day + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|trade|" + tradeId;\n      else if (!day.empty() && !exchange.empty() && p->SequenceNo != 0)\n        key = day + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|sequence|" + std::to_string(p->SequenceNo);\n      const std::string sys = !tradingDay.empty() && !exchange.empty() && !orderSysId.empty() ? tradingDay + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|" + orderSysId : std::string();\n      risk_->onTrade(key, orderRef, sys, instrument, p->Direction == '0', p->OffsetFlag == '0', p->HedgeFlag, p->Price, p->Volume, broker, investor);\n    } else {\n      risk_->markTradeLedgerUncertain();\n    }\n  }\n`;
   } else if (s.name === "OnRtnOrder") {
     // reconcile the order's in-flight reservation to its working remainder;
     // keyed by the originating (FrontID, SessionID, OrderRef)
-    c += `  if (p && risk_) {\n    std::string day, broker, investor, exchange, instrument, orderSysId, orderRef;\n    const bool stringsValid = boundedField(p->TradingDay, day) && boundedField(p->BrokerID, broker) && boundedField(p->InvestorID, investor) && boundedField(p->ExchangeID, exchange) && boundedField(p->InstrumentID, instrument) && boundedField(p->OrderSysID, orderSysId) && boundedField(p->OrderRef, orderRef);\n    const std::string sys = stringsValid && !day.empty() && !broker.empty() && !investor.empty() && !exchange.empty() && !instrument.empty() && !orderSysId.empty() ? day + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|" + orderSysId : std::string();\n    if (stringsValid && !broker.empty() && !investor.empty() && validSingleOffset(p->CombOffsetFlag, sizeof(p->CombOffsetFlag)) && validSingleHedge(p->CombHedgeFlag, sizeof(p->CombHedgeFlag)) && (p->Direction == '0' || p->Direction == '1') && !instrument.empty() && !orderRef.empty()) {\n      risk_->onOrderUpdate(p->FrontID, p->SessionID, orderRef, instrument, p->CombOffsetFlag[0] == '0', p->Direction == '0', p->CombHedgeFlag[0], p->OrderStatus, p->LimitPrice, p->VolumeTotalOriginal, p->VolumeTraded, sys, broker, investor);\n    } else {\n      risk_->onUnsupportedOrderUpdate(p->FrontID, p->SessionID, orderRef, p->OrderStatus, sys, broker, investor);\n    }\n  }\n`;
+    c += `  if (p && risk_) {\n    std::string day, broker, investor, exchange, instrument, orderSysId, orderRef;\n    const bool stringsValid = boundedCtpField(p->TradingDay, day) && boundedCtpField(p->BrokerID, broker) && boundedCtpField(p->InvestorID, investor) && boundedCtpField(p->ExchangeID, exchange) && boundedCtpField(p->InstrumentID, instrument) && boundedExchangeId(p->OrderSysID, orderSysId) && boundedCtpField(p->OrderRef, orderRef);\n    const std::string sys = stringsValid && !day.empty() && !broker.empty() && !investor.empty() && !exchange.empty() && !instrument.empty() && !orderSysId.empty() ? day + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|" + orderSysId : std::string();\n    if (stringsValid && !broker.empty() && !investor.empty() && validSingleOffset(p->CombOffsetFlag, sizeof(p->CombOffsetFlag)) && validSingleHedge(p->CombHedgeFlag, sizeof(p->CombHedgeFlag)) && (p->Direction == '0' || p->Direction == '1') && !instrument.empty() && !orderRef.empty()) {\n      risk_->onOrderUpdate(p->FrontID, p->SessionID, orderRef, instrument, p->CombOffsetFlag[0] == '0', p->Direction == '0', p->CombHedgeFlag[0], p->OrderStatus, p->LimitPrice, p->VolumeTotalOriginal, p->VolumeTraded, sys, broker, investor);\n    } else {\n      risk_->onUnsupportedOrderUpdate(p->FrontID, p->SessionID, orderRef, p->OrderStatus, sys, broker, investor);\n    }\n  }\n`;
   } else if (s.name === "OnRspOrderInsert" || s.name === "OnErrRtnOrderInsert") {
     // Only an ordinary single-leg OPEN owns a reservation. OnRsp carries the
     // exact request id; OnErrRtn does not, so the latter must conservatively
@@ -215,7 +205,7 @@ for (const s of spi) {
     // or malformed row is ambiguous and therefore enters the conservative
     // correlation path (requestId can still identify an open exactly).
     const rejectionGuard = correlated ? "eid(e) != 0 && " : "";
-    c += `  if (risk_ && ${rejectionGuard}(!p || !validSingleOffset(p->CombOffsetFlag, sizeof(p->CombOffsetFlag)) || p->CombOffsetFlag[0] == '0')) {\n    std::string orderRef, broker, investor;\n    if (p) { boundedField(p->OrderRef, orderRef); boundedField(p->BrokerID, broker); boundedField(p->InvestorID, investor); }\n    risk_->${correlated ? "rejectInsertByRequest(id, orderRef, broker, investor)" : "rejectInsertUnscoped(orderRef, broker, investor)"};\n  }\n`;
+    c += `  if (risk_ && ${rejectionGuard}(!p || !validSingleOffset(p->CombOffsetFlag, sizeof(p->CombOffsetFlag)) || p->CombOffsetFlag[0] == '0')) {\n    std::string orderRef, broker, investor;\n    if (p) { boundedCtpField(p->OrderRef, orderRef); boundedCtpField(p->BrokerID, broker); boundedCtpField(p->InvestorID, investor); }\n    risk_->${correlated ? "rejectInsertByRequest(id, orderRef, broker, investor)" : "rejectInsertUnscoped(orderRef, broker, investor)"};\n  }\n`;
   } else if (s.name === "OnRspUserLogin") {
     // Publish only the newest explicitly requested login. A delayed success
     // from a superseded login/logout must not restore an obsolete session key.
@@ -227,14 +217,14 @@ for (const s of spi) {
   } else if (s.name === "OnRspQryInstrumentMarginRate") {
     // Preserve every dimension needed by CTP's futures-margin formula. Relative
     // schedules need an exchange base rate and therefore remain fail-closed.
-    c += `  if (p && risk_ && eid(e) == 0) {\n    std::string broker, investor, investUnit, instrument;\n    if (boundedField(p->BrokerID, broker) && boundedField(p->InvestorID, investor) && boundedField(p->InvestUnitID, investUnit) && boundedField(p->InstrumentID, instrument))\n      risk_->applyInvestorMarginSchedule(id, broker, investor, investUnit, instrument, p->HedgeFlag, p->LongMarginRatioByMoney, p->LongMarginRatioByVolume, p->ShortMarginRatioByMoney, p->ShortMarginRatioByVolume, p->IsRelative != 0);\n  }\n  if (risk_ && last) risk_->finishMarginScheduleQuery(id, eid(e) == 0);\n`;
+    c += `  if (p && risk_ && eid(e) == 0) {\n    std::string broker, investor, investUnit, instrument;\n    if (boundedCtpField(p->BrokerID, broker) && boundedCtpField(p->InvestorID, investor) && boundedCtpField(p->InvestUnitID, investUnit) && boundedCtpField(p->InstrumentID, instrument))\n      risk_->applyInvestorMarginSchedule(id, broker, investor, investUnit, instrument, p->HedgeFlag, p->LongMarginRatioByMoney, p->LongMarginRatioByVolume, p->ShortMarginRatioByMoney, p->ShortMarginRatioByVolume, p->IsRelative != 0);\n  }\n  if (risk_ && last) risk_->finishMarginScheduleQuery(id, eid(e) == 0);\n`;
   } else if (s.name === "OnRspQryExchangeMarginRate") {
     // Base schedule used when the investor schedule is marked IsRelative.
-    c += `  if (p && risk_ && eid(e) == 0) {\n    std::string broker, instrument;\n    if (boundedField(p->BrokerID, broker) && boundedField(p->InstrumentID, instrument))\n      risk_->applyExchangeMarginSchedule(id, broker, instrument, p->HedgeFlag, p->LongMarginRatioByMoney, p->LongMarginRatioByVolume, p->ShortMarginRatioByMoney, p->ShortMarginRatioByVolume);\n  }\n  if (risk_ && last) risk_->finishMarginScheduleQuery(id, eid(e) == 0);\n`;
+    c += `  if (p && risk_ && eid(e) == 0) {\n    std::string broker, instrument;\n    if (boundedCtpField(p->BrokerID, broker) && boundedCtpField(p->InstrumentID, instrument))\n      risk_->applyExchangeMarginSchedule(id, broker, instrument, p->HedgeFlag, p->LongMarginRatioByMoney, p->LongMarginRatioByVolume, p->ShortMarginRatioByMoney, p->ShortMarginRatioByVolume);\n  }\n  if (risk_ && last) risk_->finishMarginScheduleQuery(id, eid(e) == 0);\n`;
   } else if (s.name === "OnRspQryInstrument") {
     // feed the contract multiplier straight into the risk engine (no JS round-
     // trip) - idempotent metadata, same pattern as the margin rate above.
-    c += `  if (p && risk_ && eid(e) == 0) {\n    std::string instrument, product;\n    if (boundedField(p->InstrumentID, instrument) && boundedField(p->ProductID, product))\n      risk_->setInstrument(instrument, p->VolumeMultiple, p->ProductClass, product);\n    else\n      risk_->invalidateInstrument("");\n  }\n`;
+    c += `  if (p && risk_ && eid(e) == 0) {\n    std::string instrument, product;\n    if (boundedCtpField(p->InstrumentID, instrument) && boundedCtpField(p->ProductID, product))\n      risk_->setInstrument(instrument, p->VolumeMultiple, p->ProductClass, product);\n    else\n      risk_->invalidateInstrument("");\n  }\n`;
   }
   c += `  ch_->push(ET_${member(s.name)}, ${reqId}, ${isLast}, ${errId}, ${errMsg}, ${sid}, ${ptr}, ${len});\n`;
   c += `}\n\n`;

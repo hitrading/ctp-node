@@ -451,11 +451,17 @@ private:
     bool isLong = false;
     char hedgeFlag = '\0';
     bool conflictingTerminal = false;
+    double originalVolume = 0.0;
+    bool matchesFinalVolume(double original, double traded, bool final) const {
+      return original == originalVolume &&
+             (final ? traded == reportedTraded : traded <= reportedTraded);
+    }
     bool canReconcileWorking(const OpenOrderInfo &row) const {
       if (orderSysKey.empty() || row.orderSysKey.empty()) return false;
       if (orderSysKey != row.orderSysKey) return true; // independently identified reuse
       if (conflictingTerminal) return false;
-      return row.supportedSingleLeg ? matchesOpening(row.instrumentId, row.isLong, row.hedgeFlag)
+      return row.supportedSingleLeg ? matchesOpening(row.instrumentId, row.isLong, row.hedgeFlag) &&
+                                      matchesFinalVolume(row.vol + row.traded, row.traded, false)
                                     : instrumentId.empty();
     }
     bool matchesOpening(const std::string &id, bool side, char hedge) const {
@@ -477,7 +483,14 @@ private:
   std::unordered_map<std::string, std::string> reservationKeyBySys_;
   struct UnmatchedFill {
     std::string orderRef;
+    std::string instrumentId;
+    bool isLong;
+    char hedgeFlag;
     double volume = 0.0;
+    bool matches(const std::string &ref, const std::string &id, bool side, char hedge) const {
+      return (ref.empty() || orderRef.empty() || orderRef == ref) &&
+             instrumentId == id && isLong == side && hedgeFlag == hedge;
+    }
   };
   // A trade from another terminal may precede its first OnRtnOrder. Remember
   // the already-applied quantity by exchange order id so the later Order row

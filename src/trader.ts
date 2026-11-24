@@ -1273,6 +1273,7 @@ export class Trader extends TraderBase {
         const supportedSingleLeg = /^[0-6]$/.test(o.combOffsetFlag);
         if (supportedSingleLeg && o.combOffsetFlag !== "0")
           return []; // a representable close order adds no opening exposure
+        const orderSysId = o.orderSysId?.replace(/^ +| +$/g, "");
         return [{
             frontId: o.frontId,
             sessionId: o.sessionId,
@@ -1289,8 +1290,8 @@ export class Trader extends TraderBase {
             // are the confirmed session identity (validated == every row above),
             // so a reservation rebuilt on resync correlates with the subsequent
             // realtime order/trade callbacks instead of being stranded uncertain.
-            orderSysKey: o.tradingDay && o.exchangeId && o.orderSysId
-              ? `${o.tradingDay}|${brokerId}|${investorId}|${o.exchangeId}|${o.instrumentId}|${o.orderSysId}`
+            orderSysKey: o.tradingDay && o.exchangeId && orderSysId
+              ? `${o.tradingDay}|${brokerId}|${investorId}|${o.exchangeId}|${o.instrumentId}|${orderSysId}`
               : "",
             supportedSingleLeg,
           }];

@@ -1,6 +1,7 @@
 /* AUTO-GENERATED. Do not edit. */
 #include "traderspi.gen.h"
 #include "structids.gen.h"
+#include "../native/ctp_field.h"
 #include <string>
 
 namespace ctp {
@@ -21,17 +22,6 @@ static bool validHedgeFlag(char flag) {
 static bool validSingleHedge(const char *flags, size_t capacity) {
   return capacity > 0 && validHedgeFlag(flags[0]) &&
          (capacity == 1 || flags[1] == '\0');
-}
-
-template <size_t N>
-static bool boundedField(const char (&field)[N], std::string &out) {
-  size_t length = 0;
-  while (length < N && field[length] != '\0')
-    ++length;
-  if (length == N)
-    return false;
-  out.assign(field, length);
-  return true;
 }
 
 void TraderSpi::OnFrontConnected() {
@@ -99,7 +89,7 @@ void TraderSpi::OnRspGenUserText(CThostFtdcRspGenUserTextField *p, CThostFtdcRsp
 void TraderSpi::OnRspOrderInsert(CThostFtdcInputOrderField *p, CThostFtdcRspInfoField *e, int id, bool last) {
   if (risk_ && eid(e) != 0 && (!p || !validSingleOffset(p->CombOffsetFlag, sizeof(p->CombOffsetFlag)) || p->CombOffsetFlag[0] == '0')) {
     std::string orderRef, broker, investor;
-    if (p) { boundedField(p->OrderRef, orderRef); boundedField(p->BrokerID, broker); boundedField(p->InvestorID, investor); }
+    if (p) { boundedCtpField(p->OrderRef, orderRef); boundedCtpField(p->BrokerID, broker); boundedCtpField(p->InvestorID, investor); }
     risk_->rejectInsertByRequest(id, orderRef, broker, investor);
   }
   ch_->push(ET_RspOrderInsert, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_InputOrder : -1, p, p ? (int)sizeof(*p) : 0);
@@ -196,7 +186,7 @@ void TraderSpi::OnRspQryTradingCode(CThostFtdcTradingCodeField *p, CThostFtdcRsp
 void TraderSpi::OnRspQryInstrumentMarginRate(CThostFtdcInstrumentMarginRateField *p, CThostFtdcRspInfoField *e, int id, bool last) {
   if (p && risk_ && eid(e) == 0) {
     std::string broker, investor, investUnit, instrument;
-    if (boundedField(p->BrokerID, broker) && boundedField(p->InvestorID, investor) && boundedField(p->InvestUnitID, investUnit) && boundedField(p->InstrumentID, instrument))
+    if (boundedCtpField(p->BrokerID, broker) && boundedCtpField(p->InvestorID, investor) && boundedCtpField(p->InvestUnitID, investUnit) && boundedCtpField(p->InstrumentID, instrument))
       risk_->applyInvestorMarginSchedule(id, broker, investor, investUnit, instrument, p->HedgeFlag, p->LongMarginRatioByMoney, p->LongMarginRatioByVolume, p->ShortMarginRatioByMoney, p->ShortMarginRatioByVolume, p->IsRelative != 0);
   }
   if (risk_ && last) risk_->finishMarginScheduleQuery(id, eid(e) == 0);
@@ -222,7 +212,7 @@ void TraderSpi::OnRspQryProduct(CThostFtdcProductField *p, CThostFtdcRspInfoFiel
 void TraderSpi::OnRspQryInstrument(CThostFtdcInstrumentField *p, CThostFtdcRspInfoField *e, int id, bool last) {
   if (p && risk_ && eid(e) == 0) {
     std::string instrument, product;
-    if (boundedField(p->InstrumentID, instrument) && boundedField(p->ProductID, product))
+    if (boundedCtpField(p->InstrumentID, instrument) && boundedCtpField(p->ProductID, product))
       risk_->setInstrument(instrument, p->VolumeMultiple, p->ProductClass, product);
     else
       risk_->invalidateInstrument("");
@@ -277,7 +267,7 @@ void TraderSpi::OnRspQryInvestorProductGroupMargin(CThostFtdcInvestorProductGrou
 void TraderSpi::OnRspQryExchangeMarginRate(CThostFtdcExchangeMarginRateField *p, CThostFtdcRspInfoField *e, int id, bool last) {
   if (p && risk_ && eid(e) == 0) {
     std::string broker, instrument;
-    if (boundedField(p->BrokerID, broker) && boundedField(p->InstrumentID, instrument))
+    if (boundedCtpField(p->BrokerID, broker) && boundedCtpField(p->InstrumentID, instrument))
       risk_->applyExchangeMarginSchedule(id, broker, instrument, p->HedgeFlag, p->LongMarginRatioByMoney, p->LongMarginRatioByVolume, p->ShortMarginRatioByMoney, p->ShortMarginRatioByVolume);
   }
   if (risk_ && last) risk_->finishMarginScheduleQuery(id, eid(e) == 0);
@@ -379,7 +369,7 @@ void TraderSpi::OnRspError(CThostFtdcRspInfoField *e, int id, bool last) {
 void TraderSpi::OnRtnOrder(CThostFtdcOrderField *p) {
   if (p && risk_) {
     std::string day, broker, investor, exchange, instrument, orderSysId, orderRef;
-    const bool stringsValid = boundedField(p->TradingDay, day) && boundedField(p->BrokerID, broker) && boundedField(p->InvestorID, investor) && boundedField(p->ExchangeID, exchange) && boundedField(p->InstrumentID, instrument) && boundedField(p->OrderSysID, orderSysId) && boundedField(p->OrderRef, orderRef);
+    const bool stringsValid = boundedCtpField(p->TradingDay, day) && boundedCtpField(p->BrokerID, broker) && boundedCtpField(p->InvestorID, investor) && boundedCtpField(p->ExchangeID, exchange) && boundedCtpField(p->InstrumentID, instrument) && boundedExchangeId(p->OrderSysID, orderSysId) && boundedCtpField(p->OrderRef, orderRef);
     const std::string sys = stringsValid && !day.empty() && !broker.empty() && !investor.empty() && !exchange.empty() && !instrument.empty() && !orderSysId.empty() ? day + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|" + orderSysId : std::string();
     if (stringsValid && !broker.empty() && !investor.empty() && validSingleOffset(p->CombOffsetFlag, sizeof(p->CombOffsetFlag)) && validSingleHedge(p->CombHedgeFlag, sizeof(p->CombHedgeFlag)) && (p->Direction == '0' || p->Direction == '1') && !instrument.empty() && !orderRef.empty()) {
       risk_->onOrderUpdate(p->FrontID, p->SessionID, orderRef, instrument, p->CombOffsetFlag[0] == '0', p->Direction == '0', p->CombHedgeFlag[0], p->OrderStatus, p->LimitPrice, p->VolumeTotalOriginal, p->VolumeTraded, sys, broker, investor);
@@ -393,7 +383,7 @@ void TraderSpi::OnRtnOrder(CThostFtdcOrderField *p) {
 void TraderSpi::OnRtnTrade(CThostFtdcTradeField *p) {
   if (p && risk_) {
     std::string tradingDay, tradeDate, broker, investor, exchange, instrument, tradeId, orderSysId, orderRef;
-    const bool stringsValid = boundedField(p->TradingDay, tradingDay) && boundedField(p->TradeDate, tradeDate) && boundedField(p->BrokerID, broker) && boundedField(p->InvestorID, investor) && boundedField(p->ExchangeID, exchange) && boundedField(p->InstrumentID, instrument) && boundedField(p->TradeID, tradeId) && boundedField(p->OrderSysID, orderSysId) && boundedField(p->OrderRef, orderRef);
+    const bool stringsValid = boundedCtpField(p->TradingDay, tradingDay) && boundedCtpField(p->TradeDate, tradeDate) && boundedCtpField(p->BrokerID, broker) && boundedCtpField(p->InvestorID, investor) && boundedCtpField(p->ExchangeID, exchange) && boundedCtpField(p->InstrumentID, instrument) && boundedExchangeId(p->TradeID, tradeId) && boundedExchangeId(p->OrderSysID, orderSysId) && boundedCtpField(p->OrderRef, orderRef);
     if (stringsValid && !instrument.empty() && !broker.empty() && !investor.empty() && (p->Direction == '0' || p->Direction == '1') && p->OffsetFlag >= '0' && p->OffsetFlag <= '6' && validHedgeFlag(p->HedgeFlag)) {
       const std::string &day = !tradingDay.empty() ? tradingDay : tradeDate;
       std::string key;
@@ -413,7 +403,7 @@ void TraderSpi::OnRtnTrade(CThostFtdcTradeField *p) {
 void TraderSpi::OnErrRtnOrderInsert(CThostFtdcInputOrderField *p, CThostFtdcRspInfoField *e) {
   if (risk_ && (!p || !validSingleOffset(p->CombOffsetFlag, sizeof(p->CombOffsetFlag)) || p->CombOffsetFlag[0] == '0')) {
     std::string orderRef, broker, investor;
-    if (p) { boundedField(p->OrderRef, orderRef); boundedField(p->BrokerID, broker); boundedField(p->InvestorID, investor); }
+    if (p) { boundedCtpField(p->OrderRef, orderRef); boundedCtpField(p->BrokerID, broker); boundedCtpField(p->InvestorID, investor); }
     risk_->rejectInsertUnscoped(orderRef, broker, investor);
   }
   ch_->push(ET_ErrRtnOrderInsert, 0, -1, eid(e), emsg(e), p ? SID_InputOrder : -1, p, p ? (int)sizeof(*p) : 0);

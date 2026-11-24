@@ -1030,7 +1030,7 @@ ok(sessionBoundArm.disarm() === false,
     brokerId: "9999", investorId: "u", frontId: 1, sessionId: 7, orderRef: "syskey-probe",
     instrumentId: "rb2510", combOffsetFlag: "0", combHedgeFlag: "1", direction: "0",
     orderStatus: "3", limitPrice: 3500, volumeTotalOriginal: 2, volumeTraded: 0,
-    tradingDay: "20260711", exchangeId: "SHFE", orderSysId: "800001",
+    tradingDay: "20260711", exchangeId: "SHFE", orderSysId: "  800001 ",
   }];
   await tdKey.syncOrders();
   tdKey.native = realKeyNative;

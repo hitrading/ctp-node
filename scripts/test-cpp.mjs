@@ -11,6 +11,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
+import { basename } from "node:path";
 
 const CXX = process.env.CXX || "clang++";
 const coverage = process.env.COVERAGE === "1";
@@ -65,7 +66,9 @@ if (coverage && !failed) {
         run("llvm-cov", ["report", `build/cpptest/${s.name}${exe}`, `-instr-profile=build/cpptest/${s.name}.profdata`, s.src]);
       }
     } else {
-      run("gcov", ["-n", ...suites.flatMap((s) => s.src ? [s.src] : [])]);
+      for (const s of suites) {
+        if (s.src) run("gcov", ["-n", `build/cpptest/${s.name}-${basename(s.src, ".cc")}.gcno`]);
+      }
     }
   } catch {
     console.warn("(coverage report tool unavailable - tests still ran and passed)");

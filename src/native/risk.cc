@@ -1077,7 +1077,8 @@ void RiskEngine::onTrade(const std::string &tradeKey,
     auto rit = reservations_.find(reservationKey);
     if (rit != reservations_.end()) {
       const Reservation &matched = rit->second;
-      if (matched.instrumentId != instrumentId || matched.isLong != isBuy ||
+      if ((!orderRef.empty() && matched.orderRef != orderRef) ||
+          matched.instrumentId != instrumentId || matched.isLong != isBuy ||
           matched.hedgeFlag != hedgeFlag) {
         // The identity index and the economic fields disagree. Apply the fill
         // to held exposure below, but never release the conflicting working
@@ -1114,13 +1115,16 @@ void RiskEngine::onTrade(const std::string &tradeKey,
       if (unmatchedFillsBySys_.size() >= kMaxUnmatchedFills &&
           unmatchedFillsBySys_.count(orderSysKey) == 0)
         unmatchedFillsBySys_.clear();
-      UnmatchedFill &fill = unmatchedFillsBySys_[orderSysKey];
-      if (fill.orderRef.empty() || fill.orderRef == orderRef) {
-        fill.orderRef = orderRef;
+      auto [it, inserted] = unmatchedFillsBySys_.try_emplace(orderSysKey);
+      UnmatchedFill &fill = it->second;
+      if (inserted) {
+        fill = {orderRef, instrumentId, isBuy, hedgeFlag, volume};
+      } else if (fill.matches(orderRef, instrumentId, isBuy, hedgeFlag)) {
+        if (fill.orderRef.empty()) fill.orderRef = orderRef;
         fill.volume += volume;
         clampFiniteCost(fill.volume);
       } else {
-        // One exchange order id cannot belong to two OrderRefs. The fills are
+        // One exchange order id cannot describe different orders. The fills are
         // still applied to held exposure, but no reservation may be reconciled
         // through this ambiguous identity until an authoritative order sync.
         orderLedgerUncertain_ = true;
@@ -1651,7 +1655,7 @@ OpenGate RiskEngine::tryReserveOpen(const std::string &orderRef,
                                    hedgeFlag, volume,
                                    costKnown ? addCost : 0.0, price, costKnown};
   indexReservationLocked(key);
-  orderStates_[key] = OrderState{false, volume, 0.0, 0.0, "", instrumentId, isLong, hedgeFlag};
+  orderStates_[key] = OrderState{false, volume, 0.0, 0.0, "", instrumentId, isLong, hedgeFlag, false, volume};
   revision_.fetch_add(1, std::memory_order_release);
   return OpenGate::Ok;
 }
@@ -1721,7 +1725,8 @@ void RiskEngine::onOrderUpdate(int frontId, int sessionId,
 
   auto sit = orderStates_.find(key);
   if (sit != orderStates_.end() &&
-      (sit->second.conflictingTerminal || !sit->second.matchesOpening(instrumentId, isLong, hedgeFlag))) {
+      (sit->second.conflictingTerminal || !sit->second.matchesOpening(instrumentId, isLong, hedgeFlag) ||
+       (sit->second.terminal && !sit->second.matchesFinalVolume(volTotal, volTraded, terminal)))) {
     if (sit->second.terminal && terminal && sit->second.orderSysKey == orderSysKey)
       sit->second.conflictingTerminal = true;
     orderLedgerUncertain_ = true;
@@ -1747,18 +1752,6 @@ void RiskEngine::onOrderUpdate(int frontId, int sessionId,
   if (sit != orderStates_.end()) {
     OrderState &s = sit->second;
     if (s.terminal) {
-      if (terminal) {
-        // Only a matching concrete exchange identity proves this is a replay.
-        // A terminal callback with a different/missing fingerprint may be a
-        // newly completed order after front/session/ref reuse; ignoring it can
-        // omit its not-yet-delivered fill reservation.
-        if (!s.orderSysKey.empty() && !orderSysKey.empty() &&
-            s.orderSysKey == orderSysKey)
-          return;
-        orderLedgerUncertain_ = true;
-        revision_.fetch_add(1, std::memory_order_release);
-        return;
-      }
       // A concrete matching exchange id proves this is a stale replay of the
       // terminal order. A different/missing fingerprint is ambiguous: front,
       // session and OrderRef can be reused after a long-lived client's front
@@ -1772,6 +1765,11 @@ void RiskEngine::onOrderUpdate(int frontId, int sessionId,
     }
     if (!s.orderSysKey.empty() && !orderSysKey.empty() &&
         s.orderSysKey != orderSysKey) {
+      orderLedgerUncertain_ = true;
+      revision_.fetch_add(1, std::memory_order_release);
+      return;
+    }
+    if (terminal && (volTraded < s.reportedTraded || volTraded < s.appliedTraded)) {
       orderLedgerUncertain_ = true;
       revision_.fetch_add(1, std::memory_order_release);
       return;
@@ -1799,13 +1797,14 @@ void RiskEngine::onOrderUpdate(int frontId, int sessionId,
               .first;
   }
   OrderState &state = sit->second;
+  state.originalVolume = volTotal;
   if (terminal)
     rememberTerminalOrderLocked(key);
   if (!orderSysKey.empty()) {
     auto unmatched = unmatchedFillsBySys_.find(orderSysKey);
     if (unmatched != unmatchedFillsBySys_.end()) {
-      if (!unmatched->second.orderRef.empty() &&
-          unmatched->second.orderRef != orderRef) {
+      if (!unmatched->second.matches(orderRef, instrumentId, isLong, hedgeFlag)) {
+        if (terminal) state.conflictingTerminal = true;
         orderLedgerUncertain_ = true;
         revision_.fetch_add(1, std::memory_order_release);
         return;
@@ -2261,7 +2260,8 @@ bool RiskEngine::rebuildOpenReservationsLocked(
     // metadata represented as unknown so monetary gates fail closed.
     updateReservationExposureLocked(reservations_[key], o.vol, o.price);
     orderStates_[key] =
-        OrderState{false, o.vol, o.traded, o.traded, o.orderSysKey, o.instrumentId, o.isLong, o.hedgeFlag};
+        OrderState{false, o.vol, o.traded, o.traded, o.orderSysKey, o.instrumentId, o.isLong, o.hedgeFlag,
+                   false, o.vol + o.traded};
   }
   return true;
 }
