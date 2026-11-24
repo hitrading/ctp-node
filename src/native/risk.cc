@@ -1768,7 +1768,8 @@ void RiskEngine::onOrderUpdate(int frontId, int sessionId,
       revision_.fetch_add(1, std::memory_order_release);
       return;
     }
-    if (terminal && (volTraded < s.reportedTraded || volTraded < s.appliedTraded)) {
+    if (terminal && (volTotal != s.originalVolume ||
+                     volTraded < s.reportedTraded || volTraded < s.appliedTraded)) {
       orderLedgerUncertain_ = true;
       revision_.fetch_add(1, std::memory_order_release);
       return;
