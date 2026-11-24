@@ -1,3 +1,10 @@
+## [4.2.1-rc.2](https://github.com/hitrading/ctp-node/compare/v4.2.1-rc.1...v4.2.1-rc.2) (2026-11-24)
+
+
+### Bug Fixes
+
+* **risk:** 禁止同号快照恢复已矛盾的委托终态凭证 ([c25e49c](https://github.com/hitrading/ctp-node/commit/c25e49c5ae4b6830990120e15bc263fc5adff9ff))
+
 ## [4.2.1-rc.1](https://github.com/hitrading/ctp-node/compare/v4.2.0...v4.2.1-rc.1) (2026-11-24)
 
 
