@@ -1501,7 +1501,7 @@ void RiskEngine::pruneEvictedTerminalOrderLocked(const std::string &key) {
 OpenGate RiskEngine::tryReserveOpen(const std::string &orderRef,
                                     const std::string &instrumentId, bool isLong,
                                     double price, double volume,
-                                    char hedgeFlag) {
+                                    char hedgeFlag, MarginLimitEvidence *evidence) {
   const double globalCap = maxAccountMargin_.load(std::memory_order_relaxed);
   std::lock_guard<std::mutex> lk(posMutex_);
   const std::string key = resvKey(myFrontId_, mySessionId_, orderRef);
@@ -1562,20 +1562,45 @@ OpenGate RiskEngine::tryReserveOpen(const std::string &orderRef,
     }
   }
 
+  // Calculate the breakdown only on rejection; preserve the gate's valuation
+  // order. Unknown components are reported as unknown, never as zero.
+  auto rejectMargin = [&](bool account, double limit) {
+    if (evidence) {
+      *evidence = MarginLimitEvidence{};
+      evidence->account = account;
+      evidence->limit = limit;
+      evidence->requested = addCost;
+      evidence->requestedKnown = costKnown;
+      auto addPosition = [&](const Pos &position) {
+        evidence->held += position.longCost + position.shortCost;
+        evidence->pending += position.longPendCost + position.shortPendCost;
+        evidence->heldKnown &= (position.longVol == 0 || position.longCostKnown) &&
+                               (position.shortVol == 0 || position.shortCostKnown);
+        evidence->pendingKnown &= position.longPendUnknown == 0 && position.shortPendUnknown == 0;
+      };
+      if (account) {
+        for (const auto &entry : positions_) addPosition(entry.second);
+      } else if (p) {
+        addPosition(*p);
+      }
+    }
+    return OpenGate::CostLimit;
+  };
+
   // 2) per-instrument margin cap (both sides, held + reserved)
   if (cit != maxInstrumentMargin_.end() && cit->second > 0.0) {
     double instrCost = 0.0;
     if (p)
       instrCost = p->longCost + p->longPendCost + p->shortCost + p->shortPendCost;
     if (instrCost >= cit->second)
-      return OpenGate::CostLimit;
+      return rejectMargin(false, cit->second);
     if ((p && ((p->longVol > 0.0 && !p->longCostKnown) ||
                (p->shortVol > 0.0 && !p->shortCostKnown) ||
                p->longPendUnknown > 0 || p->shortPendUnknown > 0)) ||
         !costKnown)
       return OpenGate::MetadataUnavailable;
     if (addCost > cit->second - instrCost)
-      return OpenGate::CostLimit;
+      return rejectMargin(false, cit->second);
   }
 
   // 3) account-wide margin cap (whole book, held + reserved)
@@ -1585,7 +1610,7 @@ OpenGate RiskEngine::tryReserveOpen(const std::string &orderRef,
       total += kv.second.longCost + kv.second.longPendCost +
                kv.second.shortCost + kv.second.shortPendCost;
     if (total >= globalCap)
-      return OpenGate::CostLimit;
+      return rejectMargin(true, globalCap);
     for (const auto &kv : positions_)
       if ((kv.second.longVol > 0.0 && !kv.second.longCostKnown) ||
           (kv.second.shortVol > 0.0 && !kv.second.shortCostKnown) ||
@@ -1594,7 +1619,7 @@ OpenGate RiskEngine::tryReserveOpen(const std::string &orderRef,
     if (!costKnown)
       return OpenGate::MetadataUnavailable;
     if (addCost > globalCap - total)
-      return OpenGate::CostLimit;
+      return rejectMargin(true, globalCap);
   }
 
   // Track every accepted open, even when no cap is currently active. A cap

@@ -12,6 +12,7 @@
 #define CTP_INVALID_ORDER_FIELDS -10008
 namespace ctp {
 class RiskEngine;
+struct MarginLimitEvidence;
 enum {
   M_ReqAuthenticate = 1,
   M_ReqUserLogin = 2,
@@ -140,6 +141,6 @@ enum {
   M_ReqQryHedgeCfm = 125,
 };
 int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len,
-              int requestId, RiskEngine *risk);
+              int requestId, RiskEngine *risk, MarginLimitEvidence *marginEvidence);
 } // namespace ctp
 #endif

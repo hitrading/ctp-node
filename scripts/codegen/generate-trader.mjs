@@ -256,12 +256,13 @@ let rh = `/* AUTO-GENERATED. Do not edit. */
 #define CTP_INVALID_ORDER_FIELDS -10008
 namespace ctp {
 class RiskEngine;
+struct MarginLimitEvidence;
 enum {
 `;
 req.forEach((r, i) => (rh += `  M_${r.name} = ${i + 1},\n`));
 rh += `};
 int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len,
-              int requestId, RiskEngine *risk);
+              int requestId, RiskEngine *risk, MarginLimitEvidence *marginEvidence);
 } // namespace ctp
 #endif
 `;
@@ -299,7 +300,7 @@ static bool validSingleHedge(const char *flags, size_t capacity) {
 }
 
 int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len,
-              int requestId, RiskEngine *risk) {
+              int requestId, RiskEngine *risk, MarginLimitEvidence *marginEvidence) {
   switch (methodId) {
 `;
 // Every non-query request must be classified here. Queries are read-only by CTP
@@ -375,7 +376,7 @@ for (const r of req) {
     rc += `      RiskVerdict v = risk->check(identity.instrumentId, f.LimitPrice, risk->refPrice(identity.instrumentId), f.VolumeTotalOriginal, isOpen);\n`;
     rc += `      if (!v.ok) return CTP_RISK_BLOCKED;\n`;
     rc += `      if (isOpen) {\n`;
-    rc += `        OpenGate g = risk->tryReserveOpen(identity.orderRef, identity.instrumentId, f.Direction == '0', f.LimitPrice, f.VolumeTotalOriginal, f.CombHedgeFlag[0]);\n`;
+    rc += `        OpenGate g = risk->tryReserveOpen(identity.orderRef, identity.instrumentId, f.Direction == '0', f.LimitPrice, f.VolumeTotalOriginal, f.CombHedgeFlag[0], marginEvidence);\n`;
     rc += `        if (g == OpenGate::VolumeLimit) return CTP_POSITION_VOLUME_LIMIT;\n`;
     rc += `        if (g == OpenGate::CostLimit) return CTP_POSITION_LIMIT;\n`;
     rc += `        if (g == OpenGate::DuplicateOrderRef) return CTP_DUPLICATE_ORDER_REF;\n`;

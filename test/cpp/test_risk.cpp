@@ -276,8 +276,10 @@ int main() {
     setFuture(r, "rb", 10);
     setSimpleMargin(r, "rb", 0.1);
     recordTrade(r, "rb", true, true, 3500, 2);
-    CHECK(r.tryReserveOpen("o1", "rb", true, 3500, 1) == OpenGate::CostLimit,
+    MarginLimitEvidence evidence;
+    CHECK(r.tryReserveOpen("o1", "rb", true, 3500, 1, '1', &evidence) == OpenGate::CostLimit,
           "maxAccountMargin: held 7000 + 3500 reserved > 10000 is blocked");
+    CHECK(evidence.account && evidence.limit == 10000 && evidence.heldKnown && evidence.held == 7000 && evidence.pendingKnown && evidence.pending == 0 && evidence.requestedKnown && evidence.requested == 3500, "account rejection reports the exact monetary evidence");
     CHECK(r.tryReserveOpen("o2", "rb", true, 2000, 1) == OpenGate::Ok,
           "maxAccountMargin: held 7000 + 2000 reserved = 9000 is allowed");
   }
@@ -819,9 +821,11 @@ int main() {
     working.vol = 1;
     working.price = 1;
     r.rebuildOpenReservations({working});
-    CHECK(r.tryReserveOpen("after-priced-snapshot", "rb", true, 100, 1) ==
+    MarginLimitEvidence evidence;
+    CHECK(r.tryReserveOpen("after-priced-snapshot", "rb", true, 100, 1, '1', &evidence) ==
               OpenGate::CostLimit,
           "rebuild values a working order at max(limit, fresh reference)");
+    CHECK(!evidence.account && evidence.limit == 15 && evidence.held == 0 && evidence.pending == 10 && evidence.requested == 10, "instrument rejection reports the exact pending margin");
   }
   {
     RiskEngine r;

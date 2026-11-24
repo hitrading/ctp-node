@@ -101,6 +101,18 @@ struct RiskVerdict {
   const char *reason = nullptr;    // static string; null when ok
 };
 
+// Monetary evidence from the exact reservation attempt, under the position lock.
+struct MarginLimitEvidence {
+  bool account = false;
+  double limit = 0.0;
+  double held = 0.0;
+  double pending = 0.0;
+  double requested = 0.0;
+  bool heldKnown = true;
+  bool pendingKnown = true;
+  bool requestedKnown = true;
+};
+
 // Result of the position gate for an opening order.
 enum class OpenGate {
   Ok,
@@ -285,7 +297,7 @@ public:
   // local/immediate send failure uses rollbackInsertRequest.
   OpenGate tryReserveOpen(const std::string &orderRef, const std::string &instrumentId,
                           bool isLong, double price, double volume,
-                          char hedgeFlag = '1');
+                          char hedgeFlag = '1', MarginLimitEvidence *evidence = nullptr);
   // Reconcile an open order's reservation to its current working remainder
   // (volTotal - volTraded while queueing; 0 once terminal). Fed from OnRtnOrder,
   // which carries the originating session - so this also tracks (and releases)

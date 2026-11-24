@@ -485,6 +485,23 @@ td.trackMarketData(md);
   const far = await outcome(5000);  // ~43% off -> blocked ONLY if the reference is wired
   ok(!/deviat|reference/i.test(near) && /deviat/i.test(far),
     "trackMarketData wires the MD snapshot: near-reference order passes the deviation gate, a far one is blocked (would fail closed on 'reference' if unwired)");
+  // 只替换柜台查询，正式报单入口、原生准入和拒单证据走同一条调用链。
+  tdTrack.reqQryOrder = async () => [];
+  await tdTrack.syncOrders();
+  tdTrack.seedPositions([{ instrumentId: "rb2510", side: "long", hedgeFlag: "1", volume: 1, margin: 1000 }]);
+  tdTrack.setInstrumentMarginLimit("rb2510", 4000);
+  const submit = () => tdTrack.reqOrderInsert({ instrumentId: "rb2510", direction: "0", combOffsetFlag: "0",
+    combHedgeFlag: "1", limitPrice: 3501, volumeTotalOriginal: 1 }).then(() => null, error => error);
+  const missing = await submit();
+  ok(missing?.ctpReturnCode === -10007 && !missing.marginRejection, "原生缺少合约乘数时如实报告缺少估值资料");
+  for (const scope of ["INSTRUMENT", "ACCOUNT"]) {
+    tdTrack.setInstrumentMarginLimit("rb2510", scope === "INSTRUMENT" ? 1000 : 0);
+    if (scope === "ACCOUNT") tdTrack.setRiskLimits({ maxAccountMargin: 1000 });
+    const denied = await submit(), evidence = denied?.marginRejection;
+    ok(denied?.ctpReturnCode === -10003 && evidence?.scope === scope && evidence.limit === 1000 &&
+      evidence.held === 1000 && evidence.pending === 0 && evidence.requested === null,
+      "持仓已达上限时返回准确范围、已知金额和本笔估值缺失：" + scope + " " + JSON.stringify(evidence));
+  }
   tdTrack.close(); mdTrack.close();
 }
 

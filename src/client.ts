@@ -526,6 +526,15 @@ export abstract class CtpClient extends EventEmitter {
     return this.reqSeq;
   }
 
+  private rejectError(rc: number, message: string): Error {
+    const error = Object.assign(new Error(message), { ctpReturnCode: rc });
+    if (rc === -10003 && typeof this.native.lastMarginRejection === "function") {
+      // Read synchronously on the same JS thread before the next request.
+      return Object.assign(error, { marginRejection: this.native.lastMarginRejection() });
+    }
+    return error;
+  }
+
   /** Message for a non-zero send code. Risk sentinels get a specific message;
    *  the generic pre-trade-risk block also appends the C++ reason (e.g. which
    *  limit) so logs say *why*. Returns undefined for non-risk codes. */
@@ -591,7 +600,7 @@ export abstract class CtpClient extends EventEmitter {
       if (rc !== 0) {
         this.pending.delete(id);
         const msg = this.riskRejectMessage(rc) ?? `request rejected by CTP API (code ${rc})`;
-        reject(Object.assign(new Error(msg), { ctpReturnCode: rc }));
+        reject(this.rejectError(rc, msg));
         return;
       }
       // Backstop: if the request goes idle (no response / no further rows for a
@@ -732,6 +741,6 @@ export abstract class CtpClient extends EventEmitter {
     }
     if (rc === 0) return Promise.resolve();
     const msg = this.riskRejectMessage(rc) ?? `order rejected by CTP API (code ${rc})`;
-    return Promise.reject(Object.assign(new Error(msg), { ctpReturnCode: rc }));
+    return Promise.reject(this.rejectError(rc, msg));
   }
 }

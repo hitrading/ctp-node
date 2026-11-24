@@ -30,7 +30,7 @@ static bool validSingleHedge(const char *flags, size_t capacity) {
 }
 
 int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len,
-              int requestId, RiskEngine *risk) {
+              int requestId, RiskEngine *risk, MarginLimitEvidence *marginEvidence) {
   switch (methodId) {
   case M_ReqAuthenticate: {
     CThostFtdcReqAuthenticateField f;
@@ -127,7 +127,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       RiskVerdict v = risk->check(identity.instrumentId, f.LimitPrice, risk->refPrice(identity.instrumentId), f.VolumeTotalOriginal, isOpen);
       if (!v.ok) return CTP_RISK_BLOCKED;
       if (isOpen) {
-        OpenGate g = risk->tryReserveOpen(identity.orderRef, identity.instrumentId, f.Direction == '0', f.LimitPrice, f.VolumeTotalOriginal, f.CombHedgeFlag[0]);
+        OpenGate g = risk->tryReserveOpen(identity.orderRef, identity.instrumentId, f.Direction == '0', f.LimitPrice, f.VolumeTotalOriginal, f.CombHedgeFlag[0], marginEvidence);
         if (g == OpenGate::VolumeLimit) return CTP_POSITION_VOLUME_LIMIT;
         if (g == OpenGate::CostLimit) return CTP_POSITION_LIMIT;
         if (g == OpenGate::DuplicateOrderRef) return CTP_DUPLICATE_ORDER_REF;

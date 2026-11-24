@@ -177,6 +177,7 @@ private:
   Napi::Value RiskReduceOnly(const Napi::CallbackInfo &info);
   Napi::Value RiskHaltAll(const Napi::CallbackInfo &info);
   Napi::Value RiskResume(const Napi::CallbackInfo &info);
+  Napi::Value LastMarginRejection(const Napi::CallbackInfo &info);
   Napi::Value LastRiskReason(const Napi::CallbackInfo &info);
   Napi::Value TimeoutSessionTransition(const Napi::CallbackInfo &info);
   Napi::Value ConfirmSessionAccount(const Napi::CallbackInfo &info);
@@ -216,6 +217,8 @@ private:
   TraderSpi *spi_ = nullptr;
   EventChannel *ch_ = nullptr;
   RiskEngine risk_;
+  MarginLimitEvidence marginRejection_; // Owned by the synchronous JS request thread.
+  bool hasMarginRejection_ = false;
   std::shared_ptr<ArmRegistry> arm_ = std::make_shared<ArmRegistry>();
   // Disjoint from JS CtpClient ids (1..0x3fffffff), preventing an armed-order
   // error response from settling an unrelated pending query by numeric id.
@@ -238,6 +241,7 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("riskReduceOnly", &Trader::RiskReduceOnly),
           InstanceMethod("riskHaltAll", &Trader::RiskHaltAll),
           InstanceMethod("riskResume", &Trader::RiskResume),
+          InstanceMethod("lastMarginRejection", &Trader::LastMarginRejection),
           InstanceMethod("lastRiskReason", &Trader::LastRiskReason),
           InstanceMethod("_timeoutSessionTransition",
                          &Trader::TimeoutSessionTransition),
@@ -613,7 +617,8 @@ Napi::Value Trader::Req(const Napi::CallbackInfo &info) {
   Napi::Uint8Array bytes = info[1].As<Napi::Uint8Array>();
   int id = info[2].As<Napi::Number>().Int32Value();
   int rc = traderReq(api_, methodId, bytes.Data(),
-                     static_cast<int>(bytes.ByteLength()), id, &risk_);
+                     static_cast<int>(bytes.ByteLength()), id, &risk_, &marginRejection_);
+  hasMarginRejection_ = rc == CTP_POSITION_LIMIT;
   return Napi::Number::New(env, rc);
 }
 
@@ -689,6 +694,23 @@ Napi::Value Trader::RiskHaltAll(const Napi::CallbackInfo &info) {
 Napi::Value Trader::RiskResume(const Napi::CallbackInfo &info) {
   risk_.resume();
   return info.Env().Undefined();
+}
+
+Napi::Value Trader::LastMarginRejection(const Napi::CallbackInfo &info) {
+  const auto env = info.Env();
+  if (!hasMarginRejection_) return env.Null();
+  const auto &e = marginRejection_;
+  auto result = Napi::Object::New(env);
+  auto amount = [&](bool known, double value) -> Napi::Value {
+    if (!known) return env.Null();
+    return Napi::Number::New(env, value);
+  };
+  result.Set("scope", e.account ? "ACCOUNT" : "INSTRUMENT");
+  result.Set("limit", e.limit);
+  result.Set("held", amount(e.heldKnown, e.held));
+  result.Set("pending", amount(e.pendingKnown, e.pending));
+  result.Set("requested", amount(e.requestedKnown, e.requested));
+  return result;
 }
 
 // Reason string of the most recent pre-trade-risk (check) rejection, "" if none.
