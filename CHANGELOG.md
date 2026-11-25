@@ -1,3 +1,10 @@
+## [4.3.1](https://github.com/hitrading/ctp-node/compare/v4.3.0...v4.3.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **trader:** 快照遇新成交的重取按时间封顶，不随查询限速缩短 ([7268dfd](https://github.com/hitrading/ctp-node/commit/7268dfd02ce024e7b0a545c8c899ba01d454c3e0))
+
 # [4.3.0](https://github.com/hitrading/ctp-node/compare/v4.2.1...v4.3.0) (2026-11-25)
 
 
