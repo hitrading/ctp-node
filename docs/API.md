@@ -564,7 +564,7 @@ reject queued work from the old context. The scheduler is per client (not
 process-global) and accepts at most 256 active/queued queries. Raw queries are
 paced but not retried. The
 [`sync*`](#tdsyncmultipliersinstrumentids--promisenumber) helpers additionally
-retry transient `-2`/`-3` flow-control failures and required empty cold-start
+retry transient `-2`/`-3`/90/154 "not ready" failures and required empty cold-start
 data.
 
 ```ts

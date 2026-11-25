@@ -65,11 +65,15 @@ td.on("front-connected", () => td.session({
 
 ## Queries & rate limits
 
-CTP throttles **queries to ~1 per second** per session. Issuing them too fast (or
-too soon after login) returns empty or rejects with a flow-control error.
+CTP throttles **queries per session**, at the rate its front grants. CTP has no
+"account data ready" event: a counter that is not ready either says so (error 90
+"query not ready", 154 "query core busy") or returns a successful empty reply.
 
-- Use `syncMultipliers()` / `syncOrders()` / `syncPositions()` — they retry
-  transient `-2`/`-3` flow-control failures and required empty cold-start data.
+- Use `syncMultipliers()` / `syncOrders()` / `syncPositions()` — they ask again on
+  `-2`/`-3`, 90 and 154 and on required empty cold-start data. An empty position
+  or order snapshot is accepted only when the account's funds agree that nothing
+  is held or frozen, so a counter that has not loaded the account is never taken
+  for a flat one. `isTransientQueryFailure(error)` tells the same for raw queries.
 - Do **not** add `setTimeout(1000)` around raw `reqQry*` / `reqQuery*` calls.
   Every query on the same client is snapshotted at invocation and enters one
   FIFO scheduler: at most one is in flight, spaced by the limits the logged-in
