@@ -34,6 +34,8 @@ const withNativeMethod = async (trader, name, replacement, run) => {
 };
 
 const td = new Trader("./flow-tu/", "tcp://127.0.0.1:1");
+ok(td.queryRetryDelayMs === 1100, "sync helpers pause a full second between attempts by default");
+td.queryRetryDelayMs = 0; // the pause itself is covered separately
 delete process.env.CTP_NODE_TEST_HOOKS;
 throws(() => td.native._burstEvents(1), "queue-producing Trader test hooks are disabled by default");
 process.env.CTP_NODE_TEST_HOOKS = "1";
@@ -947,6 +949,36 @@ await td.reqFromBankToFutureByFuture({}).catch((e) => {
 });
 ok(transferBlocked, "bank-to-futures transfer is explicitly blocked outside NORMAL mode");
 td.resume();
+
+// Faster query pacing must not shorten the pause that lets a counter become ready
+// after login: retries and the confirmation of an empty snapshot still wait.
+{
+  const saved = { instrument: td.reqQryInstrument, position: td.reqQryInvestorPosition };
+  td.queryRetryDelayMs = 250;
+  td.queryIntervalMs = 110;
+  const sentAt = [];
+  td.reqQryInstrument = async () => {
+    sentAt.push(performance.now());
+    return sentAt.length < 3 ? [] : [{ instrumentId: "rb2510", productId: "rb", volumeMultiple: 10 }];
+  };
+  await td.syncMultipliers(["rb2510"]);
+  ok(sentAt.length === 3 && sentAt[1] - sentAt[0] >= 240 && sentAt[2] - sentAt[1] >= 240,
+    "a not-ready query is retried only after the pause");
+  sentAt.length = 0;
+  td.reqQryInvestorPosition = async () => { sentAt.push(performance.now()); return []; };
+  await td.syncPositions();
+  ok(sentAt.length === 2 && sentAt[1] - sentAt[0] >= 240,
+    "an empty snapshot is confirmed only after the pause");
+  sentAt.length = 0;
+  const invalidated = td.syncPositions();
+  await Promise.resolve(); await Promise.resolve();
+  setTimeout(() => td.invalidateRequestContext("front disconnected"), 100);
+  await rejects(invalidated, "a front change during the pause rejects the snapshot");
+  ok(sentAt.length === 1, "the confirmation query is never sent across a front change");
+  td.queryRetryDelayMs = 0;
+  td.reqQryInstrument = saved.instrument;
+  td.reqQryInvestorPosition = saved.position;
+}
 
 // queryWithRetry: required data that stays empty, or keeps failing, throws.
 let scopedMultiplierCalls = 0;

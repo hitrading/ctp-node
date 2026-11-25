@@ -9,7 +9,7 @@
 import { native } from "./native-binding.js";
 import { groupCtpInstrumentsByProduct, selectCtpProductRate } from "./product-rates.js";
 import type { CtpResolvedMarginRate } from "./product-rates.js";
-import { queryIntervalMs } from "./query-pacing.js";
+import { queryIntervalMs, QUERY_RETRY_DELAY_MS } from "./query-pacing.js";
 import { TraderBase, TRADER_EVENTS, TraderEvent } from "./generated/trader.gen.js";
 import { STRUCT_ID } from "./generated/structs.gen.js";
 import type { CallbackOptions } from "./client.js";
@@ -211,6 +211,7 @@ export class Trader extends TraderBase {
   private broker?: string;
   private investor?: string;
   private orderRefSeq = 0;
+  private queryRetryDelayMs = QUERY_RETRY_DELAY_MS;
 
   constructor(flowPath: string, fronts: string | string[]) {
     super(
@@ -947,9 +948,9 @@ export class Trader extends TraderBase {
   }
 
   /**
-   * Run a CTP query with flow-control retries. CTP rate-limits queries (~1/sec)
-   * and one issued too soon after login can be rejected or come back empty
-   * before the account is ready. With `requireNonEmpty`, an empty result is
+   * Run a CTP query with flow-control retries. CTP rate-limits queries and one
+   * issued too soon after login can be rejected or come back empty before the
+   * account is ready, so retries pause independently of the query spacing. With `requireNonEmpty`, an empty result is
    * treated as not-ready-yet and retried (for data that must exist, e.g. an
    * instrument); otherwise empty is returned as-is (e.g. a genuinely flat
    * position book, so a flat account doesn't waste the full retry budget).
@@ -962,11 +963,9 @@ export class Trader extends TraderBase {
   ): Promise<T[]> {
     let lastErr: unknown;
     for (let i = 0; i < attempts; i++) {
+      if (i > 0) await sleep(this.queryRetryDelayMs);
       try {
         this.assertRequestContext(contextToken, "query synchronization");
-        // Every generated ReqQry* / ReqQuery* goes through queryRequest(), whose
-        // shared scheduler enforces the interval. Do not sleep here as well or
-        // retries are needlessly spaced twice.
         const rows = await query();
         this.assertRequestContext(contextToken, "query synchronization");
         if (!requireNonEmpty || rows.length > 0) return rows;
@@ -988,7 +987,7 @@ export class Trader extends TraderBase {
   }
 
   /** Empty position/order snapshots are ambiguous immediately after login. Require
-   *  the same empty result twice, one query interval apart, before treating it as
+   *  the same empty result twice, a full retry pause apart, before treating it as
    *  authoritative. */
   private async authoritativeQuery<T>(
     query: () => Promise<T[]>,
@@ -996,7 +995,7 @@ export class Trader extends TraderBase {
   ): Promise<T[]> {
     const first = await this.queryWithRetry(query, false, contextToken);
     if (first.length > 0) return first;
-    // The scheduler spaces this confirmation request from the first one.
+    await sleep(this.queryRetryDelayMs);
     return this.queryWithRetry(query, false, contextToken);
   }
 

@@ -7,6 +7,11 @@
  *  per second, with margin. Also kept for fronts that grant only that much. */
 export const DEFAULT_QUERY_INTERVAL_MS = 1100;
 
+/** Pause before a `sync*` helper asks again: a retry, or the confirmation of an
+ *  empty snapshot. It gives the counter time to become ready after login, so it
+ *  must not shrink when the front allows faster queries. */
+export const QUERY_RETRY_DELAY_MS = 1100;
+
 /** Never pace faster than this, however generous (or unlimited) the front is. */
 const MAX_QUERIES_PER_SECOND = 10;
 
