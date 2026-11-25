@@ -1,3 +1,10 @@
+# [4.3.0-rc.2](https://github.com/hitrading/ctp-node/compare/v4.3.0-rc.1...v4.3.0-rc.2) (2026-11-25)
+
+
+### Bug Fixes
+
+* **trader:** 重试与空快照复核的等待不随查询限速缩短 ([021ea44](https://github.com/hitrading/ctp-node/commit/021ea44a6692f6fe5c226bcd187d5e5cf6861f9b))
+
 # [4.3.0-rc.1](https://github.com/hitrading/ctp-node/compare/v4.2.1...v4.3.0-rc.1) (2026-11-25)
 
 
