@@ -1,3 +1,10 @@
+# [4.3.0-rc.3](https://github.com/hitrading/ctp-node/compare/v4.3.0-rc.2...v4.3.0-rc.3) (2026-11-25)
+
+
+### Bug Fixes
+
+* **trader:** 按柜台应答判断就绪，空快照以资金账户核对 ([ab210bf](https://github.com/hitrading/ctp-node/commit/ab210bf835680b0b4560e3d3b327ecded930535a))
+
 # [4.3.0-rc.2](https://github.com/hitrading/ctp-node/compare/v4.3.0-rc.1...v4.3.0-rc.2) (2026-11-25)
 
 
