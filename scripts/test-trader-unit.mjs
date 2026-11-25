@@ -11,6 +11,7 @@ mkdirSync("flow-tu-md", { recursive: true });
 mkdirSync("flow-tu-signed-login", { recursive: true });
 mkdirSync("flow-tu-signed-session", { recursive: true });
 mkdirSync("flow-tu-zero-session", { recursive: true });
+mkdirSync("flow-tu-paced", { recursive: true });
 let pass = 0, fail = 0;
 const ok = (c, m) => { c ? (pass++, console.log("  PASS:", m)) : (fail++, console.log("  FAIL:", m)); };
 const throws = (fn, m) => { try { fn(); ok(false, m + " (did not throw)"); } catch { ok(true, m); } };
@@ -141,6 +142,41 @@ await rejects(signedLoginTrader.reqUserLogin({
 }), "generated reqUserLogin still rejects SessionID 0");
 signedLoginTrader.native = signedLoginNative;
 signedLoginTrader.close();
+
+// Query spacing follows the limits the logged-in front grants, and falls back to
+// the default on every login/logout transition and front change.
+{
+  const paced = new Trader("./flow-tu-paced/", "tcp://127.0.0.1:1");
+  const pacedNative = paced.native;
+  let limits = { frontAddr: "tcp://front", qryFreq: 10, ftdPkgFreq: 10 };
+  paced.native = new Proxy(pacedNative, {
+    get(target, prop) {
+      if (prop === "frontInfo") return () => limits;
+      if (prop === "_req") return () => 0;
+      const value = Reflect.get(target, prop, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  const login = (row) => paced.onRequestResolved("rsp-user-login",
+    { brokerId: "9999", userId: "u", maxOrderRef: "1", frontId: 1, sessionId: 7, ...row }, {});
+  ok(paced.queryIntervalMs === 1100, "queries start at the default spacing");
+  login({ frontId: 0 });
+  ok(paced.queryIntervalMs === 1100, "a login without a usable session keeps the default spacing");
+  login({});
+  ok(paced.frontInfo.frontAddr === "tcp://front" && paced.queryIntervalMs === 220,
+    "a confirmed login paces queries at half of the front's packet budget");
+  paced.emit("front-disconnected", 4097, {});
+  ok(paced.queryIntervalMs === 1100, "a front change restores the default spacing");
+  limits = { ...limits, qryFreq: 2147483647, ftdPkgFreq: 10000 };
+  login({});
+  ok(paced.queryIntervalMs === 110, "an unlimited front is still capped");
+  paced.reqUserLogout({ brokerId: "9999", userId: "u" }).catch(() => {});
+  ok(paced.queryIntervalMs === 1100, "a logout transition restores the default spacing");
+  paced.native = pacedNative;
+  paced.close();
+  const closed = paced.frontInfo;
+  ok(closed.frontAddr === "" && closed.qryFreq === 0 && closed.ftdPkgFreq === 0, "frontInfo is empty after close");
+}
 
 // Generated queries snapshot their request before entering the paced queue; a
 // later accessor result or object mutation cannot change the wire payload.
@@ -351,6 +387,11 @@ ok(typeof td.accountMargin === "number", "accountMargin property");
 td.resetPositions(); ok(true, "resetPositions");
 ok(typeof td.apiVersion === "string", "apiVersion property");
 ok(typeof td.tradingDay === "string", "tradingDay property");
+{
+  const front = td.frontInfo;
+  ok(typeof front.frontAddr === "string" && Number.isInteger(front.qryFreq) && Number.isInteger(front.ftdPkgFreq),
+    "frontInfo exposes the front address and its per-second limits");
+}
 const stats = td.armStats;
 ok(typeof stats.fired === "number" && typeof stats.blocked === "number", "armStats property");
 

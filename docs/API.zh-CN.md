@@ -505,7 +505,8 @@ await td.reqOrderAction({
 
 每个 `reqQry*` 以**行数组** resolve（多行响应会累积；空结果 resolve `[]`）；两个单响应的
 `reqQuery*` 方法 resolve 一行。所有生成的查询共享同一个每 Trader FIFO 调度器：最多一个查询在途，
-两次尝试发送至少间隔 1100 ms；并发直接调用也无法绕过限频，因此不要再加 `setTimeout(1000)`。
+间隔按登录后前置下发的流控（见 `td.frontInfo`）计算：不超过 `qryFreq`、`ftdPkgFreq` 的一半和每秒 10 笔，
+尚未取得流控时至少间隔 1100 ms；并发直接调用也无法绕过限频，因此不要再加 `setTimeout(1000)`。
 请求参数会在调用时快照；断线、登录或登出会拒绝旧上下文中排队的查询。调度器按客户端实例隔离，
 不是进程全局，且最多接受 256 个在途/排队查询。原始查询只限频、不自动重试；`sync*` 还会处理
 瞬时 `-2`/`-3` 限流错误及必须存在但冷启动时暂为空的数据。
@@ -828,6 +829,16 @@ CTP 交易 API 版本与当前交易日。
 
 ```ts
 console.log("CTP 交易 API", td.apiVersion, "交易日", td.tradingDay);
+```
+
+### `td.frontInfo` → `FrontInfo`（只读）
+
+所连前置及其给本会话的每秒流控：`qryFreq` 为查询笔数，`ftdPkgFreq` 为 FTD 报文数（登录、查询、报单、撤单合计，
+超出的报文由前置缓存到下一秒、不报错）。登录后有效；查询间隔自动据此计算，前置变化或登录、登出时恢复为 1100 ms。
+
+```ts
+const { frontAddr, qryFreq, ftdPkgFreq } = td.frontInfo;
+console.log(frontAddr, "查询/秒", qryFreq, "报文/秒", ftdPkgFreq);
 ```
 
 ### `td.close()` / `td.droppedRecords`

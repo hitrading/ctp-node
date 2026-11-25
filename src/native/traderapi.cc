@@ -172,6 +172,7 @@ private:
 
   Napi::Value GetApiVersion(const Napi::CallbackInfo &info);
   Napi::Value GetTradingDay(const Napi::CallbackInfo &info);
+  Napi::Value FrontInfo(const Napi::CallbackInfo &info);
   Napi::Value Req(const Napi::CallbackInfo &info);
   Napi::Value SetRiskLimits(const Napi::CallbackInfo &info);
   Napi::Value RiskReduceOnly(const Napi::CallbackInfo &info);
@@ -236,6 +237,7 @@ Napi::Function Trader::Init(Napi::Env env) {
       {
           InstanceMethod("apiVersion", &Trader::GetApiVersion),
           InstanceMethod("tradingDay", &Trader::GetTradingDay),
+          InstanceMethod("frontInfo", &Trader::FrontInfo),
           InstanceMethod("_req", &Trader::Req),
           InstanceMethod("setRiskLimits", &Trader::SetRiskLimits),
           InstanceMethod("riskReduceOnly", &Trader::RiskReduceOnly),
@@ -598,6 +600,23 @@ Napi::Value Trader::GetTradingDay(const Napi::CallbackInfo &info) {
     return Napi::String::New(env, "");
   const char *d = api_->GetTradingDay();
   return Napi::String::New(env, d ? d : "");
+}
+
+// The connected front and the per-second limits it grants this session. CTP
+// fills the address once connected and the limits once logged in.
+Napi::Value Trader::FrontInfo(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  CThostFtdcFrontInfoField front;
+  std::memset(&front, 0, sizeof(front));
+  if (api_)
+    api_->GetFrontInfo(&front);
+  const size_t length = std::find(std::begin(front.FrontAddr), std::end(front.FrontAddr), '\0') -
+                        std::begin(front.FrontAddr);
+  Napi::Object out = Napi::Object::New(env);
+  out.Set("frontAddr", Napi::String::New(env, front.FrontAddr, length));
+  out.Set("qryFreq", Napi::Number::New(env, front.QryFreq));
+  out.Set("ftdPkgFreq", Napi::Number::New(env, front.FTDPkgFreq));
+  return out;
 }
 
 Napi::Value Trader::Req(const Napi::CallbackInfo &info) {

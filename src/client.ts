@@ -21,6 +21,7 @@ import {
 } from "./codec.js";
 import { STRUCTS } from "./generated/structs.gen.js";
 import { native as addon } from "./native-binding.js";
+import { DEFAULT_QUERY_INTERVAL_MS } from "./query-pacing.js";
 
 /** Encode a request string field: ASCII fast path; GB18030 (CTP's wire charset,
  *  via native) for the rare non-ASCII field. */
@@ -170,9 +171,13 @@ export abstract class CtpClient extends EventEmitter {
   private readonly pending = new Map<number, Pending>();
   private reqSeq = 0;
   private queryQueue: Promise<void> = Promise.resolve();
-  // The first query must be eligible immediately even during the first 1.1 s
-  // of process uptime. Later sends replace this with a monotonic timestamp.
+  // The first query must be eligible immediately even during the first spacing
+  // interval of process uptime. Later sends replace this with a monotonic timestamp.
   private lastQuerySentAt = Number.NEGATIVE_INFINITY;
+  /** Spacing between query sends. Subclasses tighten it once the logged-in front
+   *  has reported its limits; every connection or login transition restores the
+   *  default, because the next front may grant less. */
+  protected queryIntervalMs = DEFAULT_QUERY_INTERVAL_MS;
   private requestContextEpoch = 0;
   // Counts only deliberate login/logout transitions. Front callbacks advance
   // the context epoch but not this counter, which lets a compound handshake
@@ -220,6 +225,7 @@ export abstract class CtpClient extends EventEmitter {
    * Subclasses call this immediately before a login/logout transition. */
   protected invalidateRequestContext(reason: string): void {
     this.requestContextEpoch++;
+    this.queryIntervalMs = DEFAULT_QUERY_INTERVAL_MS;
     this.queryInvalidationReason = reason;
     // Wake the sole query currently waiting for its spacing deadline so it can
     // observe the new epoch. Tail entries then reject in queue order without
@@ -612,10 +618,10 @@ export abstract class CtpClient extends EventEmitter {
     });
   }
 
-  /** Serialize every ReqQry* / ReqQuery* call on this CTP client.
-   *  CTP commonly allows about one query per second; putting the scheduler below
-   *  the generated surface means raw concurrent reqQry* calls are covered too,
-   *  not only the higher-level sync helpers. */
+  /** Serialize every ReqQry* / ReqQuery* call on this CTP client, at most one in
+   *  flight and at least `queryIntervalMs` apart. Putting the scheduler below the
+   *  generated surface means raw concurrent reqQry* calls are covered too, not
+   *  only the higher-level sync helpers. */
   protected queryRequest<T>(
     send: (id: number) => number,
     single = false
@@ -648,14 +654,14 @@ export abstract class CtpClient extends EventEmitter {
       // performance.now() is monotonic; a wall-clock adjustment must not turn a
       // one-second query interval into an hours-long delay or a rate-limit burst.
       // Re-check after every timer: Node may round or wake a timer slightly
-      // early, and the public contract is AT LEAST 1100 ms between attempts.
+      // early, and the public contract is AT LEAST queryIntervalMs between attempts.
       for (;;) {
         reason = invalidReason();
         if (reason !== undefined) {
           rejectOuter(new Error(reason));
           return;
         }
-        const wait = 1100 - (performance.now() - this.lastQuerySentAt);
+        const wait = this.queryIntervalMs - (performance.now() - this.lastQuerySentAt);
         if (wait <= 0) break;
         await new Promise<void>((resolve) => {
           let settled = false;

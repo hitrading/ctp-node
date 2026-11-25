@@ -553,9 +553,11 @@ await td.reqOrderAction({
 
 Every `reqQry*` resolves with an **array of rows** (multi-row responses are
 accumulated; an empty result resolves `[]`); the two single-response `reqQuery*`
-methods resolve one row. CTP rate-limits queries to roughly one per second.
-Every generated query shares a per-Trader scheduler with at least 1100 ms
-between attempted sends, including concurrent direct calls; it keeps at most one
+methods resolve one row. CTP rate-limits queries per session.
+Every generated query shares a per-Trader scheduler spaced by the limits the
+logged-in front grants (see `td.frontInfo`): never more than `qryFreq`, half of
+`ftdPkgFreq`, or 10 per second, and at least 1100 ms apart until those limits are
+known. This includes concurrent direct calls; it keeps at most one
 query in flight, so callers do not add `setTimeout(1000)`. Request data is
 snapshotted when the method is called, and disconnect/login/logout transitions
 reject queued work from the old context. The scheduler is per client (not
@@ -952,6 +954,19 @@ The CTP trader API version and current trading day.
 
 ```ts
 console.log("CTP TD API", td.apiVersion, "day", td.tradingDay);
+```
+
+### `td.frontInfo` → `FrontInfo` (read-only)
+
+The connected front and the per-second limits it grants this session: `qryFreq`
+queries and `ftdPkgFreq` FTD packets (login, query, order and cancel alike; the
+front silently holds the excess until the next second). Valid after login; query
+spacing follows it automatically and returns to 1100 ms on any front change or
+login/logout transition.
+
+```ts
+const { frontAddr, qryFreq, ftdPkgFreq } = td.frontInfo;
+console.log(frontAddr, "queries/s", qryFreq, "packets/s", ftdPkgFreq);
 ```
 
 ### `td.close()` / `td.droppedRecords`

@@ -72,8 +72,8 @@ too soon after login) returns empty or rejects with a flow-control error.
   transient `-2`/`-3` flow-control failures and required empty cold-start data.
 - Do **not** add `setTimeout(1000)` around raw `reqQry*` / `reqQuery*` calls.
   Every query on the same client is snapshotted at invocation and enters one
-  FIFO scheduler: at most one is in flight and attempted sends are at least
-  1100 ms apart. A disconnect/login/logout invalidates unsent old-session work.
+  FIFO scheduler: at most one is in flight, spaced by the limits the logged-in
+  front grants (`td.frontInfo`), or 1100 ms apart until they are known. A disconnect/login/logout invalidates unsent old-session work.
 - Scheduling is per `Trader`/`MarketData` instance, not process-global. If
   several instances share a broker/account-wide quota, coordinate those at the
   application gateway. The queue is bounded at 256; await earlier work rather

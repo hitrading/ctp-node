@@ -9,10 +9,11 @@
 import { native } from "./native-binding.js";
 import { groupCtpInstrumentsByProduct, selectCtpProductRate } from "./product-rates.js";
 import type { CtpResolvedMarginRate } from "./product-rates.js";
+import { queryIntervalMs } from "./query-pacing.js";
 import { TraderBase, TRADER_EVENTS, TraderEvent } from "./generated/trader.gen.js";
 import { STRUCT_ID } from "./generated/structs.gen.js";
 import type { CallbackOptions } from "./client.js";
-import type { Order, Trade, InputOrder, RspUserLogin, Instrument } from "./generated/structs.gen.js";
+import type { FrontInfo, Order, Trade, InputOrder, RspUserLogin, Instrument } from "./generated/structs.gen.js";
 import type { MarketData } from "./market-data.js";
 import {
   assertPlainRecord,
@@ -276,6 +277,8 @@ export class Trader extends TraderBase {
     ) {
       this.broker = r.brokerId;
       this.investor = r.userId;
+      // The limits are valid only now that this session is logged in.
+      this.queryIntervalMs = queryIntervalMs(this.frontInfo);
     }
     const maxOrderRef =
       typeof r.maxOrderRef === "string" ? r.maxOrderRef.trim() : "";
@@ -310,6 +313,12 @@ export class Trader extends TraderBase {
   }
   get tradingDay(): string {
     return this.native.tradingDay();
+  }
+  /** The connected front and the per-second limits it grants this session:
+   *  `qryFreq` queries and `ftdPkgFreq` FTD packets (login, query, order and
+   *  cancel alike). The limits are authoritative only after login. */
+  get frontInfo(): FrontInfo {
+    return this.native.frontInfo() as FrontInfo;
   }
 
   /**

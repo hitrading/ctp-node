@@ -197,6 +197,17 @@ ok(querySent.length === 2 && querySent[1] - querySent[0] >= 1000,
 // 500ms is well under the 1100ms interval, so it distinguishes immediate from delayed.
 ok(querySent[0] - t0 < 500, "the first query is eligible immediately without a startup delay");
 
+// A tighter interval is honoured for the following sends and the next context
+// change restores the default.
+querySent.length = 0;
+c.queryIntervalMs = 200;
+c.lastQuerySentAt = performance.now();
+await Promise.all([scheduledQuery(), scheduledQuery()]);
+const tightGap = querySent[1] - querySent[0];
+ok(tightGap >= 190 && tightGap < 1000, "queryRequest honours the interval its front grants");
+c.emit("front-connected", undefined, {});
+ok(c.queryIntervalMs === 1100, "a new front connection restores the default query interval");
+
 // A connection/session epoch change cancels both a spacing wait and its queued
 // tail before either can reach native code.
 c.lastQuerySentAt = performance.now();

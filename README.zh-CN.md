@@ -168,7 +168,7 @@ Direction.Sell;  // "1"
 
 - `new MarketData(flowPath, fronts)` / `new Trader(flowPath, fronts)` —— `fronts` 是一个 `tcp://` 地址或数组。
 - 请求是 camelCase 方法，接受 CTP 字段对象的 `Partial<...>` 并返回 `Promise`。请求必须是严格普通对象；未知、继承或已删除字段以及 `null` 字段值会直接报错。输入数组必须稠密且每项都是显式自有值；稀疏或由原型提供的项会被拒绝。`reqQry*` 以行数组 resolve；多数请求以单条响应行 resolve。
-- 同一客户端内全部 `reqQry*` / `reqQuery*` 都会在调用时快照、内部串行并限频（最多一个在途，两次尝试发送至少间隔 1100 ms），调用方不要再写 `setTimeout(1000)`。有界队列按客户端隔离；原始查询只限频，只有 `sync*` 会重试瞬时流控错误。
+- 同一客户端内全部 `reqQry*` / `reqQuery*` 都会在调用时快照、内部串行并限频：最多一个在途，间隔按登录后前置下发的流控（`td.frontInfo`）计算，最多用掉 FTD 报文配额的一半、每秒不超过 10 笔；尚未取得流控时至少间隔 1100 ms。调用方不要再写 `setTimeout(1000)`。有界队列按客户端隔离；原始查询只限频，只有 `sync*` 会重试瞬时流控错误。
 - 发往交易所的 insert/action（`reqOrderInsert`、`reqOrderAction` 等）**提交成功即** resolve —— CTP 对已接受的报单不返回成功响应，只有 `rtn-order` / `rtn-trade`（用 `orderRef` 关联）。只有发送被拒（风控网关、限频、或 CTP API 错误码）才 reject。
 - 流式事件用 kebab-case 名称（`rtn-depth-market-data`、`rtn-order` 等）；处理函数收到 `(data, options)`，`options` 带 `{ requestId?, isLast?, rspInfo? }`。
 - 每个合约的最新 tick 保存在 C++ 的 last-value 缓存里。成功 MD 登录会开启一个全新的空 epoch；此前，以及连接/断线、新登录或登出尝试、成功登出、关闭之后，缓存都会立即失效并清空。只有当前已认证 epoch 后续收到的 tick 才能更新缓存或驱动预埋单。`md.snapshot(instrumentId)` 同步返回最新完整 `DepthMarketData`（或 `null`），`md.last(instrumentId)` 返回最新价（无则为 0）。价格偏离校验使用同一份带 epoch 约束的缓存。
