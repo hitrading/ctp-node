@@ -1,3 +1,10 @@
+# [4.3.0-rc.1](https://github.com/hitrading/ctp-node/compare/v4.2.1...v4.3.0-rc.1) (2026-11-25)
+
+
+### Features
+
+* **trader:** 按前置下发的流控限速查询并提供 frontInfo ([140751c](https://github.com/hitrading/ctp-node/commit/140751c81832cd9149bf0fc169c9ec1cdcdb973c))
+
 ## [4.2.1](https://github.com/hitrading/ctp-node/compare/v4.2.0...v4.2.1) (2026-11-24)
 
 
