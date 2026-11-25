@@ -1,3 +1,16 @@
+# [4.3.0](https://github.com/hitrading/ctp-node/compare/v4.2.1...v4.3.0) (2026-11-25)
+
+
+### Bug Fixes
+
+* **trader:** 按柜台应答判断就绪，空快照以资金账户核对 ([95eb37b](https://github.com/hitrading/ctp-node/commit/95eb37b18840c50203efa33e152f1deefc928beb))
+* **trader:** 重试与空快照复核的等待不随查询限速缩短 ([61de6d9](https://github.com/hitrading/ctp-node/commit/61de6d9a766cd361e3d1611d16f590d9be6b9683))
+
+
+### Features
+
+* **trader:** 按前置下发的流控限速查询并提供 frontInfo ([140751c](https://github.com/hitrading/ctp-node/commit/140751c81832cd9149bf0fc169c9ec1cdcdb973c))
+
 ## [4.2.1](https://github.com/hitrading/ctp-node/compare/v4.2.0...v4.2.1) (2026-11-24)
 
 
