@@ -36,6 +36,10 @@ const withNativeMethod = async (trader, name, replacement, run) => {
 const td = new Trader("./flow-tu/", "tcp://127.0.0.1:1");
 ok(td.queryRetryDelayMs === 1100, "sync helpers pause a full second between attempts by default");
 td.queryRetryDelayMs = 0; // the pause itself is covered separately
+// A flat account's funds: what makes an empty position/order snapshot credible.
+const flatFunds = (brokerId = "9999", accountId = "u") => [{
+  brokerId, accountId, currMargin: 0, frozenMargin: 0, frozenCash: 0, frozenCommission: 0,
+}];
 delete process.env.CTP_NODE_TEST_HOOKS;
 throws(() => td.native._burstEvents(1), "queue-producing Trader test hooks are disabled by default");
 process.env.CTP_NODE_TEST_HOOKS = "1";
@@ -530,6 +534,7 @@ td.trackMarketData(md);
     "trackMarketData wires the MD snapshot: near-reference order passes the deviation gate, a far one is blocked (would fail closed on 'reference' if unwired)");
   // 只替换柜台查询，正式报单入口、原生准入和拒单证据走同一条调用链。
   tdTrack.reqQryOrder = async () => [];
+  tdTrack.reqQryTradingAccount = async (request) => flatFunds(request.brokerId, request.investorId);
   await tdTrack.syncOrders();
   tdTrack.seedPositions([{ instrumentId: "rb2510", side: "long", hedgeFlag: "1", volume: 1, margin: 1000 }]);
   tdTrack.setInstrumentMarginLimit("rb2510", 4000);
@@ -950,10 +955,12 @@ await td.reqFromBankToFutureByFuture({}).catch((e) => {
 ok(transferBlocked, "bank-to-futures transfer is explicitly blocked outside NORMAL mode");
 td.resume();
 
-// Faster query pacing must not shorten the pause that lets a counter become ready
-// after login: retries and the confirmation of an empty snapshot still wait.
+// A counter that is not ready is asked again after a pause that faster query
+// pacing must not shorten; an empty snapshot is settled by the account's funds.
+td.reqQryTradingAccount = async (request) => flatFunds(request.brokerId, request.investorId);
 {
-  const saved = { instrument: td.reqQryInstrument, position: td.reqQryInvestorPosition };
+  const saved = { instrument: td.reqQryInstrument, position: td.reqQryInvestorPosition,
+    order: td.reqQryOrder, funds: td.reqQryTradingAccount };
   td.queryRetryDelayMs = 250;
   td.queryIntervalMs = 110;
   const sentAt = [];
@@ -965,19 +972,56 @@ td.resume();
   ok(sentAt.length === 3 && sentAt[1] - sentAt[0] >= 240 && sentAt[2] - sentAt[1] >= 240,
     "a not-ready query is retried only after the pause");
   sentAt.length = 0;
-  td.reqQryInvestorPosition = async () => { sentAt.push(performance.now()); return []; };
-  await td.syncPositions();
+  td.reqQryInstrument = async () => {
+    sentAt.push(performance.now());
+    if (sentAt.length === 1) throw Object.assign(new Error("CTP：查询未就绪，请稍后重试"), { errorId: 90 });
+    return [{ instrumentId: "rb2510", productId: "rb", volumeMultiple: 10 }];
+  };
+  await td.syncMultipliers(["rb2510"]);
   ok(sentAt.length === 2 && sentAt[1] - sentAt[0] >= 240,
-    "an empty snapshot is confirmed only after the pause");
+    "the counter's explicit not-ready reply is asked again after the pause");
+
+  const positions = [{ brokerId: "9999", investorId: "u", instrumentId: "rb2510", posiDirection: "2",
+    position: 1, useMargin: 3000, hedgeFlag: "1" }];
   sentAt.length = 0;
+  let replies = [[]], funds = { currMargin: 0 };
+  td.reqQryInvestorPosition = async () => { sentAt.push(performance.now()); return replies.length > 1 ? replies.shift() : replies[0]; };
+  td.reqQryTradingAccount = async (request) => [{ ...flatFunds(request.brokerId, request.investorId)[0], ...funds }];
+  const flatStarted = performance.now();
+  ok((await td.syncPositions()) === 0 && sentAt.length === 1 && performance.now() - flatStarted < 200,
+    "an empty position snapshot is accepted at once when the funds show no margin in use");
+  sentAt.length = 0; replies = [[], positions]; funds = { currMargin: 3000 };
+  ok((await td.syncPositions()) === 1 && sentAt.length === 2 && sentAt[1] - sentAt[0] >= 240,
+    "an empty position snapshot its funds contradict is asked again, after the pause");
+  for (const currMargin of [3000, Number.MAX_VALUE, Number.NaN]) {
+    td.queryRetryDelayMs = 0; sentAt.length = 0; replies = [[]]; funds = { currMargin };
+    await rejects(td.syncPositions(), `an empty position snapshot never passes with margin ${currMargin}`);
+    ok(sentAt.length === 5, "the contradiction is asked five times before failing closed");
+  }
+  funds = { accountId: "other" };
+  await rejects(td.syncPositions(), "funds of a different account never settle an empty snapshot");
+  td.reqQryTradingAccount = async () => [];
+  await rejects(td.syncPositions(), "a missing funds record means the account is not ready");
+  td.reqQryOrder = async () => [];
+  td.reqQryTradingAccount = saved.funds;
+  ok((await td.syncOrders()) === 0, "an empty order snapshot is accepted when nothing is frozen");
+  for (const key of ["frozenMargin", "frozenCash", "frozenCommission"]) {
+    td.reqQryTradingAccount = async (request) => [{ ...flatFunds(request.brokerId, request.investorId)[0], [key]: 5 }];
+    await rejects(td.syncOrders(), `an empty order snapshot never passes with ${key}`);
+  }
+  td.queryRetryDelayMs = 250; sentAt.length = 0; replies = [[]];
+  td.reqQryTradingAccount = async (request) => [{ ...flatFunds(request.brokerId, request.investorId)[0], currMargin: 3000 }];
   const invalidated = td.syncPositions();
-  await Promise.resolve(); await Promise.resolve();
   setTimeout(() => td.invalidateRequestContext("front disconnected"), 100);
   await rejects(invalidated, "a front change during the pause rejects the snapshot");
-  ok(sentAt.length === 1, "the confirmation query is never sent across a front change");
+  ok(sentAt.length === 1, "a query is never repeated across a front change");
   td.queryRetryDelayMs = 0;
   td.reqQryInstrument = saved.instrument;
   td.reqQryInvestorPosition = saved.position;
+  td.reqQryOrder = saved.order;
+  td.reqQryTradingAccount = saved.funds;
+  // invalidation above dropped nothing but the pending snapshot; restore certain ledgers
+  await td.syncOrders(); await td.syncPositions();
 }
 
 // queryWithRetry: required data that stays empty, or keeps failing, throws.

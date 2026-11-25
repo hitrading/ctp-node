@@ -7,10 +7,21 @@
  *  per second, with margin. Also kept for fronts that grant only that much. */
 export const DEFAULT_QUERY_INTERVAL_MS = 1100;
 
-/** Pause before a `sync*` helper asks again: a retry, or the confirmation of an
- *  empty snapshot. It gives the counter time to become ready after login, so it
- *  must not shrink when the front allows faster queries. */
+/** Pause before a `sync*` helper asks a counter that was not ready again. CTP has
+ *  no event for becoming ready, so asking again is the only way to find out; the
+ *  pause must not shrink when the front allows faster queries. */
 export const QUERY_RETRY_DELAY_MS = 1100;
+
+/** CTP's explicit "not ready, ask again later" replies to a query: 90 (query not
+ *  ready, also sent above the front's query limit) and 154 (query core busy). */
+const NOT_READY_ERROR_IDS = new Set([90, 154]);
+
+/** Whether a failed query may simply be asked again: the local API's flow-control
+ *  send codes, or the counter saying it is not ready. */
+export function isTransientQueryFailure(error: unknown): boolean {
+  const { ctpReturnCode, errorId } = (error ?? {}) as { ctpReturnCode?: unknown; errorId?: unknown };
+  return ctpReturnCode === -2 || ctpReturnCode === -3 || NOT_READY_ERROR_IDS.has(errorId as number);
+}
 
 /** Never pace faster than this, however generous (or unlimited) the front is. */
 const MAX_QUERIES_PER_SECOND = 10;

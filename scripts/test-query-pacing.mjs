@@ -1,5 +1,5 @@
 // Spacing between query sends derived from the limits a front grants.
-import { DEFAULT_QUERY_INTERVAL_MS, queryIntervalMs } from "../dist/query-pacing.js";
+import { DEFAULT_QUERY_INTERVAL_MS, isTransientQueryFailure, queryIntervalMs } from "../dist/query-pacing.js";
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { c ? (pass++, console.log("  PASS:", m)) : (fail++, console.log("  FAIL:", m)); };
@@ -14,6 +14,11 @@ ok(interval(2147483647, 10000) === 110, "an unlimited front is capped at ten per
 ok(interval(10, 1) === 1100, "a one-packet budget keeps the default");
 ok(interval(0, 0) === 1100 && interval(-1, 10) === 1100 && interval(Number.NaN, 10) === 1100,
   "missing or nonsensical limits keep the default");
+
+for (const failure of [{ ctpReturnCode: -2 }, { ctpReturnCode: -3 }, { errorId: 90 }, { errorId: 154 }])
+  ok(isTransientQueryFailure(Object.assign(new Error("again"), failure)), `${JSON.stringify(failure)} may be asked again`);
+for (const failure of [new Error("plain"), { ctpReturnCode: -1 }, { errorId: 6 }, undefined, null])
+  ok(!isTransientQueryFailure(failure), "any other failure is permanent");
 
 console.log(`query pacing: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -9,11 +9,11 @@
 import { native } from "./native-binding.js";
 import { groupCtpInstrumentsByProduct, selectCtpProductRate } from "./product-rates.js";
 import type { CtpResolvedMarginRate } from "./product-rates.js";
-import { queryIntervalMs, QUERY_RETRY_DELAY_MS } from "./query-pacing.js";
+import { isTransientQueryFailure, queryIntervalMs, QUERY_RETRY_DELAY_MS } from "./query-pacing.js";
 import { TraderBase, TRADER_EVENTS, TraderEvent } from "./generated/trader.gen.js";
 import { STRUCT_ID } from "./generated/structs.gen.js";
 import type { CallbackOptions } from "./client.js";
-import type { FrontInfo, Order, Trade, InputOrder, RspUserLogin, Instrument } from "./generated/structs.gen.js";
+import type { FrontInfo, Order, Trade, InputOrder, RspUserLogin, Instrument, TradingAccount } from "./generated/structs.gen.js";
 import type { MarketData } from "./market-data.js";
 import {
   assertPlainRecord,
@@ -24,6 +24,9 @@ import {
 } from "./validation.js";
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** One cent: funds below it are nothing held or frozen. */
+const FUNDS_TOLERANCE = 0.01;
 
 /** Pre-trade risk limits, enforced in C++ before each order is sent. */
 export interface RiskLimits {
@@ -948,9 +951,9 @@ export class Trader extends TraderBase {
   }
 
   /**
-   * Run a CTP query with flow-control retries. CTP rate-limits queries and one
-   * issued too soon after login can be rejected or come back empty before the
-   * account is ready, so retries pause independently of the query spacing. With `requireNonEmpty`, an empty result is
+   * Run a CTP query, asking again when the counter is not ready: the local API
+   * refused the send, or the counter replied "not ready" / "busy". Retries pause
+   * independently of the query spacing. With `requireNonEmpty`, an empty result is
    * treated as not-ready-yet and retried (for data that must exist, e.g. an
    * instrument); otherwise empty is returned as-is (e.g. a genuinely flat
    * position book, so a flat account doesn't waste the full retry budget).
@@ -971,11 +974,9 @@ export class Trader extends TraderBase {
         if (!requireNonEmpty || rows.length > 0) return rows;
       } catch (e) {
         this.assertRequestContext(contextToken, "query synchronization");
-        // Native send codes -2/-3 are the CTP transient flow-control cases.
         // Do not turn a permanent validation/business/disconnect failure into
         // five delayed copies of the same request.
-        const code = (e as { ctpReturnCode?: unknown })?.ctpReturnCode;
-        if (code !== -2 && code !== -3) throw e;
+        if (!isTransientQueryFailure(e)) throw e;
         lastErr = e;
       }
     }
@@ -986,17 +987,29 @@ export class Trader extends TraderBase {
     throw new Error("query retry invariant violated");
   }
 
-  /** Empty position/order snapshots are ambiguous immediately after login. Require
-   *  the same empty result twice, a full retry pause apart, before treating it as
-   *  authoritative. */
+  /** CTP has no "account data ready" event, and a successful empty snapshot looks
+   *  the same whether the account is flat or the counter has not loaded it yet.
+   *  The account's funds settle it: the record must exist and agree that nothing
+   *  is held (positions) or frozen (working orders). An empty snapshot that its
+   *  funds contradict is asked again, and finally rejected. */
   private async authoritativeQuery<T>(
     query: () => Promise<T[]>,
-    contextToken: number
+    contextToken: number,
+    account: { brokerId: string; investorId: string },
+    occupied: (funds: TradingAccount) => number
   ): Promise<T[]> {
-    const first = await this.queryWithRetry(query, false, contextToken);
-    if (first.length > 0) return first;
-    await sleep(this.queryRetryDelayMs);
-    return this.queryWithRetry(query, false, contextToken);
+    for (let attempt = 1; ; attempt++) {
+      const rows = await this.queryWithRetry(query, false, contextToken);
+      if (rows.length > 0) return rows;
+      const funds = await this.queryWithRetry(
+        () => this.reqQryTradingAccount(account) as Promise<TradingAccount[]>, true, contextToken);
+      if (funds.some((row) => row.brokerId !== account.brokerId || row.accountId !== account.investorId))
+        throw new Error("funds snapshot contains a mismatched account identity");
+      if (funds.every((row) => Math.abs(occupied(row)) < FUNDS_TOLERANCE)) return rows;
+      if (attempt === 5)
+        throw new Error("empty snapshot contradicts the account's occupied funds; live state kept unchanged");
+      await sleep(this.queryRetryDelayMs);
+    }
   }
 
   /** Query instruments so the C++ risk engine picks up their multipliers (it
@@ -1190,7 +1203,7 @@ export class Trader extends TraderBase {
           throw new Error("position snapshot contains a mismatched account identity");
         }
         return result;
-      }, contextToken);
+      }, contextToken, { brokerId, investorId }, (funds) => funds.currMargin);
       const seeds = this.aggregatePositions(rows);
       this.assertRequestContext(contextToken, "position synchronization");
       if (this.native.replacePositions(seeds, revision) as boolean)
@@ -1253,7 +1266,8 @@ export class Trader extends TraderBase {
           throw new Error("order snapshot contains a mismatched account identity");
         }
         return result;
-      }, contextToken);
+      }, contextToken, { brokerId, investorId },
+      (funds) => funds.frozenMargin + funds.frozenCash + funds.frozenCommission);
       // Every status except the four definitive terminals is still live. This
       // includes conditional Unknown/NotTouched/Touched ('a'/'b'/'c').
       const terminal = new Set(["0", "2", "4", "5"]);
