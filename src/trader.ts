@@ -9,7 +9,7 @@
 import { native } from "./native-binding.js";
 import { groupCtpInstrumentsByProduct, selectCtpProductRate } from "./product-rates.js";
 import type { CtpResolvedMarginRate } from "./product-rates.js";
-import { isTransientQueryFailure, queryIntervalMs, QUERY_RETRY_DELAY_MS } from "./query-pacing.js";
+import { isTransientQueryFailure, queryIntervalMs, QUERY_RETRY_DELAY_MS, SNAPSHOT_RETAKE_DELAY_MS, SNAPSHOT_SETTLE_MS } from "./query-pacing.js";
 import { TraderBase, TRADER_EVENTS, TraderEvent } from "./generated/trader.gen.js";
 import { STRUCT_ID } from "./generated/structs.gen.js";
 import type { CallbackOptions } from "./client.js";
@@ -215,6 +215,7 @@ export class Trader extends TraderBase {
   private investor?: string;
   private orderRefSeq = 0;
   private queryRetryDelayMs = QUERY_RETRY_DELAY_MS;
+  private snapshotSettleMs = SNAPSHOT_SETTLE_MS;
 
   constructor(flowPath: string, fronts: string | string[]) {
     super(
@@ -1003,8 +1004,9 @@ export class Trader extends TraderBase {
       if (rows.length > 0) return rows;
       const funds = await this.queryWithRetry(
         () => this.reqQryTradingAccount(account) as Promise<TradingAccount[]>, true, contextToken);
-      if (funds.some((row) => row.brokerId !== account.brokerId || row.accountId !== account.investorId))
-        throw new Error("funds snapshot contains a mismatched account identity");
+      // The funds account id may legitimately differ from the investor id.
+      if (funds.some((row) => row.brokerId !== account.brokerId))
+        throw new Error("funds snapshot contains a mismatched broker identity");
       if (funds.every((row) => Math.abs(occupied(row)) < FUNDS_TOLERANCE)) return rows;
       if (attempt === 5)
         throw new Error("empty snapshot contradicts the account's occupied funds; live state kept unchanged");
@@ -1192,7 +1194,8 @@ export class Trader extends TraderBase {
       useMargin: number;
       hedgeFlag: string;
     };
-    for (let attempt = 0; attempt < 5; attempt++) {
+    const settleBy = performance.now() + this.snapshotSettleMs;
+    for (let attempt = 1; ; attempt++) {
       this.assertRequestContext(contextToken, "position synchronization");
       const revision: number = this.native.riskRevision();
       const rows = await this.authoritativeQuery(async () => {
@@ -1208,10 +1211,11 @@ export class Trader extends TraderBase {
       this.assertRequestContext(contextToken, "position synchronization");
       if (this.native.replacePositions(seeds, revision) as boolean)
         return rows.filter((r) => r.position > 0).length;
-      if (attempt < 4)
-        await sleep(100); // live order/trade changed during the snapshot; retry
+      // A live order/trade callback raced the snapshot; retake it.
+      if (attempt >= 5 && performance.now() >= settleBy)
+        throw new Error("position snapshot could not stabilize; live state kept unchanged");
+      await sleep(SNAPSHOT_RETAKE_DELAY_MS);
     }
-    throw new Error("position snapshot could not stabilize; live state kept unchanged");
   }
 
   /**
@@ -1255,7 +1259,8 @@ export class Trader extends TraderBase {
       volumeTotalOriginal: number;
       volumeTraded: number;
     };
-    for (let attempt = 0; attempt < 5; attempt++) {
+    const settleBy = performance.now() + this.snapshotSettleMs;
+    for (let attempt = 1; ; attempt++) {
       this.assertRequestContext(contextToken, "order synchronization");
       const revision: number = this.native.riskRevision();
       const rows = await this.authoritativeQuery(async () => {
@@ -1328,9 +1333,10 @@ export class Trader extends TraderBase {
         }
         return working.length;
       }
-      if (attempt < 4) await sleep(100);
+      if (attempt >= 5 && performance.now() >= settleBy)
+        throw new Error("order snapshot could not stabilize; live state kept unchanged");
+      await sleep(SNAPSHOT_RETAKE_DELAY_MS);
     }
-    throw new Error("order snapshot could not stabilize; live state kept unchanged");
   }
 
   /**

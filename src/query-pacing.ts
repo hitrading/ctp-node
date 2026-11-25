@@ -12,6 +12,14 @@ export const DEFAULT_QUERY_INTERVAL_MS = 1100;
  *  pause must not shrink when the front allows faster queries. */
 export const QUERY_RETRY_DELAY_MS = 1100;
 
+/** How long a position/order snapshot keeps being retaken while live order and
+ *  trade callbacks race it. Bounded by time, not by a number of attempts: faster
+ *  query pacing must not shorten how long a burst of fills is ridden out. */
+export const SNAPSHOT_SETTLE_MS = 6000;
+
+/** Pause between those retakes. */
+export const SNAPSHOT_RETAKE_DELAY_MS = 250;
+
 /** CTP's explicit "not ready, ask again later" replies to a query: 90 (query not
  *  ready, also sent above the front's query limit) and 154 (query core busy). */
 const NOT_READY_ERROR_IDS = new Set([90, 154]);

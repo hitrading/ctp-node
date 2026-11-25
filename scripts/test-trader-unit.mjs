@@ -36,6 +36,8 @@ const withNativeMethod = async (trader, name, replacement, run) => {
 const td = new Trader("./flow-tu/", "tcp://127.0.0.1:1");
 ok(td.queryRetryDelayMs === 1100, "sync helpers pause a full second between attempts by default");
 td.queryRetryDelayMs = 0; // the pause itself is covered separately
+ok(td.snapshotSettleMs === 6000, "a raced snapshot is retaken for six seconds by default");
+td.snapshotSettleMs = 0; // the time budget is covered separately
 // A flat account's funds: what makes an empty position/order snapshot credible.
 const flatFunds = (brokerId = "9999", accountId = "u") => [{
   brokerId, accountId, currMargin: 0, frozenMargin: 0, frozenCash: 0, frozenCommission: 0,
@@ -998,8 +1000,10 @@ td.reqQryTradingAccount = async (request) => flatFunds(request.brokerId, request
     await rejects(td.syncPositions(), `an empty position snapshot never passes with margin ${currMargin}`);
     ok(sentAt.length === 5, "the contradiction is asked five times before failing closed");
   }
-  funds = { accountId: "other" };
-  await rejects(td.syncPositions(), "funds of a different account never settle an empty snapshot");
+  funds = { accountId: "funds-account" };
+  ok((await td.syncPositions()) === 0, "a funds account id that differs from the investor id still settles an empty snapshot");
+  funds = { brokerId: "other" };
+  await rejects(td.syncPositions(), "funds of a different broker never settle an empty snapshot");
   td.reqQryTradingAccount = async () => [];
   await rejects(td.syncPositions(), "a missing funds record means the account is not ready");
   td.reqQryOrder = async () => [];
@@ -1069,6 +1073,29 @@ ok(positionsAfterConflict === 1 && replacePositionAttempts === 2,
 await rejects(withNativeMethod(td, "replacePositions", () => false, () => td.syncPositions()),
   "syncPositions fails closed when every snapshot revision conflicts");
 await td.syncPositions(); // restore a certain held-position snapshot after the forced failure
+
+// A burst of live callbacks is ridden out for as long as the settle budget, no
+// matter how fast queries are paced; the budget, not an attempt count, ends it.
+td.snapshotSettleMs = 1500;
+for (const [label, method, run, done] of [
+  ["position", "replacePositions", () => td.syncPositions(), 1],
+  ["order", "rebuildReservations", () => td.syncOrders(), 2],
+]) {
+  const until = performance.now() + 1000;
+  let raced = 0;
+  const settled = await withNativeMethod(td, method, (native, ...args) =>
+    performance.now() < until ? (raced++, false) : native[method](...args), run);
+  ok(settled === done && raced >= 2, `a ${label} snapshot raced for a second settles within its budget`);
+  const started = performance.now();
+  let attempts = 0;
+  await rejects(withNativeMethod(td, method, () => { attempts++; return false; }, run),
+    `a ${label} snapshot that never settles fails closed`);
+  const elapsed = performance.now() - started;
+  ok(attempts >= 5 && elapsed >= 1490 && elapsed < 2600, `the ${label} snapshot fails only after its budget`);
+}
+td.snapshotSettleMs = 0;
+await td.syncOrders();
+await td.syncPositions();
 
 let rebuildOrderAttempts = 0;
 const ordersAfterConflict = await withNativeMethod(td, "rebuildReservations", (native, ...args) =>
