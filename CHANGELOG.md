@@ -1,3 +1,10 @@
+## [5.0.1](https://github.com/hitrading/ctp-node/compare/v5.0.0...v5.0.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **trader:** 结算确认须回执本账户，握手失败即撤销会话身份 ([7327199](https://github.com/hitrading/ctp-node/commit/73271999375daab5cfd95044b04c3e33552c65b1))
+
 # [5.0.0](https://github.com/hitrading/ctp-node/compare/v4.3.1...v5.0.0) (2026-11-26)
 
 
