@@ -34,6 +34,19 @@ function rejectDuplicateNames(items, label) {
 const spi = rejectDuplicateNames(spiAll, "Trader SPI");
 const req = rejectDuplicateNames(reqAll, "Trader request");
 
+// These callbacks carry the session lifecycle and instrument metadata into the
+// native risk engine (see the special cases in traderspi.gen.cc below). A
+// renamed or removed callback in a future SDK would silently drop that wiring,
+// so fail generation instead.
+const RISK_WIRED_CALLBACKS = [
+  "OnFrontConnected", "OnFrontDisconnected", "OnRspUserLogin",
+  "OnRspUserLogout", "OnRspQryInstrument",
+];
+for (const name of RISK_WIRED_CALLBACKS) {
+  if (!spi.some((callback) => callback.name === name))
+    throw new Error(`required risk-wired Trader SPI callback is absent: ${name}`);
+}
+
 const kebab = (method) => splitWords(method.replace(/^On/, "")).map((w) => w.toLowerCase()).join("-");
 const member = (method) => method.replace(/^On/, "");
 

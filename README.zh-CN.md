@@ -141,8 +141,9 @@ td.on("rtn-trade", (trade) => console.log("已成交", trade.price, trade.volume
 // td.reduceOnly();  /  td.haltAll();  /  td.resume();
 ```
 
-从 4.x 升级？5.0 删除了原生持仓/委托账本、账户级与按合约上限以及预埋单——见
-[docs/MIGRATION.md](docs/MIGRATION.md)。
+从 4.x 升级？5.0 删除了原生持仓/委托账本、账户级与按合约上限以及预授权单（arm，本地行情触发单）——见
+[docs/MIGRATION.md](docs/MIGRATION.md)。CTP 自身的预埋单接口（`reqParkedOrderInsert` 等）仍保留，按不支持的请求处理
+（仅在 `NORMAL`、会话已确认且未配置任何本地风控时转发，否则返回 `-10006`）。
 
 枚举已导出且带类型：
 

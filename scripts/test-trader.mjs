@@ -100,6 +100,71 @@ check(sent.outcome !== "pending" && !(sent.code <= -10001 && sent.code >= -10009
   !/pre-trade risk|metadata unavailable/i.test(sent.outcome),
   `in-limit opening passed the native gate without any ledger sync (outcome: ${sent.outcome})`);
 
+// Each outcome below is matched exactly: { code, message }. With no front
+// connected the vendor API refuses every send with -1, so OFFLINE_VENDOR proves
+// the request passed every native gate.
+const outcomeOf = (promise) => promise.then(
+  () => ({ code: 0, message: "sent" }),
+  (e) => ({ code: e.ctpReturnCode, message: e.message }));
+const same = (actual, expected) => actual.code === expected.code && actual.message === expected.message;
+const OFFLINE_VENDOR = { code: -1, message: "order rejected by CTP API (code -1)" };
+const RATE_LIMITED = { code: -10002, message: "rate limited (order rate exceeded)" };
+const describe = (...outcomes) => outcomes.map((o) => `${o.code} ${o.message}`).join(" | ");
+
+// 4) A real Trader requires a confirmed session from construction. Before any
+//    login, with no local rule configured, a request the per-order rules cannot
+//    judge is refused and the reason names the missing session; once the
+//    account is confirmed the same request reaches the vendor API.
+{
+  mkdirSync("flow-td-fresh", { recursive: true });
+  const fresh = new Trader("./flow-td-fresh/", "tcp://127.0.0.1:1");
+  const before = await outcomeOf(fresh.reqCombActionInsert({}));
+  check(same(before, {
+    code: -10006,
+    message: "request is unavailable in the current risk mode or cannot be fully covered by configured local risk controls: session account not confirmed",
+  }), `before the first login an unsupported request is refused for the unconfirmed session (${describe(before)})`);
+  fresh.native._injectTestLogin(1, 1, "9999", "test");
+  const after = await outcomeOf(fresh.reqCombActionInsert({}));
+  check(same(after, OFFLINE_VENDOR),
+    `after the account is confirmed the same request passes the native gate (${describe(after)})`);
+  fresh.close();
+}
+
+// 5) Opening and closing inserts draw from separate token buckets, and HALT_ALL
+//    refuses closes too. A rate of one token per 1000 s cannot refill mid-test.
+{
+  mkdirSync("flow-td-gates", { recursive: true });
+  const gates = new Trader("./flow-td-gates/", "tcp://127.0.0.1:1");
+  gates.onRequestResolved("rsp-user-login", {
+    brokerId: "9999", userId: "test", frontId: 1, sessionId: 1, maxOrderRef: "0",
+  }, {});
+  gates.native._injectTestLogin(1, 1, "9999", "test");
+  const insert = (direction, combOffsetFlag) => outcomeOf(gates.reqOrderInsert({
+    instrumentId: "rb2510", direction, combOffsetFlag, limitPrice: 3500, volumeTotalOriginal: 1,
+  }));
+  const open = () => insert("0", "0");
+  const close = () => insert("1", "1");
+  const oneTokenEach = { maxOrdersPerSec: 0.001, orderBurst: 1, maxCloseOrdersPerSec: 0.001, closeOrderBurst: 1 };
+
+  gates.setRiskLimits(oneTokenEach);
+  const firstOpen = await open(), drainedOpen = await open(), closeAfterOpens = await close();
+  check(same(firstOpen, OFFLINE_VENDOR) && same(drainedOpen, RATE_LIMITED) && same(closeAfterOpens, OFFLINE_VENDOR),
+    `an exhausted opening bucket returns -10002 while a close still passes (${describe(firstOpen, drainedOpen, closeAfterOpens)})`);
+
+  gates.setRiskLimits(oneTokenEach); // refill both buckets
+  const firstClose = await close(), drainedClose = await close(), openAfterCloses = await open();
+  check(same(firstClose, OFFLINE_VENDOR) && same(drainedClose, RATE_LIMITED) && same(openAfterCloses, OFFLINE_VENDOR),
+    `an exhausted closing bucket returns -10002 while an open still passes (${describe(firstClose, drainedClose, openAfterCloses)})`);
+
+  gates.setRiskLimits({});
+  gates.haltAll();
+  const haltedClose = await close();
+  check(same(haltedClose, { code: -10001, message: "blocked by pre-trade risk: all order inserts halted" }),
+    `HALT_ALL refuses a closing insert as halted (${describe(haltedClose)})`);
+  gates.resume();
+  gates.close();
+}
+
 console.log(`TRADER TEST: ${pass} pass, ${fail} fail`);
 td.close();
 process.exitCode = fail ? 1 : 0;

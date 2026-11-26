@@ -1,6 +1,10 @@
 # Migrating 4.x → 5.0
 
-5.0 makes the native pre-trade risk gate **stateless** and removes armed orders.
+5.0 makes the native pre-trade risk gate **stateless** and removes armed orders
+(`arm()`: local orders fired by a market-data trigger). These are not CTP's
+parked orders: `reqParkedOrderInsert` and the other parked-order requests remain
+and are handled as unsupported requests (forwarded only in `NORMAL`, for a
+confirmed session, with no local control configured; `-10006` otherwise).
 Every native rule now judges one order from the order itself, the latest
 market-data reference and static instrument metadata. C++ no longer keeps a
 position or working-order ledger, so the account-level exposure caps — account
@@ -17,8 +21,17 @@ bypassing every business check the caller runs before sending.
 TypeScript reports every removed member at compile time. In JavaScript, a call
 to a removed method throws `TypeError: ... is not a function`, and the removed
 option fields are rejected rather than ignored:
-`setRiskLimits({ maxAccountMargin })` throws `unknown field maxAccountMargin`,
-`session({ sync: { positions, orders } })` throws `unknown field positions`.
+`setRiskLimits({ maxAccountMargin })` throws synchronously
+(`TypeError: setRiskLimits: unknown field maxAccountMargin`), while
+`session({ sync: { positions, orders } })` — `session()` is async — returns a
+Promise that rejects with `TypeError: session.sync: unknown field positions`.
+
+**The removed getters fail silently in JavaScript.** `Trader.accountMargin` and
+`Trader.armStats` were getters; reading them now yields `undefined` and throws
+nothing. A cap check such as `td.accountMargin + est > cap` becomes
+`NaN > cap`, which is always `false`, so the check silently lets every order
+through. Search your whole code base for `accountMargin` and `armStats` and
+replace every read before upgrading (see the table below).
 
 ## Removed APIs
 
@@ -29,9 +42,10 @@ option fields are rejected rather than ignored:
 | `Trader.setInstrumentMarginLimit()` / `setInstrumentMarginLimits()` | Per-instrument margin caps in your trading layer; multipliers from `reqQryInstrument`, schedules from `syncMarginRates()` / `readMarginRates()`. |
 | `Trader.syncPositions()`, `seedPositions()`, `seedFromPositions()`, `resetPositions()`, type `PositionSeed` | `reqQryInvestorPosition({ brokerId, investorId })` into your own position book. |
 | `Trader.syncOrders()` | `reqQryOrder({ brokerId, investorId })` into your own order book. |
-| `Trader.accountMargin` | `reqQryTradingAccount({ brokerId, investorId })` (`currMargin`, `frozenMargin`, `available`), or your own book. |
+| `Trader.accountMargin` (getter) | `reqQryTradingAccount({ brokerId, investorId })` (`currMargin`, `frozenMargin`, `available`), or your own book. **JavaScript reads now return `undefined` without throwing**: `td.accountMargin + est > cap` is `NaN > cap`, always `false`, so the cap silently passes — search for and replace every read. |
 | `session()` options `sync.positions` / `sync.orders`; result fields `positions` / `orders` | Query positions and orders yourself after `session()` resolves. The result is now `{ identity, multipliers, marginRates }`. |
-| `Trader.arm()`, `Trader.armStats`, `MarketData.attachArm()`, types `ArmSpec` / `ArmHandle` | Evaluate the trigger in your own process (in the `rtn-depth-market-data` handler, or from `md.snapshot()`), run your normal pre-send checks, then call `reqOrderInsert()`. |
+| `Trader.arm()`, `MarketData.attachArm()`, types `ArmSpec` / `ArmHandle` | Evaluate the trigger in your own process (in the `rtn-depth-market-data` handler, or from `md.snapshot()`), run your normal pre-send checks, then call `reqOrderInsert()`. CTP's parked-order requests (`reqParkedOrderInsert` etc.) are unrelated and remain. |
+| `Trader.armStats` (getter) | Count triggers and sends in your own trigger code. **JavaScript reads now return `undefined` without throwing**, so arithmetic on it yields `NaN` and comparisons are silently `false` — search for and replace every read. |
 | `err.marginRejection` on a `-10003` rejection | Removed with `-10003`. A native rejection carries `err.ctpReturnCode` and the reason in `err.message`. |
 
 ## Retired return codes
@@ -113,15 +127,25 @@ td.arm(md, { instrumentId: "rb2610", side: "sell", triggerPrice: 3450, order: ex
 
 // 5.0
 let exitSent = false;
-md.on("rtn-depth-market-data", (t) => {
+md.on("rtn-depth-market-data", async (t) => {
   if (exitSent || t.instrumentId !== "rb2610") return;
   const bid = t.bidPrice1;
   if (!(bid > 0 && bid < 1e300) || bid < 3450) return; // skip the DBL_MAX no-bid sentinel
   exitSent = true;
-  // run your own pre-send checks here, then:
-  td.reqOrderInsert(exitOrder).catch((e) => { exitSent = false; console.warn(e.message); });
+  try {
+    // run your own pre-send checks here, then:
+    await td.reqOrderInsert(exitOrder);
+  } catch (e) {
+    exitSent = false; // re-arm on the next tick
+    console.warn("exit order refused:", e);
+  }
 });
 ```
+
+`reqOrderInsert()` throws synchronously when the order fails parameter
+validation and rejects its Promise when the send is refused. A bare `.catch()`
+misses the first case: the throw escapes the handler and `exitSent` stays
+`true`. `await` inside `try` handles both.
 
 # Migrating 2.x → 3.0
 

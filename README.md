@@ -151,8 +151,11 @@ td.on("rtn-trade", (trade) => console.log("filled", trade.price, trade.volume));
 ```
 
 Upgrading from 4.x? The native position/order ledger, the account and
-per-instrument caps and armed orders were removed in 5.0 — see
-[docs/MIGRATION.md](docs/MIGRATION.md).
+per-instrument caps and armed orders (`arm()`, local market-data-triggered
+orders) were removed in 5.0 — see [docs/MIGRATION.md](docs/MIGRATION.md).
+CTP's own parked-order requests (`reqParkedOrderInsert` etc.) remain and are
+handled as unsupported requests (forwarded only in `NORMAL`, for a confirmed
+session, with no local risk control configured; `-10006` otherwise).
 
 Enums are exported and typed:
 
