@@ -808,6 +808,29 @@ static void testInstrumentQueryStaging() {
   }
   CHECK(voidedAtOnce,
         "a filtered query that saw a conflict and then failed voids the old multiplier immediately");
+  // While a filtered query is still in flight, a conflict it stages already
+  // voids the old multiplier (both orders of the evidence, and duplicates).
+  bool voidedWhileStaging = true;
+  for (int evidence = 0; evidence < 3; ++evidence) {
+    const int q = 130 + evidence;
+    publishInstrument(r, "cu", 5, '1');
+    const bool publishedBefore = known("cu");
+    r.beginInstrumentQuery(q, scopeOf("", "SHFE"));
+    if (evidence == 0) {
+      r.stageInstrument(q, rowOf("cu", "SHFE"), 5, '1');
+      r.stageInstrument(q, rowOf("cu", "DCE"), 5, '1');
+    } else if (evidence == 1) {
+      r.stageInstrument(q, rowOf("cu", "DCE"), 5, '1');
+      r.stageInstrument(q, rowOf("cu", "SHFE"), 5, '1');
+    } else {
+      r.stageInstrument(q, rowOf("cu", "SHFE"), 5, '1');
+      r.stageInstrument(q, rowOf("cu", "SHFE"), 6, '1');
+    }
+    voidedWhileStaging = publishedBefore && blocked(r, r.check("cu", 100, 100, 1), unknown) && voidedWhileStaging;
+    r.finishInstrumentQuery(q, false);
+  }
+  CHECK(voidedWhileStaging,
+        "a conflict staged by an in-flight filtered query voids the old multiplier before the query ends");
   publishInstrument(r, "cu", 5, '1');
   // The publication count of exactly one finished query.
   r.beginInstrumentQuery(83, scopeOf(""));

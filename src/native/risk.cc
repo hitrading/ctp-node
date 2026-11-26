@@ -210,7 +210,9 @@ static bool unfilteredScope(const InstrumentIdentity &scope) {
 void RiskEngine::beginInstrumentQuery(int requestId,
                                       const InstrumentIdentity &scope) {
   std::lock_guard<std::mutex> lk(stateMutex_);
-  // Ambiguity marks change only on a successful answer (finishInstrumentQuery).
+  // A mark is lifted only by a successful unfiltered answer
+  // (finishInstrumentQuery); the reset below records the conflicts the
+  // superseded query saw and voids their multipliers.
   if (!scope.instrumentId.empty())
     instruments_.erase(scope.instrumentId);
   else if (unfilteredScope(scope))
@@ -241,8 +243,10 @@ void RiskEngine::stageInstrument(int requestId, const InstrumentIdentity &row,
       !withinScope(scope.exchangeInstId, row.exchangeInstId)) {
     // Same InstrumentID, other exchange/product/code: identity evidence.
     outOfScopeInstruments_.insert(row.instrumentId);
-    if (staged != stagedInstruments_.end())
+    if (staged != stagedInstruments_.end()) {
       staged->second.conflicted = true;
+      markAmbiguousLocked(row.instrumentId);
+    }
     return;
   }
   // Futures and TAS use price * volume * multiplier. Options, combinations and
@@ -251,18 +255,24 @@ void RiskEngine::stageInstrument(int requestId, const InstrumentIdentity &row,
       sanePositive(mult)
           ? InstrumentMeta{mult, productClass == '1' || productClass == '7'}
           : InstrumentMeta{};
+  // A conflict is marked (and the old multiplier voided) the moment it is
+  // seen, not only when the query ends: a filtered query keeps old values.
   if (staged == stagedInstruments_.end()) {
+    const bool seenOutOfScope = outOfScopeInstruments_.count(row.instrumentId) > 0;
     stagedInstruments_.emplace(
         row.instrumentId,
-        StagedInstrument{meta, row.exchangeId, productClass, mult,
-                         outOfScopeInstruments_.count(row.instrumentId) > 0});
+        StagedInstrument{meta, row.exchangeId, productClass, mult, seenOutOfScope});
+    if (seenOutOfScope)
+      markAmbiguousLocked(row.instrumentId);
     return;
   }
   // Exact comparison: a NaN or any other differing multiplier conflicts.
   StagedInstrument &first = staged->second;
   if (first.exchangeId != row.exchangeId || first.productClass != productClass ||
-      !(first.multiplier == mult))
+      !(first.multiplier == mult)) {
     first.conflicted = true;
+    markAmbiguousLocked(row.instrumentId);
+  }
 }
 
 void RiskEngine::stageUnreadableInstrument(int requestId) {

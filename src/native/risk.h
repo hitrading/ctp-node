@@ -160,14 +160,15 @@ public:
   // it does not match) is not staged. Rows of one instrument must agree on the
   // exchange, product class and multiplier, and an out-of-scope row carrying a
   // staged InstrumentID counts as a disagreement; any disagreement, or an
-  // unusable multiplier, clears that instrument on publication. A disagreement
-  // also marks the InstrumentID ambiguous and voids its published multiplier at
-  // once, however the query ends (published, failed, timed out, abandoned or
-  // superseded), so even a filtered query that fails leaves no readable value. Only a successful, readable
-  // query without exchange/product/code filters (the whole catalog, or that
-  // InstrumentID) whose answer carries consistent rows of it lifts the mark; a
-  // failed, empty or unreadable answer never does. While marked, the
-  // InstrumentID is published by no filtered query.
+  // unusable multiplier, clears that instrument on publication. The moment a
+  // disagreement is staged it marks the InstrumentID ambiguous and voids its
+  // published multiplier, and the mark stays however the query ends
+  // (published, failed, timed out, abandoned or superseded), so even a
+  // filtered query that keeps old values leaves none readable for it. Only a
+  // successful, readable query without exchange/product/code filters (the
+  // whole catalog, or that InstrumentID) whose answer carries consistent rows
+  // of it lifts the mark; a failed, empty or unreadable answer never does.
+  // While marked, the InstrumentID is published by no filtered query.
   void stageInstrument(int requestId, const InstrumentIdentity &row,
                        double multiplier, char productClass);
   // A row (or filter) whose identity cannot be read: its successful query
