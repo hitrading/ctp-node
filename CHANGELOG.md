@@ -1,3 +1,10 @@
+## [6.0.2](https://github.com/hitrading/ctp-node/compare/v6.0.1...v6.0.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* **trader:** 乘数与费率只采用本请求完整、范围与身份都核对过的应答 ([d44d436](https://github.com/hitrading/ctp-node/commit/d44d4362ad1761b17883e3640e66f0830972862b))
+
 ## [6.0.1](https://github.com/hitrading/ctp-node/compare/v6.0.0...v6.0.1) (2026-11-26)
 
 
