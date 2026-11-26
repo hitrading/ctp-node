@@ -8,29 +8,14 @@
 
 namespace ctp {
 
-static bool validOffsetFlags(const char *flags, size_t capacity) {
-  return capacity > 0 && flags[0] >= '0' && flags[0] <= '6' &&
-         (capacity == 1 || flags[1] == '\0');
-}
-
 static bool hasOpenOffset(const char *flags, size_t capacity) {
   for (size_t i = 0; i < capacity && flags[i]; ++i)
     if (flags[i] == '0') return true;
   return false;
 }
 
-static bool validHedgeFlag(char flag) {
-  return flag == '1' || flag == '2' || flag == '3' || flag == '5' ||
-         flag == '6' || flag == '7';
-}
-
-static bool validSingleHedge(const char *flags, size_t capacity) {
-  return capacity > 0 && validHedgeFlag(flags[0]) &&
-         (capacity == 1 || flags[1] == '\0');
-}
-
 int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len,
-              int requestId, RiskEngine *risk, MarginLimitEvidence *marginEvidence) {
+              int requestId, RiskEngine *risk) {
   switch (methodId) {
   case M_ReqAuthenticate: {
     CThostFtdcReqAuthenticateField f;
@@ -126,22 +111,8 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       if (!sendAllowed) return CTP_RISK_BLOCKED;
       RiskVerdict v = risk->check(identity.instrumentId, f.LimitPrice, risk->refPrice(identity.instrumentId), f.VolumeTotalOriginal, isOpen);
       if (!v.ok) return CTP_RISK_BLOCKED;
-      if (isOpen) {
-        OpenGate g = risk->tryReserveOpen(identity.orderRef, identity.instrumentId, f.Direction == '0', f.LimitPrice, f.VolumeTotalOriginal, f.CombHedgeFlag[0], marginEvidence);
-        if (g == OpenGate::VolumeLimit) return CTP_POSITION_VOLUME_LIMIT;
-        if (g == OpenGate::CostLimit) return CTP_POSITION_LIMIT;
-        if (g == OpenGate::DuplicateOrderRef) return CTP_DUPLICATE_ORDER_REF;
-        if (g == OpenGate::MetadataUnavailable) return CTP_RISK_METADATA_UNAVAILABLE;
-        if (!risk->bindInsertRequest(requestId, identity.orderRef)) return CTP_RISK_METADATA_UNAVAILABLE;
-      }
-      if (isOpen && !risk->allowRate()) {
-        risk->rollbackInsertRequest(requestId, identity.orderRef);
-        return CTP_RATE_LIMITED;
-      }
-      if (!isOpen && !risk->allowCloseRate()) return CTP_RATE_LIMITED;
-      int sendRc = api->ReqOrderInsert(&f, requestId);
-      if (sendRc != 0 && isOpen) risk->rollbackInsertRequest(requestId, identity.orderRef); // request not accepted; safe to retry this ref
-      return sendRc;
+      if (isOpen ? !risk->allowRate() : !risk->allowCloseRate()) return CTP_RATE_LIMITED;
+      return api->ReqOrderInsert(&f, requestId);
     }
     return api->ReqOrderInsert(&f, requestId);
   }
@@ -153,9 +124,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqParkedOrderInsert(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqParkedOrderInsert(&f, requestId);
     }
     return api->ReqParkedOrderInsert(&f, requestId);
   }
@@ -167,9 +136,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqParkedOrderAction(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqParkedOrderAction(&f, requestId);
     }
     return api->ReqParkedOrderAction(&f, requestId);
   }
@@ -181,9 +148,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqOrderAction(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqOrderAction(&f, requestId);
     }
     return api->ReqOrderAction(&f, requestId);
   }
@@ -219,9 +184,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqExecOrderInsert(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqExecOrderInsert(&f, requestId);
     }
     return api->ReqExecOrderInsert(&f, requestId);
   }
@@ -233,9 +196,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqExecOrderAction(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqExecOrderAction(&f, requestId);
     }
     return api->ReqExecOrderAction(&f, requestId);
   }
@@ -247,9 +208,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqForQuoteInsert(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqForQuoteInsert(&f, requestId);
     }
     return api->ReqForQuoteInsert(&f, requestId);
   }
@@ -261,9 +220,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqQuoteInsert(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqQuoteInsert(&f, requestId);
     }
     return api->ReqQuoteInsert(&f, requestId);
   }
@@ -275,9 +232,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqQuoteAction(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqQuoteAction(&f, requestId);
     }
     return api->ReqQuoteAction(&f, requestId);
   }
@@ -295,9 +250,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqOptionSelfCloseInsert(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqOptionSelfCloseInsert(&f, requestId);
     }
     return api->ReqOptionSelfCloseInsert(&f, requestId);
   }
@@ -309,9 +262,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqOptionSelfCloseAction(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqOptionSelfCloseAction(&f, requestId);
     }
     return api->ReqOptionSelfCloseAction(&f, requestId);
   }
@@ -323,9 +274,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqCombActionInsert(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqCombActionInsert(&f, requestId);
     }
     return api->ReqCombActionInsert(&f, requestId);
   }
@@ -369,10 +318,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcQryInstrumentMarginRateField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
-    if (risk) risk->beginMarginScheduleQuery(requestId, false, f.InstrumentID, f.HedgeFlag, f.BrokerID, f.InvestorID);
-    int sendRc = api->ReqQryInstrumentMarginRate(&f, requestId);
-    if (sendRc != 0 && risk) risk->finishMarginScheduleQuery(requestId, false);
-    return sendRc;
+    return api->ReqQryInstrumentMarginRate(&f, requestId);
   }
   case M_ReqQryInstrumentCommissionRate: {
     CThostFtdcQryInstrumentCommissionRateField f;
@@ -475,10 +421,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcQryExchangeMarginRateField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
-    if (risk) risk->beginMarginScheduleQuery(requestId, true, f.InstrumentID, f.HedgeFlag, f.BrokerID, "");
-    int sendRc = api->ReqQryExchangeMarginRate(&f, requestId);
-    if (sendRc != 0 && risk) risk->finishMarginScheduleQuery(requestId, false);
-    return sendRc;
+    return api->ReqQryExchangeMarginRate(&f, requestId);
   }
   case M_ReqQryExchangeMarginRateAdjust: {
     CThostFtdcQryExchangeMarginRateAdjustField f;
@@ -662,9 +605,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqFromBankToFutureByFuture(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqFromBankToFutureByFuture(&f, requestId);
     }
     return api->ReqFromBankToFutureByFuture(&f, requestId);
   }
@@ -676,9 +617,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqFromFutureToBankByFuture(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqFromFutureToBankByFuture(&f, requestId);
     }
     return api->ReqFromFutureToBankByFuture(&f, requestId);
   }
@@ -882,9 +821,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqOffsetSetting(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqOffsetSetting(&f, requestId);
     }
     return api->ReqOffsetSetting(&f, requestId);
   }
@@ -914,9 +851,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqSpdApply(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqSpdApply(&f, requestId);
     }
     return api->ReqSpdApply(&f, requestId);
   }
@@ -940,9 +875,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
       bool sendAllowed = false;
       auto sendGuard = risk->acquireOrderSend(true, sendAllowed);
       if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;
-      int sendRc = api->ReqHedgeCfm(&f, requestId);
-      if (sendRc == 0) risk->recordUnsupportedRiskMutation();
-      return sendRc;
+      return api->ReqHedgeCfm(&f, requestId);
     }
     return api->ReqHedgeCfm(&f, requestId);
   }

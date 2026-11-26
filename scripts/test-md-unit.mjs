@@ -1,14 +1,12 @@
 // Coverage for market-data.ts surface that the e2e tests don't hit offline:
-// subscribe/unsubscribe (+ for-quote), logout, tradingDay, and attachArm's
-// happy / idempotent / second-trader-throws branches. (Constructor, login,
-// _injectTestTick, _burstTicks are covered by test-md / test-arm / test-backpressure.)
-import { MarketData, Trader } from "../dist/index.js";
+// subscribe/unsubscribe (+ for-quote), logout, tradingDay, the snapshot cache
+// lifecycle and the removed armed-order surface. (Constructor, login,
+// _injectTestTick, _burstTicks are covered by test-md / test-backpressure.)
+import { MarketData } from "../dist/index.js";
 import { mkdirSync } from "node:fs";
 process.env.CTP_NODE_TEST_HOOKS = "1";
 
 mkdirSync("flow-mdu", { recursive: true });
-mkdirSync("flow-mdu-td", { recursive: true });
-mkdirSync("flow-mdu-td-2", { recursive: true });
 mkdirSync("flow-mdu-front-accessor", { recursive: true });
 let pass = 0, fail = 0;
 const ok = (c, m) => { c ? (pass++, console.log("  PASS:", m)) : (fail++, console.log("  FAIL:", m)); };
@@ -239,20 +237,15 @@ const multicast = md.reqQryMulticastInstrument({ topicId: 1, instrumentId: "rb25
 multicast.catch(() => {});
 ok(multicast instanceof Promise, "reqQryMulticastInstrument() returns a Promise");
 
-const td = new Trader("./flow-mdu-td/", "tcp://127.0.0.1:1");
-md.attachArm(td); ok(true, "attachArm: happy path");
-md.attachArm(td); ok(true, "attachArm: idempotent for the same trader");
-const td2 = new Trader("./flow-mdu-td-2/", "tcp://127.0.0.1:1");
-throws(() => md.attachArm(td2), "attachArm rejects a second, different live Trader");
-td.close();
-md.attachArm(td2); ok(true, "attachArm can replace a registry after its old Trader closes");
-throws(() => md.attachArm({}), "attachArm rejects a non-Trader argument");
+// Armed orders were removed with the native position/order ledger: neither the
+// public method nor its native registry hook may linger.
+ok(typeof md.attachArm === "undefined" && typeof md.native._attachArm === "undefined",
+  "the removed armed-order attachment API is absent (public and native)");
 await rejects(md.logout({ brokerId: "x".repeat(100), userId: "u" }), "logout rejects an over-capacity field at the encode stage");
 ok(md.shouldTimeoutRequest(1, false) === true, "a non-session-transition MD request always times out");
 ok(md.shouldTimeoutRequest(999_999, true) === false, "an unmatched MD session-transition timeout is linearized natively");
 
-md.close(); td2.close(); // release the native doorbell handles so the process exits
-throws(() => md.attachArm(td2), "closed clients cannot be attached for armed orders");
+md.close(); // release the native doorbell handle so the process exits
 ok(md.tradingDay === "", "tradingDay remains a string after close");
 console.log(`MD-UNIT TEST: ${pass} pass, ${fail} fail`);
 if (fail) process.exit(1);

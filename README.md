@@ -24,19 +24,20 @@
 - **Plain objects, idiomatic TypeScript.** Every CTP struct is a generated `interface` with camelCase fields (`tick.lastPrice`, `tick.instrumentId`); every CTP enum is a real TS `enum`. No hand-written marshalling.
 - **Fast.** The isolated generated 46-field decoder runs at about **8M ticks/sec**. More importantly, the reproducible native-SPI-to-JS full-path probe sustained 500k ticks/sec across 18,111 real cache keys with zero drops and delivered an 18,111-tick all-contract callback storm intact on the measured host; see [Performance & memory](docs/troubleshooting.md#performance--memory) for hardware, CPU/RSS and limits.
 - **Hybrid API.** `EventEmitter` for streaming pushes (`rtn-depth-market-data`, `rtn-order`…) + `Promise` for request/response (login, queries, orders), correlated by request id with multi-row accumulation.
-- **Pre-trade risk in C++.** Kill-switch, max order volume, max notional, price-deviation (fat-finger) guard, account-wide and per-instrument open-position margin caps, per-instrument max position (lots, per side), and a token-bucket rate limiter are enforced on the order path in native code — a JS GC pause can't defeat them.
+- **Stateless pre-trade risk in C++.** Kill-switch (reduce-only / halt-all), max order volume, max notional, price-deviation (fat-finger) guard and token-bucket rate limiters are enforced on the order path in native code — a JS GC pause can't defeat them. Each rule judges one order against the latest quote and static contract metadata; the binding keeps no position or order ledger, so account-level caps (account margin, per-contract margin, position lots) stay in your own trading layer.
 - **Stable by construction.** No hand-marshalling, threadsafe-functions released properly, `Init()` deferred so `front-connected` is never missed, compiler-truth (`offsetof`) binary layout, gb18030 decoded in JS (no Windows code-page bug).
 
 > Targets the regime CTP actually supports (snapshot-driven, ms-tolerant strategies: CTA, arbitrage, market making). True microsecond HFT is not achievable through CTP in any language.
 
 > **Boundary:** this package is an in-process protocol binding and local second
-> line of risk. It does not authenticate callers, verify signed mandates, or own
-> an external heartbeat watchdog. Production use still requires an authenticated
+> line of risk. It does not authenticate callers, verify signed mandates, own
+> an external heartbeat watchdog, or track the account's positions, working
+> orders and funds. Production use still requires an authenticated
 > gateway/supervisor and a fresh soak of the exact commit and packaged binaries.
-> The protocol surface is broader than the local ledger: quantitative admission
-> is complete only for ordinary single-leg orders; quote/exec/comb/parked and
-> similar advanced mutations are binding-only and rejected whenever local risk
-> is enabled. Until the exact `3.0.0-rc` artifact passes that soak and the external
+> The protocol surface is broader than the native risk gate: it judges only
+> ordinary single-leg limit orders; quote/exec/comb/parked and similar advanced
+> mutations are binding-only and rejected whenever local risk is enabled. Until
+> the exact `3.0.0-rc` artifact passes that soak and the external
 > mandate/watchdog controls exist, the production-live decision remains **No-Go**.
 
 ## Requirements
@@ -61,7 +62,7 @@ const { Trader, MarketData } = require("@hitrading/ctp-node");  // CommonJS
 ## Documentation
 
 - **Full API reference** — every TypeScript/JavaScript interface and method, with each parameter's type and meaning, plus usage examples: [English](docs/API.md) · [简体中文](docs/API.zh-CN.md)
-- Architecture & native internals — the lock-free data plane, the C++ risk engine, backpressure, and the create-once process-lifecycle notes: [English](docs/native-hooks.md) · [简体中文](docs/native-hooks.zh-CN.md)
+- Architecture & native internals — the lock-free data plane, the stateless C++ risk gate, backpressure, and the create-once process-lifecycle notes: [English](docs/native-hooks.md) · [简体中文](docs/native-hooks.zh-CN.md)
 - **Troubleshooting & FAQ** — connection/front rotation, login & authentication, query rate limits, order rejections, limit-down, lifecycle, build issues, CTP error codes: [English](docs/troubleshooting.md) · [简体中文](docs/troubleshooting.zh-CN.md)
 - **Testing & coverage** — full offline regression plus a credential-gated SimNow suite that must be run separately; historical samples are not a soak result for the current candidate: [integration & testing](docs/integration.md)
 - **Releasing** — fully automatic `semantic-release` (Conventional Commits → version + CHANGELOG + GitHub Release + npm publish): [RELEASING.md](RELEASING.md) · [CHANGELOG.md](CHANGELOG.md)
@@ -97,15 +98,16 @@ import { Trader } from "@hitrading/ctp-node";
 
 const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
-// Pre-trade risk, enforced in C++ on every order:
-td.setRiskLimits({ maxOrderVolume: 10, maxOrdersPerSec: 20, maxPriceDeviation: 0.02, maxAccountMargin: 2_000_000 });
-td.trackMarketData(md); // fresh C++ reference for deviation, notional and margin gates
-td.setInstrumentPositionLimits({ rb2610: 100, au2610: 10, ru2610: { long: 100, short: 20 } });
-td.setInstrumentMarginLimits({ ag2608: 2_000_000, au2608: 5_000_000 });              // per-instrument scheduled-margin caps
+// Stateless pre-trade risk, enforced in C++ on every order (each rule judges one order):
+td.setRiskLimits({ maxOrderVolume: 10, maxOrdersPerSec: 20, maxPriceDeviation: 0.02, maxNotional: 5_000_000 });
+td.trackMarketData(md); // fresh C++ reference for the deviation and notional gates
+// Account-level caps (account margin, per-contract margin, position lots) belong to
+// your own trading layer, which owns the account facts (see the queries below).
 
 td.on("front-connected", async () => {
-  // One-call handshake (call again after a reconnect). Margin-rate queries need
-  // an explicit bounded trading universe and hedge flag (one CTP query per contract).
+  // One-call handshake (call again after a reconnect). It is also what confirms the
+  // trading account to the native order gate. Margin-rate queries need an explicit
+  // bounded trading universe and hedge flag (one CTP query per contract).
   await td.session({
     brokerId, userId, password, appId, authCode,
     sync: {
@@ -116,15 +118,19 @@ td.on("front-connected", async () => {
     },
   });
 
-  // ...or hand-roll it if you need finer control:
+  // ...or hand-roll the steps if you need finer control. A hand-rolled login can
+  // query, but only session() confirms the account for ordinary order inserts:
   //   await td.reqAuthenticate({ brokerId, userId, appId, authCode });
   //   await td.reqUserLogin({ brokerId, userId, password });
   //   await td.reqSettlementInfoConfirm({ brokerId, investorId }); // real accounts
   //   await td.syncMultipliers(); await td.syncMarginRates(["rb2510"]);
-  //   await td.syncOrders(); await td.syncPositions(); // held snapshot must be last
 
-  // Promise-based queries return all rows:
+  // Promise-based queries return all rows. Your own books start here, and stay
+  // current from rtn-order / rtn-trade:
   const positions = await td.reqQryInvestorPosition({ brokerId, investorId });
+  const orders = await td.reqQryOrder({ brokerId, investorId });
+  const [funds] = await td.reqQryTradingAccount({ brokerId, investorId });
+  const [rb] = td.readMarginRates(["rb2510"], "1"); // resolved schedule for your own margin math
 
   // Orders go through the C++ risk gate. reqOrderInsert resolves on submission
   // (CTP sends no ack for an accepted order); track the outcome via rtn-order /
@@ -140,29 +146,13 @@ td.on("rtn-order", (order) => console.log("order update", order.orderStatus));
 td.on("rtn-trade", (trade) => console.log("filled", trade.price, trade.volume));
 
 // Atomic modes: reduceOnly() keeps closes+cancels; haltAll() blocks closes too.
-// Multi-leg combOffsetFlag values are rejected until a per-leg ledger exists.
+// Only single-leg GFD/FAK/FOK limit orders pass; multi-leg combOffsetFlag values are rejected.
 // td.reduceOnly();  /  td.haltAll();  /  td.resume();
 ```
 
-### Armed orders (latency-critical)
-
-Fire an order from C++ the instant the market hits your trigger — evaluated on
-the market-data callback thread, through the risk gate, with **no JS in the
-loop** (no event-loop hop, no GC exposure):
-
-```ts
-const armed = trader.arm(md, {
-  instrumentId: "rb2510",
-  side: "buy",            // buy fires when ask ≤ trigger; sell when bid ≥ trigger
-  triggerPrice: 3500,
-  order: {
-    brokerId, investorId, instrumentId: "rb2510", direction: "0", combOffsetFlag: "0",
-    limitPrice: 3500, volumeTotalOriginal: 1, orderRef: "900001",
-  },
-});
-// Removed after a successful send; refusal stays armed with bounded exponential backoff.
-// armed.disarm();
-```
+Upgrading from 4.x? The native position/order ledger, the account and
+per-instrument caps and armed orders were removed in 5.0 — see
+[docs/MIGRATION.md](docs/MIGRATION.md).
 
 Enums are exported and typed:
 
@@ -179,7 +169,7 @@ Direction.Sell;  // "1"
 - All `reqQry*` / `reqQuery*` calls on one client are snapshotted, serialized and paced internally: one in flight, spaced by the limits the logged-in front grants (`td.frontInfo`; at most half of its FTD packet budget and 10 per second, at least 1100 ms apart until those limits are known). Callers must not add `setTimeout(1000)`. The bounded queue is per client; raw queries are paced but only `sync*` helpers retry transient flow control.
 - Exchange-bound inserts/actions (`reqOrderInsert`, `reqOrderAction`, …) resolve on **submission** — CTP returns no success response for an accepted order, only `rtn-order` / `rtn-trade` (correlate by `orderRef`). They reject only if the send is refused (risk gate, rate limit, or a CTP API error code).
 - Streaming events use kebab-case names (`rtn-depth-market-data`, `rtn-order`, …); handlers get `(data, options)` where `options` carries `{ requestId?, isLast?, rspInfo? }`.
-- The latest tick per instrument is kept in a C++ last-value cache. It is invalid before a successful MD login; login opens a new empty epoch, and connect/disconnect, a new login/logout attempt, successful logout, and close invalidate and clear it. Only later ticks in the authenticated epoch update the cache or drive armed orders. `md.snapshot(instrumentId)` returns the latest full `DepthMarketData` (or `null`) and `md.last(instrumentId)` the latest price (0 if none) synchronously. The same epoch-bound cache backs the price-deviation guard.
+- The latest tick per instrument is kept in a C++ last-value cache. It is invalid before a successful MD login; login opens a new empty epoch, and connect/disconnect, a new login/logout attempt, successful logout, and close invalidate and clear it. Only later ticks in the authenticated epoch update the cache. `md.snapshot(instrumentId)` returns the latest full `DepthMarketData` (or `null`) and `md.last(instrumentId)` the latest price (0 if none) synchronously. The same epoch-bound cache backs the price-deviation and notional guards once attached with `td.trackMarketData(md)`.
 - `client.droppedRecords` reports records dropped under backpressure. Market
   data uses bounded keep-newest staging and retains the freshest quote;
   the trader uses a lossless ordered overflow queue, so order/trade/query returns

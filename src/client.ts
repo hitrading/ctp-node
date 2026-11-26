@@ -522,23 +522,15 @@ export abstract class CtpClient extends EventEmitter {
     // CTP echoes the requestId as an int32, and dispatch() reads it back via
     // getInt32, so the pending-map key MUST stay within positive int32 or it
     // would stop matching the echoed wire id past 2^31 requests (responses would
-    // then only ever reject on the idle timeout). Cycle 1..2^31-1; skip 0, which
-    // is the "no id" / zeroIdFallback sentinel. Trader armed orders reserve the
-    // upper positive-int half (0x40000000..0x7fffffff), so a native arm error can
-    // never settle an unrelated JS request with the same id. Reuse cannot
-    // collide: nothing stays pending across a billion requests (idle timeout is
-    // seconds).
+    // then only ever reject on the idle timeout). Cycle 1..0x3fffffff; skip 0,
+    // which is the "no id" / zeroIdFallback sentinel. Reuse cannot collide:
+    // nothing stays pending across a billion requests (idle timeout is seconds).
     this.reqSeq = this.reqSeq >= 0x3fffffff ? 1 : this.reqSeq + 1;
     return this.reqSeq;
   }
 
   private rejectError(rc: number, message: string): Error {
-    const error = Object.assign(new Error(message), { ctpReturnCode: rc });
-    if (rc === -10003 && typeof this.native.lastMarginRejection === "function") {
-      // Read synchronously on the same JS thread before the next request.
-      return Object.assign(error, { marginRejection: this.native.lastMarginRejection() });
-    }
-    return error;
+    return Object.assign(new Error(message), { ctpReturnCode: rc });
   }
 
   /** Message for a non-zero send code. Risk sentinels get a specific message;
@@ -554,16 +546,8 @@ export abstract class CtpClient extends EventEmitter {
       }
       case -10002:
         return "rate limited (order rate exceeded)";
-      case -10003:
-        return "blocked by position margin limit";
-      case -10004:
-        return "blocked by max position volume (lots)";
-      case -10005:
-        return "duplicate orderRef in this front/session";
       case -10006:
         return "request is unavailable in the current risk mode or cannot be fully covered by configured local risk controls";
-      case -10007:
-        return "required risk state or metadata unavailable (reconcile positions/orders and refresh price, multiplier and margin inputs)";
       case -10008:
         return "invalid order direction/hedge flag or unsupported combOffsetFlag (single-leg only)";
       case -10009:

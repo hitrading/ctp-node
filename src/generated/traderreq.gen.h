@@ -4,15 +4,10 @@
 #include "ThostFtdcTraderApi.h"
 #define CTP_RISK_BLOCKED -10001
 #define CTP_RATE_LIMITED -10002
-#define CTP_POSITION_LIMIT -10003
-#define CTP_POSITION_VOLUME_LIMIT -10004
-#define CTP_DUPLICATE_ORDER_REF -10005
 #define CTP_UNSUPPORTED_RISK_PATH -10006
-#define CTP_RISK_METADATA_UNAVAILABLE -10007
 #define CTP_INVALID_ORDER_FIELDS -10008
 namespace ctp {
 class RiskEngine;
-struct MarginLimitEvidence;
 enum {
   M_ReqAuthenticate = 1,
   M_ReqUserLogin = 2,
@@ -141,6 +136,6 @@ enum {
   M_ReqQryHedgeCfm = 125,
 };
 int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len,
-              int requestId, RiskEngine *risk, MarginLimitEvidence *marginEvidence);
+              int requestId, RiskEngine *risk);
 } // namespace ctp
 #endif

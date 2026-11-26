@@ -5,7 +5,6 @@
       "sources": [
         "src/addon.cc",
         "src/native/risk.cc",
-        "src/native/arm.cc",
         "src/native/channel.cc",
         "src/native/gbk.cc",
         "src/native/mdspi.cc",

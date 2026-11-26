@@ -1,1853 +1,927 @@
 /*
- * test_risk.cpp - standalone unit tests for RiskEngine (src/native/risk.cc).
+ * test_risk.cpp - standalone unit tests for the stateless RiskEngine and the
+ * RateLimiter (src/native/risk.cc).
  *
  * Links risk.cc DIRECTLY - no N-API, no addon, no test-only hooks in the shipped
- * library. Exercises the safety-critical pre-trade controls (the same logic the
- * addon enforces on every order) plus the DBL_MAX/sanePositive guards, in C++
- * isolation. Build + run via `npm run test:cpp`.
+ * library. Every rule judges one order from the order itself, the latest market
+ * reference and static instrument metadata; these tests drive each branch of
+ * that judgement, the fail-closed configuration handling, the session/account
+ * lifecycle that guards account-bound sends, and the final send barrier.
+ * Build + run via `npm run test:cpp`.
  */
 #include "risk.h"
 
-#include <cmath>
+#include <atomic>
+#include <chrono>
+#include <cstdint>
+#include <cstring>
 #include <limits>
+#include <memory>
 #include <string>
-#include <vector>
+#include <thread>
+#include <unordered_map>
 
 #include "check.h"
 
 using namespace ctp;
-static const double DMAX = std::numeric_limits<double>::max(); // CTP "unset" sentinel band
+
+static const double DMAX = std::numeric_limits<double>::max(); // CTP "unset" sentinel
+static const double NaN = std::numeric_limits<double>::quiet_NaN();
+static const double INF = std::numeric_limits<double>::infinity();
 
 // Mock reference-price source (stands in for the MarketData snapshot cache, so
-// the deviation-reference tests need no CTP md struct).
+// the reference tests need no CTP md struct).
 struct MockSnap : RefPriceSource {
   std::unordered_map<std::string, double> px;
   uint64_t age = 0;
   bool quote(const std::string &id, double &price,
              uint64_t &ageOut) const override {
     auto it = px.find(id);
-    if (it == px.end()) return false;
+    if (it == px.end())
+      return false;
     price = it->second;
     ageOut = age;
     return true;
   }
 };
 
-static void setReference(RiskEngine &r, const std::string &instrument,
-                         double price = 1.0, uint64_t age = 0) {
-  auto snap = std::make_shared<MockSnap>();
-  snap->px[instrument] = price;
-  snap->age = age;
-  r.setMdSnapshot(snap);
+static bool sameReason(const char *actual, const char *expected) {
+  return actual != nullptr && std::strcmp(actual, expected) == 0;
 }
 
-static void setFuture(RiskEngine &r, const std::string &instrument,
-                      double multiplier) {
-  r.setInstrument(instrument, multiplier, '1', "");
+// A rejection must carry the exact reason both in the verdict and in the
+// per-thread diagnostic slot that the addon surfaces to JS.
+static bool blocked(const RiskEngine &r, const RiskVerdict &v,
+                    const char *reason) {
+  return !v.ok && sameReason(v.reason, reason) &&
+         sameReason(r.lastBlockReason(), reason);
 }
 
-static void setSimpleMargin(RiskEngine &r, const std::string &instrument,
-                            double rate) {
-  setReference(r, instrument);
-  r.setMarginSchedule(instrument, '1', rate, 0.0, rate, 0.0, false);
+// An admitted order carries no reason and clears the diagnostic slot.
+static bool passed(const RiskEngine &r, const RiskVerdict &v) {
+  return v.ok && v.reason == nullptr && r.lastBlockReason() == nullptr;
 }
 
-static bool setPositionLimit(RiskEngine &r, const std::string &instrument,
-                             bool isLong, double limit) {
-  return r.setInstrumentPositionLimits({InstrumentPositionLimitUpdate{
-      instrument, isLong, isLong ? limit : 0.0, !isLong,
-      isLong ? 0.0 : limit}});
+struct Gate {
+  bool allowed;
+  bool held; // the send barrier is held for the caller either way
+};
+
+static Gate sendGate(RiskEngine &r, bool isOpen) {
+  bool allowed = !isOpen; // deliberately wrong: the call must overwrite it
+  auto guard = r.acquireOrderSend(isOpen, allowed);
+  return {allowed, guard.owns_lock()};
 }
 
-static bool setMarginLimit(RiskEngine &r, const std::string &instrument,
-                           double limit) {
-  return r.setInstrumentMarginLimits(
-      {InstrumentMarginLimitUpdate{instrument, limit}});
+static Gate accountGate(RiskEngine &r, bool isOpen, const std::string &broker,
+                        const std::string &investor) {
+  bool allowed = !isOpen;
+  auto guard = r.acquireOrderSendForAccount(isOpen, broker, investor, allowed);
+  return {allowed, guard.owns_lock()};
 }
 
-static bool seedHeld(RiskEngine &r, const std::string &instrument,
-                     bool isLong, double volume, double margin,
-                     char hedgeFlag = '1') {
-  return r.replacePositionsIfRevision(
-      r.revision(), {PositionSeed{instrument, isLong, volume, margin,
-                                  hedgeFlag}});
+// The production handshake: request-correlated login, then the high-level
+// session() confirms the trading account.
+static bool confirmAccount(RiskEngine &r, int requestId = 1,
+                           const std::string &broker = "9999",
+                           const std::string &investor = "inv") {
+  r.beginSessionTransition(requestId, true, broker, "op");
+  return r.acceptLoginSession(requestId, 1, 7, broker, "op") &&
+         r.confirmSessionAccount(1, 7, broker, investor);
 }
 
-static void recordTrade(RiskEngine &r, const std::string &key,
-                        const std::string &instrument, bool isBuy,
-                        bool isOpen, double price, double volume,
-                        char hedgeFlag = '1') {
-  r.onTrade(key, "", "", instrument, isBuy, isOpen, hedgeFlag, price,
-            volume);
+static int countAcquired(RateLimiter &rl, int attempts) {
+  int allowed = 0;
+  for (int i = 0; i < attempts; ++i)
+    if (rl.tryAcquire())
+      ++allowed;
+  return allowed;
 }
 
-static void recordTrade(RiskEngine &r, const std::string &instrument,
-                        bool isBuy, bool isOpen, double price, double volume) {
-  static uint64_t sequence = 0;
-  recordTrade(r, "20990101|local|" + std::to_string(++sequence), instrument,
-              isBuy, isOpen, price, volume);
+static const char *const kAccountMismatch =
+    "order account does not match confirmed session";
+static const char *const kHalted = "all order inserts halted";
+static const char *const kReduceOnly =
+    "opening orders blocked in reduce-only mode";
+
+static void testRateLimiter() {
+  {
+    RateLimiter rl;
+    CHECK(!rl.enabled(), "rate limiter: a default limiter is disabled");
+    CHECK(countAcquired(rl, 100) == 100,
+          "rate limiter: a disabled limiter never throttles");
+    rl.configure(0, 5);
+    CHECK(!rl.enabled() && countAcquired(rl, 10) == 10,
+          "rate limiter: rate 0 disables the bucket even with a burst");
+  }
+  {
+    RateLimiter rl;
+    rl.configure(2, 3); // slow refill: no token accrues within the test instant
+    CHECK(rl.enabled() && countAcquired(rl, 8) == 3,
+          "rate limiter: exactly the configured burst passes, the rest is throttled");
+  }
+  {
+    RateLimiter rl;
+    rl.configure(5, 0);
+    CHECK(countAcquired(rl, 10) == 5,
+          "rate limiter: a zero burst defaults to one second of tokens");
+  }
+  {
+    RateLimiter rl;
+    rl.configure(0.5, 0);
+    CHECK(countAcquired(rl, 3) == 1,
+          "rate limiter: a fractional rate gets a one-token minimum burst (never starves forever)");
+    RateLimiter sub;
+    sub.configure(1, 0.25);
+    CHECK(countAcquired(sub, 3) == 1,
+          "rate limiter: a sub-token burst is raised to one token");
+  }
+  {
+    RateLimiter rl;
+    rl.configure(50, 1); // 50 tokens/s in a one-token bucket
+    const bool first = rl.tryAcquire();
+    const bool second = rl.tryAcquire();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // ~5 tokens accrue
+    const bool refilled = rl.tryAcquire();
+    const bool capped = !rl.tryAcquire();
+    CHECK(first && !second,
+          "rate limiter: an empty bucket throttles the next immediate send");
+    CHECK(refilled, "rate limiter: elapsed time refills tokens");
+    CHECK(capped, "rate limiter: refill is capped at the burst size");
+  }
+  {
+    RateLimiter rl;
+    rl.configure(1, 2);
+    const bool drained = countAcquired(rl, 2) == 2 && !rl.tryAcquire();
+    rl.configure(1, 2);
+    CHECK(drained && rl.tryAcquire(),
+          "rate limiter: reconfiguration starts from a full bucket");
+  }
+  struct BadRate {
+    double rate, burst;
+    const char *label;
+  };
+  const BadRate badRates[] = {
+      {NaN, 1, "rate limiter: a NaN rate fails closed (enabled, admits nothing)"},
+      {INF, 1, "rate limiter: an infinite rate fails closed"},
+      {-1, 1, "rate limiter: a negative rate fails closed"},
+      {1, NaN, "rate limiter: a NaN burst fails closed"},
+      {1, INF, "rate limiter: an infinite burst fails closed"},
+      {1, -1, "rate limiter: a negative burst fails closed"},
+  };
+  for (const auto &b : badRates) {
+    RateLimiter rl;
+    rl.configure(b.rate, b.burst);
+    CHECK(rl.enabled() && countAcquired(rl, 3) == 0, b.label);
+  }
+  {
+    RateLimiter rl;
+    rl.configure(NaN, 1);
+    rl.configure(1, 1);
+    CHECK(rl.tryAcquire(),
+          "rate limiter: a valid reconfiguration replaces a fail-closed one");
+  }
 }
 
-int main() {
-  // --- check(): per-order limits ---
+static void testConfigure() {
+  {
+    RiskEngine r; // all-zero config = every control disabled
+    CHECK(passed(r, r.check("rb", 1e9, 0, 1000000)),
+          "disabled config: a default engine blocks nothing");
+    r.configure(RiskLimits{});
+    CHECK(passed(r, r.check("rb", 1e9, 0, 1000000)) && r.allowRate() &&
+              r.allowCloseRate(),
+          "disabled config: an explicit all-zero config keeps every rule off");
+  }
+  // Every malformed field fails the whole configuration closed: native callers
+  // that bypass the TS guards must never silently disable a control.
+  struct BadLimit {
+    void (*apply)(RiskLimits &);
+    int rateGate; // 0 none, 1 opening bucket, 2 closing bucket
+    const char *label;
+  };
+  const BadLimit badLimits[] = {
+      {[](RiskLimits &c) { c.maxOrderVolume = -1; }, 0, "negative maxOrderVolume"},
+      {[](RiskLimits &c) { c.maxPriceDeviation = NaN; }, 0, "NaN maxPriceDeviation"},
+      {[](RiskLimits &c) { c.maxPriceDeviation = -0.01; }, 0, "negative maxPriceDeviation"},
+      {[](RiskLimits &c) { c.maxNotional = INF; }, 0, "infinite maxNotional"},
+      {[](RiskLimits &c) { c.maxNotional = -1; }, 0, "negative maxNotional"},
+      {[](RiskLimits &c) { c.maxOrdersPerSec = NaN; }, 1, "NaN maxOrdersPerSec"},
+      {[](RiskLimits &c) { c.maxOrdersPerSec = -1; }, 1, "negative maxOrdersPerSec"},
+      {[](RiskLimits &c) { c.orderBurst = INF; }, 1, "infinite orderBurst"},
+      {[](RiskLimits &c) { c.orderBurst = -1; }, 1, "negative orderBurst"},
+      {[](RiskLimits &c) { c.maxCloseOrdersPerSec = NaN; }, 2, "NaN maxCloseOrdersPerSec"},
+      {[](RiskLimits &c) { c.maxCloseOrdersPerSec = -1; }, 2, "negative maxCloseOrdersPerSec"},
+      {[](RiskLimits &c) { c.closeOrderBurst = INF; }, 2, "infinite closeOrderBurst"},
+      {[](RiskLimits &c) { c.closeOrderBurst = -1; }, 2, "negative closeOrderBurst"},
+      {[](RiskLimits &c) { c.maxReferenceAgeMs = NaN; }, 0, "NaN maxReferenceAgeMs"},
+      {[](RiskLimits &c) { c.maxReferenceAgeMs = 0; }, 0, "zero maxReferenceAgeMs"},
+      {[](RiskLimits &c) { c.maxReferenceAgeMs = -5; }, 0, "negative maxReferenceAgeMs"},
+  };
+  for (const auto &b : badLimits) {
+    RiskEngine r;
+    RiskLimits c;
+    b.apply(c);
+    r.configure(c);
+    const std::string label(b.label);
+    CHECK(blocked(r, r.check("rb", 3500, 3500, 1, true),
+                  "risk configuration is invalid"),
+          (label + ": opening orders fail closed").c_str());
+    CHECK(passed(r, r.check("rb", 3500, 3500, 1, false)),
+          (label + ": risk-reducing closes stay available").c_str());
+    CHECK(!r.allowUnsupportedRiskRequest(),
+          (label + ": unsupported requests fail closed").c_str());
+    if (b.rateGate == 1)
+      CHECK(!r.allowRate() && r.allowCloseRate(),
+            (label + ": the opening bucket fails closed").c_str());
+    if (b.rateGate == 2)
+      CHECK(r.allowRate() && !r.allowCloseRate(),
+            (label + ": the closing bucket fails closed").c_str());
+    r.configure(RiskLimits{});
+    CHECK(passed(r, r.check("rb", 3500, 3500, 1, true)) &&
+              r.allowUnsupportedRiskRequest() && r.allowRate() &&
+              r.allowCloseRate(),
+          (label + ": a complete valid configure() clears the fail-closed state").c_str());
+  }
   {
     RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
+    RiskLimits c;
+    c.maxReferenceAgeMs = 0;
+    r.configure(c);
+    r.reduceOnly();
+    CHECK(blocked(r, r.check("rb", 3500, 3500, 1, true),
+                  "risk configuration is invalid"),
+          "an invalid configuration is reported before the reduce-only mode");
+  }
+}
+
+static void testCheck() {
+  {
+    RiskEngine r;
+    CHECK(blocked(r, r.check("rb", 3500, 0, 0), "order volume must be positive"),
+          "check: zero volume is rejected");
+    CHECK(blocked(r, r.check("rb", 3500, 0, -3, false),
+                  "order volume must be positive"),
+          "check: a negative volume is rejected even for a close");
+    CHECK(blocked(r, r.check("rb", NaN, 0, 1),
+                  "order price must be finite and non-negative"),
+          "check: a NaN price is rejected");
+    CHECK(blocked(r, r.check("rb", INF, 0, 1, false),
+                  "order price must be finite and non-negative"),
+          "check: an infinite price is rejected even for a close");
+    CHECK(blocked(r, r.check("rb", -1, 0, 1),
+                  "order price must be finite and non-negative"),
+          "check: a negative price is rejected");
+    CHECK(passed(r, r.check("rb", 0, 0, 1)),
+          "check: a zero (market) price passes structural validation with no reference rule");
+    r.haltAll();
+    CHECK(blocked(r, r.check("rb", 3500, 0, 0), "order volume must be positive"),
+          "check: structural validation is reported before the halt");
+  }
+  {
+    RiskEngine r;
+    r.haltAll();
+    CHECK(r.mode() == RiskMode::HaltAll, "mode() reports HALT_ALL");
+    CHECK(blocked(r, r.check("rb", 3500, 3500, 1, true), kHalted),
+          "HALT_ALL blocks opening orders");
+    CHECK(blocked(r, r.check("rb", 3500, 3500, 1, false), kHalted),
+          "HALT_ALL blocks closing orders too");
+    r.reduceOnly();
+    CHECK(r.mode() == RiskMode::ReduceOnly, "mode() reports REDUCE_ONLY");
+    CHECK(blocked(r, r.check("rb", 3500, 3500, 1, true), kReduceOnly),
+          "REDUCE_ONLY blocks risk-increasing orders");
+    CHECK(passed(r, r.check("rb", 3500, 3500, 1, false)),
+          "REDUCE_ONLY keeps risk-reducing closes available");
+    r.resume();
+    CHECK(r.mode() == RiskMode::Normal &&
+              passed(r, r.check("rb", 3500, 3500, 1, true)),
+          "resume() returns to NORMAL and admits opening orders again");
+  }
+  {
+    RiskEngine r;
+    RiskLimits c;
+    c.maxOrderVolume = 1;
+    c.maxPriceDeviation = 0.01;
+    c.maxNotional = 1;
+    r.configure(c);
+    CHECK(passed(r, r.check("rb", 0, 0, 100, false)),
+          "closing orders skip the volume, deviation and notional rules (metadata outage tolerated)");
+  }
+  {
+    RiskEngine r;
     RiskLimits c;
     c.maxOrderVolume = 10;
     r.configure(c);
-    CHECK(r.check("rb", 3500, 0, 10).ok, "maxOrderVolume: at the cap is allowed");
-    CHECK(!r.check("rb", 3500, 0, 11).ok, "maxOrderVolume: over the cap is blocked");
-    CHECK(r.lastBlockReason() != nullptr, "lastBlockReason is set after a block");
+    CHECK(passed(r, r.check("rb", 3500, 0, 10)),
+          "maxOrderVolume: an order at the cap is allowed");
+    CHECK(blocked(r, r.check("rb", 3500, 0, 11),
+                  "order volume exceeds maxOrderVolume"),
+          "maxOrderVolume: an order over the cap is blocked");
   }
   {
     RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxNotional = 1000000;
-    r.configure(c);
-    setFuture(r, "rb", 10);
-    CHECK(!r.check("rb", 3500, 3500, 30).ok, "maxNotional: 3500*30*10=1.05M over 1M is blocked (multiplier-aware)");
-    CHECK(r.check("rb", 3500, 3500, 28).ok, "maxNotional: 3500*28*10=0.98M under 1M is allowed");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxNotional = 1000000;
-    r.configure(c);
-    setFuture(r, "rb", 10);
-    CHECK(r.check("rb", 3500, 3500, 1).ok,
-          "known multiplier permits a capped notional check");
-    r.invalidateInstrument("rb");
-    CHECK(!r.check("rb", 3500, 3500, 1).ok,
-          "a metadata refresh invalidates stale multiplier data before query results arrive");
-    setFuture(r, "rb", 10);
-    r.setInstrument("rb", DMAX, '1', "rb");
-    CHECK(!r.check("rb", 3500, 3500, 1).ok,
-          "an invalid multiplier response clears the old value instead of retaining it");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxNotional = 10000;
-    r.configure(c);
-    setFuture(r, "rb", 10);
-    CHECK(!r.check("rb", 1, 0, 1).ok,
-          "maxNotional fails closed without a fresh reference price");
-    CHECK(!r.check("rb", 1, 3500, 1).ok,
-          "a low sell/open limit cannot understate maxNotional versus the market");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
     RiskLimits c;
     c.maxPriceDeviation = 0.02;
     r.configure(c);
-    CHECK(!r.check("rb", 3600, 3500, 1).ok, "maxPriceDeviation: 2.86% over 2% is blocked");
-    CHECK(r.check("rb", 3550, 3500, 1).ok, "maxPriceDeviation: 1.43% under 2% is allowed");
-    CHECK(!r.check("rb", 9999, 0, 1).ok,
+    const char *noRef = "reference price unavailable or stale";
+    CHECK(blocked(r, r.check("rb", 1000, 0, 1), noRef),
           "maxPriceDeviation: a missing reference fails closed");
+    CHECK(blocked(r, r.check("rb", 1000, DMAX, 1), noRef),
+          "maxPriceDeviation: a DBL_MAX sentinel reference fails closed");
+    CHECK(blocked(r, r.check("rb", 1000, NaN, 1), noRef),
+          "maxPriceDeviation: a NaN reference fails closed");
+    CHECK(blocked(r, r.check("rb", 1000, -5, 1), noRef),
+          "maxPriceDeviation: a negative reference fails closed");
+    const char *noPrice = "order price unavailable for deviation check";
+    CHECK(blocked(r, r.check("rb", 0, 1000, 1), noPrice),
+          "maxPriceDeviation: a zero (market) price cannot be judged and fails closed");
+    CHECK(blocked(r, r.check("rb", DMAX, 1000, 1), noPrice),
+          "maxPriceDeviation: a DBL_MAX limit price fails closed");
+    CHECK(passed(r, r.check("rb", 1020, 1000, 1)) &&
+              passed(r, r.check("rb", 980, 1000, 1)),
+          "maxPriceDeviation: exactly 2% above or below the reference is allowed");
+    const char *tooFar = "order price deviates too far from reference";
+    CHECK(blocked(r, r.check("rb", 1021, 1000, 1), tooFar) &&
+              blocked(r, r.check("rb", 979, 1000, 1), tooFar),
+          "maxPriceDeviation: beyond 2% in either direction is blocked");
   }
   {
     RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
     RiskLimits c;
-    c.maxOrderVolume = 10;
+    c.maxNotional = 1000000;
     r.configure(c);
+    CHECK(blocked(r, r.check("rb", 3500, 0, 1),
+                  "reference price unavailable or stale for maxNotional"),
+          "maxNotional: a missing reference fails closed");
+    CHECK(blocked(r, r.check("rb", 0, 3500, 1),
+                  "order price unavailable for maxNotional"),
+          "maxNotional: a zero (market) price fails closed");
+    CHECK(blocked(r, r.check("rb", 3500, 3500, 1),
+                  "instrument multiplier unavailable"),
+          "maxNotional: an unknown multiplier fails closed");
+    r.setInstrument("rb", 10, '1');
+    CHECK(passed(r, r.check("rb", 3500, 3500, 28)),
+          "maxNotional: 3500*28*10 = 0.98M under 1M is allowed (multiplier-aware)");
+    CHECK(passed(r, r.check("rb", 1000, 1000, 100)),
+          "maxNotional: exactly the cap is allowed");
+    const char *over = "order notional exceeds maxNotional";
+    CHECK(blocked(r, r.check("rb", 3500, 3500, 29), over),
+          "maxNotional: 3500*29*10 = 1.015M over 1M is blocked");
+    CHECK(blocked(r, r.check("rb", 1, 3500, 29), over),
+          "maxNotional: a low limit is valued at the higher market reference");
+    CHECK(blocked(r, r.check("rb", 3600, 3400, 28), over),
+          "maxNotional: a limit above the reference is valued at the limit");
+    r.setInstrument("tas", 10, '7');
+    CHECK(passed(r, r.check("tas", 3500, 3500, 1)),
+          "maxNotional: TAS products use the futures notional formula");
+    const char *unsupported = "instrument product class unsupported for maxNotional";
+    r.setInstrument("opt", 10, '2');
+    CHECK(blocked(r, r.check("opt", 100, 100, 1), unsupported),
+          "maxNotional: an option premium cannot masquerade as futures notional");
+    r.setInstrument("combo", 10, '3');
+    CHECK(blocked(r, r.check("combo", 100, 100, 1), unsupported),
+          "maxNotional: a combination product fails closed");
+  }
+  {
+    RiskEngine r;
+    RiskLimits c;
+    c.maxOrderVolume = 1;
+    r.configure(c);
+    CHECK(passed(r, r.check("rb", 1, 0, 1)), "thread-local reason: setup admits");
+    const char *otherReason = nullptr;
+    std::thread other([&] {
+      r.check("rb", 1, 0, 5);
+      otherReason = r.lastBlockReason();
+    });
+    other.join();
+    CHECK(sameReason(otherReason, "order volume exceeds maxOrderVolume") &&
+              r.lastBlockReason() == nullptr,
+          "lastBlockReason is per thread: another thread's rejection does not overwrite it");
+  }
+}
+
+static void testReferencePrice() {
+  RiskEngine r;
+  CHECK(r.refPrice("rb") == 0.0, "refPrice: no snapshot attached reads 0");
+  auto snap = std::make_shared<MockSnap>();
+  snap->px["rb"] = 3500;
+  snap->px["dmax"] = DMAX;
+  snap->px["nan"] = NaN;
+  snap->px["inf"] = INF;
+  snap->px["zero"] = 0;
+  snap->px["neg"] = -1;
+  r.setMdSnapshot(snap);
+  CHECK(r.refPrice("rb") == 3500, "refPrice reads the attached MD snapshot");
+  CHECK(r.refPrice("zz") == 0.0,
+        "refPrice: an instrument absent from the snapshot reads 0");
+  CHECK(r.refPrice("dmax") == 0.0 && r.refPrice("nan") == 0.0 &&
+            r.refPrice("inf") == 0.0 && r.refPrice("zero") == 0.0 &&
+            r.refPrice("neg") == 0.0,
+        "refPrice rejects DBL_MAX / NaN / Inf / zero / negative snapshot prices");
+  snap->age = 3000;
+  CHECK(r.refPrice("rb") == 3500,
+        "refPrice: a quote exactly at the default 3000 ms window is fresh");
+  snap->age = 3001;
+  CHECK(r.refPrice("rb") == 0.0,
+        "refPrice: a quote older than the default window is stale");
+  RiskLimits c;
+  c.maxReferenceAgeMs = 100.9;
+  r.configure(c);
+  snap->age = 100;
+  const bool fresh = r.refPrice("rb") == 3500;
+  snap->age = 101;
+  CHECK(fresh && r.refPrice("rb") == 0.0,
+        "refPrice: a fractional window is truncated to whole milliseconds");
+  c.maxReferenceAgeMs = 1e20;
+  r.configure(c);
+  snap->age = std::numeric_limits<uint64_t>::max();
+  CHECK(r.refPrice("rb") == 3500,
+        "refPrice: a window beyond the uint64 range never expires a quote");
+  r.setMdSnapshot(nullptr);
+  CHECK(r.refPrice("rb") == 0.0, "refPrice: a detached snapshot reads 0 again");
+  {
+    RiskEngine stale;
+    RiskLimits dev;
+    dev.maxPriceDeviation = 0.02;
+    dev.maxReferenceAgeMs = 100;
+    stale.configure(dev);
+    auto old = std::make_shared<MockSnap>();
+    old->px["rb"] = 3500;
+    old->age = 101;
+    stale.setMdSnapshot(old);
+    CHECK(blocked(stale, stale.check("rb", 3500, stale.refPrice("rb"), 1),
+                  "reference price unavailable or stale"),
+          "stale market data cannot satisfy an enabled deviation rule");
+  }
+}
+
+static void testInstrumentMetadata() {
+  RiskEngine r;
+  RiskLimits c;
+  c.maxNotional = 1e9;
+  r.configure(c);
+  const char *unknown = "instrument multiplier unavailable";
+  auto known = [&](const std::string &id) {
+    return passed(r, r.check(id, 100, 100, 1));
+  };
+  r.setInstrument("", 10, '1');
+  CHECK(blocked(r, r.check("", 100, 100, 1), unknown),
+        "setInstrument ignores an empty instrument id");
+  r.setInstrument("rb", 10, '1');
+  r.setInstrument("ag", 15, '1');
+  CHECK(known("rb") && known("ag"), "setInstrument records per-instrument multipliers");
+  const double badMultipliers[] = {0, -1, NaN, INF, DMAX};
+  bool allCleared = true;
+  for (double bad : badMultipliers) {
+    r.setInstrument("rb", 10, '1');
+    r.setInstrument("rb", bad, '1');
+    allCleared = blocked(r, r.check("rb", 100, 100, 1), unknown) && allCleared;
+  }
+  CHECK(allCleared,
+        "an unusable multiplier (0 / negative / NaN / Inf / DBL_MAX) clears the old value instead of retaining it");
+  r.setInstrument("rb", 10, '2');
+  const bool option = blocked(r, r.check("rb", 100, 100, 1),
+                              "instrument product class unsupported for maxNotional");
+  r.setInstrument("rb", 10, '1');
+  CHECK(option && known("rb"),
+        "a metadata refresh replaces the product class of an instrument");
+  r.invalidateInstrument("rb");
+  CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown) && known("ag"),
+        "invalidateInstrument(id) clears only that instrument before its query result arrives");
+  r.setInstrument("rb", 10, '1');
+  r.invalidateInstrument("");
+  CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown) &&
+            blocked(r, r.check("ag", 100, 100, 1), unknown),
+        "invalidateInstrument(\"\") clears every instrument");
+  r.setInstrument("rb", 10, '1');
+  CHECK(known("rb"), "metadata can be repopulated after a full invalidation");
+}
+
+static void testModesAndSendBarrier() {
+  {
+    RiskEngine r;
+    CHECK(r.mode() == RiskMode::Normal, "a new engine starts in NORMAL");
+    const Gate open = sendGate(r, true), close = sendGate(r, false);
+    CHECK(open.allowed && open.held && close.allowed && close.held,
+          "NORMAL admits opening and closing sends under the held send barrier");
     r.reduceOnly();
-    CHECK(!r.check("rb", 3500, 0, 1).ok,
-          "reduce-only blocks risk-increasing orders");
-    CHECK(r.mode() == RiskMode::ReduceOnly,
-          "mode() reports REDUCE_ONLY");
+    const Gate reducedOpen = sendGate(r, true);
+    CHECK(!reducedOpen.allowed && reducedOpen.held &&
+              sameReason(r.lastBlockReason(), kReduceOnly),
+          "REDUCE_ONLY refuses an opening send at the final barrier");
+    CHECK(sendGate(r, false).allowed,
+          "REDUCE_ONLY still admits a closing send at the final barrier");
+    r.haltAll();
+    const Gate haltedOpen = sendGate(r, true);
+    const bool openReason = sameReason(r.lastBlockReason(), kHalted);
+    const Gate haltedClose = sendGate(r, false);
+    CHECK(!haltedOpen.allowed && openReason && !haltedClose.allowed &&
+              sameReason(r.lastBlockReason(), kHalted),
+          "HALT_ALL refuses opening and closing sends at the final barrier");
     r.resume();
-    CHECK(r.check("rb", 3500, 0, 1).ok, "kill-switch: resume allows orders again");
+    CHECK(sendGate(r, true).allowed && sendGate(r, false).allowed,
+          "resume() reopens the final send barrier");
   }
-  {
-    RiskEngine r; // all-zero config = every control disabled
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    CHECK(r.check("rb", 1e9, 0, 1000000).ok, "disabled config: nothing is blocked");
-  }
-
-  // --- rate limiter (token bucket) ---
   {
     RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
+    CHECK(r.allowRate() && r.allowCloseRate(),
+          "unconfigured order buckets never throttle");
     RiskLimits c;
-    c.maxOrdersPerSec = 1000; // high rate so ~no refill within the test instant
+    c.maxOrdersPerSec = 2;
     c.orderBurst = 3;
-    r.configure(c);
-    int allowed = 0;
-    for (int i = 0; i < 8; i++)
-      if (r.allowRate())
-        allowed++;
-    CHECK(allowed == 3, "rate limiter: exactly the burst (3) is allowed, the rest throttled");
-  }
-
-  // --- reference price from the attached MD snapshot (deviation reference) ---
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    CHECK(r.refPrice("rb") == 0.0, "no snapshot attached -> refPrice 0 (enabled guard will block)");
-    auto snap = std::make_shared<MockSnap>();
-    snap->px["rb"] = 3500;
-    r.setMdSnapshot(snap);
-    CHECK(r.refPrice("rb") == 3500, "refPrice reads the attached MD snapshot");
-    CHECK(r.refPrice("zz") == 0.0, "refPrice of an instrument absent from the snapshot is 0");
-    snap->px["bad"] = DMAX; // CTP DBL_MAX "unset" sentinel
-    CHECK(r.refPrice("bad") == 0.0, "refPrice rejects a DBL_MAX 'unset' snapshot price");
-    r.setMdSnapshot(nullptr);
-    CHECK(r.refPrice("rb") == 0.0, "detached snapshot -> refPrice 0 again");
-  }
-
-  // --- concrete-account onTrade: Current-match accumulates, Foreign is dropped ---
-  // Production always passes a concrete broker/investor from the CTP struct, so
-  // accountScopeLocked takes the strict comparison branch, not the standalone
-  // short-circuit the empty-account setSession(1,7) blocks exercise.
-  {
-    RiskEngine r;
-    r.setSession(1, 7, "9999", "u"); // concrete confirmed account
-    setFuture(r, "rb", 10);
-    setSimpleMargin(r, "rb", 1.0);
-    r.onTrade("20990101|9999|u|SHFE|rb|trade|t1", "1", "SHFE|sys1", "rb", true, true, '1', 3500, 2, "9999", "u");
-    CHECK(r.accountMargin() == 70000, "concrete account: a matching-account fill accumulates held margin");
-    r.onTrade("20990101|8888|x|SHFE|rb|trade|t2", "2", "SHFE|sys2", "rb", true, true, '1', 3500, 2, "8888", "x");
-    CHECK(r.accountMargin() == 70000, "concrete account: a foreign-account fill is dropped, not double-counted");
-  }
-
-  // --- held margin (onTrade) + global maxAccountMargin cap ---
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxAccountMargin = 100000;
-    r.configure(c);
-    setFuture(r, "rb", 10);
-    setSimpleMargin(r, "rb", 1.0);
-    recordTrade(r, "rb", true, true, 3500, 2);
-    CHECK(r.accountMargin() == 70000, "onTrade(open) accumulates held margin (70000)");
-    CHECK(r.tryReserveOpen("o1", "rb", true, 3500, 1) == OpenGate::CostLimit,
-          "global cost cap: held 70000 + 35000 reserved > 100000 is blocked");
-    recordTrade(r, "rb", false, false, 3600, 2);
-    CHECK(r.accountMargin() < 1.0, "onTrade(close) releases the held margin (~0)");
-  }
-
-  // --- margin rate: tracked cost becomes real MARGIN = notional * marginRate ---
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 10);
-    setSimpleMargin(r, "rb", 0.1);
-    recordTrade(r, "rb", true, true, 3500, 2);
-    CHECK(r.accountMargin() == 7000, "margin schedule scales held margin to 7000");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 10);
-    setReference(r, "rb", 3500);
-    r.setMarginSchedule("rb", '1', 0.20, 0.0, 0.20, 0.0, false);
-    r.setMarginSchedule("rb", '3', 0.05, 0.0, 0.05, 0.0, false);
-    recordTrade(r, "20990101|local|spec-open", "rb", true, true, 3500, 1,
-                '1');
-    recordTrade(r, "20990101|local|hedge-open", "rb", true, true, 3500, 1,
-                '3');
-    CHECK(r.accountMargin() == 8750,
-          "different hedge flags retain separate held-margin buckets");
-    recordTrade(r, "20990101|local|hedge-close", "rb", false, false, 3500, 1,
-                '3');
-    CHECK(r.accountMargin() == 7000,
-          "closing a low-margin hedge bucket preserves high-margin speculation cost");
-  }
-  {
-    RiskEngine r; // uncapped observability keeps a best-effort notional value
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 10);
-    recordTrade(r, "rb", true, true, 3500, 2);
-    CHECK(r.accountMargin() == 70000, "uncapped missing schedule keeps best-effort observability");
-  }
-  {
-    RiskEngine r; // global maxAccountMargin cap (in margin units)
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxAccountMargin = 10000;
-    r.configure(c);
-    setFuture(r, "rb", 10);
-    setSimpleMargin(r, "rb", 0.1);
-    recordTrade(r, "rb", true, true, 3500, 2);
-    MarginLimitEvidence evidence;
-    CHECK(r.tryReserveOpen("o1", "rb", true, 3500, 1, '1', &evidence) == OpenGate::CostLimit,
-          "maxAccountMargin: held 7000 + 3500 reserved > 10000 is blocked");
-    CHECK(evidence.account && evidence.limit == 10000 && evidence.heldKnown && evidence.held == 7000 && evidence.pendingKnown && evidence.pending == 0 && evidence.requestedKnown && evidence.requested == 3500, "account rejection reports the exact monetary evidence");
-    CHECK(r.tryReserveOpen("o2", "rb", true, 2000, 1) == OpenGate::Ok,
-          "maxAccountMargin: held 7000 + 2000 reserved = 9000 is allowed");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxAccountMargin = 1000;
-    r.configure(c);
-    setFuture(r, "rb", 10);
-    setReference(r, "rb", 3500);
-    r.setMarginSchedule("rb", '1', 0.1, 0.0, 0.1, 0.0, false);
-    CHECK(r.tryReserveOpen("low-sell", "rb", false, 1, 1) ==
-              OpenGate::CostLimit,
-          "a low sell/open limit is valued at the higher fresh market reference");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxAccountMargin = 100000;
-    c.maxReferenceAgeMs = 100;
-    r.configure(c);
-    setFuture(r, "rb", 10);
-    r.setMarginSchedule("rb", '1', 0.1, 0.0, 0.1, 0.0, false);
-    CHECK(r.tryReserveOpen("missing-ref", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a monetary cap fails closed when the reference price is missing");
-    setReference(r, "rb", 3500, 101);
-    CHECK(r.tryReserveOpen("stale-ref", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a monetary cap fails closed when the reference price is stale");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    // Cap 1500 so the RESTING order's revaluation is what trips it, not the new
-    // order's own cost: after px->1000 the new order alone costs 1000 (< 1500,
-    // admissible); only if the resting short is also re-valued 100->1000 does the
-    // total (2000) exceed 1500. Without tryReserveOpen's refresh the resting
-    // order stays at 100 and the total (1100) stays Ok — so this CHECK flips
-    // exactly on the admission-time revaluation it names.
-    c.maxAccountMargin = 1500;
-    r.configure(c);
-    setFuture(r, "rb", 10);
-    auto snap = std::make_shared<MockSnap>();
-    snap->px["rb"] = 100;
-    r.setMdSnapshot(snap);
-    r.setMarginSchedule("rb", '1', 0.1, 0.0, 0.1, 0.0, false);
-    CHECK(r.tryReserveOpen("resting-sell", "rb", false, 100, 1) ==
-              OpenGate::Ok,
-          "working-order revaluation setup admits the initial exposure");
-    snap->px["rb"] = 1000;
-    CHECK(r.tryReserveOpen("after-market-rise", "rb", true, 100, 1) ==
-              OpenGate::CostLimit,
-          "existing working orders are revalued before the next monetary admission");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 10);
-    setSimpleMargin(r, "rb", 0.1);
-    recordTrade(r, "rb", true, true, 3500, 1);
-    RiskLimits c;
-    c.maxAccountMargin = 100000;
-    r.configure(c);
-    r.invalidateMarginSchedules("rb", '1');
-    setSimpleMargin(r, "rb", 0.1);
-    CHECK(r.tryReserveOpen("stale-held-margin", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a margin refresh makes old estimated held cost unknown until position sync");
-    CHECK(r.replacePositionsIfRevision(
-              r.revision(), {PositionSeed{"rb", true, 1, 3500}}),
-          "authoritative position margin reconciles a schedule refresh");
-    CHECK(r.tryReserveOpen("fresh-held-margin", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "monetary opens resume after authoritative held-margin reconciliation");
-  }
-  {
-    RiskEngine r; // invalid schedules are ignored; uncapped accounting stays observable
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 10);
-    setSimpleMargin(r, "rb", 0);
-    setSimpleMargin(r, "rb", -0.5);
-    setSimpleMargin(r, "rb", DMAX);
-    recordTrade(r, "rb", true, true, 3500, 1);
-    CHECK(r.accountMargin() == 35000, "invalid margin schedule does not poison uncapped accounting");
-  }
-  {
-    RiskEngine r; // marginRate is static metadata: survives resetPositions (like multipliers)
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 10);
-    setSimpleMargin(r, "rb", 0.1);
-    recordTrade(r, "rb", true, true, 3500, 1);
-    r.resetPositions();
-    recordTrade(r, "rb", true, true, 3500, 1);
-    CHECK(r.accountMargin() == 3500, "margin schedule survives resetPositions");
-  }
-
-  // --- per-instrument cost cap ---
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "ag", 15);
-    setSimpleMargin(r, "ag", 1.0);
-    setMarginLimit(r, "ag", 50000);
-    CHECK(r.tryReserveOpen("o1", "ag", true, 5000, 1) == OpenGate::CostLimit,
-          "per-instrument cost cap: 5000*1*15=75000 > 50000 is blocked");
-    CHECK(r.tryReserveOpen("o2", "ag", true, 3000, 1) == OpenGate::Ok,
-          "per-instrument cost cap: 3000*1*15=45000 < 50000 is allowed");
-  }
-
-  // --- per-side lot cap + in-flight reservation ---
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setPositionLimit(r, "rb", true, 2); // long capped at 2 lots
-    CHECK(r.tryReserveOpen("o1", "rb", true, 3500, 2) == OpenGate::Ok, "lot cap: reserve 2 long = at cap, ok");
-    CHECK(r.tryReserveOpen("o2", "rb", true, 3500, 1) == OpenGate::VolumeLimit,
-          "lot cap: 2 reserved + 1 more in-flight > 2 is blocked");
-    CHECK(r.tryReserveOpen("o3", "rb", false, 3500, 5) == OpenGate::Ok, "lot cap: the short side is uncapped");
-    CHECK(r.bindInsertRequest(101, "o1"),
-          "lot cap: reservation binds to its exact request id");
-    r.rejectInsertByRequest(101, "o1");
-    CHECK(r.tryReserveOpen("o2", "rb", true, 3500, 2) == OpenGate::Ok, "lot cap: after release, 2 long is ok again");
-  }
-
-  // --- Order/Trade callback order cannot create a pending->held gap ---
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 2);
-    CHECK(r.tryReserveOpen("o1", "rb", true, 3500, 2) == OpenGate::Ok, "reconcile: reserve 2");
-    r.onOrderUpdate(1, 7, "o1", "rb", true, true, '1', '1', 3500, 2, 1,
-                    "20260710|SHFE|rb|sys-o1");
-    CHECK(r.tryReserveOpen("o2", "rb", true, 3500, 1) == OpenGate::VolumeLimit,
-          "order-before-trade keeps the reported fill reserved (no undercount window)");
-    r.onTrade("20260710|SHFE|gap1", "o1",
-              "20260710|SHFE|rb|sys-o1", "rb", true, true, '1', 3500, 1);
-    CHECK(r.tryReserveOpen("o2", "rb", true, 3500, 1) == OpenGate::VolumeLimit,
-          "trade atomically transfers one lot pending->held; total commitment stays 2");
-    r.onOrderUpdate(1, 7, "o1", "rb", true, true, '1', '2', 3500, 2, 1,
-                    "20260710|SHFE|rb|sys-o1");
-    CHECK(r.tryReserveOpen("o2", "rb", true, 3500, 1) == OpenGate::Ok,
-          "partial-not-queueing releases only the canceled remainder");
-  }
-
-  // --- a DIFFERENT session's working order counts against our caps (multi-terminal) ---
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 2);
-    r.onOrderUpdate(2, 9, "1", "rb", true, true, '1', '3', 3500, 2, 0);
-    CHECK(r.tryReserveOpen("mine", "rb", true, 3500, 1) == OpenGate::VolumeLimit,
-          "multi-terminal: another session's 2-lot working order consumes our cap");
-  }
-
-  // --- rebuildOpenReservations (authoritative resync from reqQryOrder) ---
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 3);
-    std::vector<OpenOrderInfo> working;
-    OpenOrderInfo o;
-    o.frontId = 1;
-    o.sessionId = 7;
-    o.orderRef = "5";
-    o.instrumentId = "rb";
-    o.isLong = true;
-    o.vol = 2;
-    o.price = 3500;
-    working.push_back(o);
-    r.rebuildOpenReservations(working);
-    CHECK(r.tryReserveOpen("o2", "rb", true, 3500, 1) == OpenGate::Ok, "rebuild: 2 reserved + 1 = 3 at cap, ok");
-    CHECK(r.tryReserveOpen("o3", "rb", true, 3500, 1) == OpenGate::VolumeLimit, "rebuild: a 4th lot over cap 3 is blocked");
-  }
-
-  // --- sanePositive / DBL_MAX guards (the round 11/14/17 bug fixes) ---
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", DMAX); // sentinel multiplier remains unknown
-    recordTrade(r, "rb", true, true, 3500, 1);
-    CHECK(r.accountMargin() == 3500,
-          "DBL_MAX multiplier stays unknown without poisoning uncapped accounting");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 10);
-    recordTrade(r, "rb", true, true, DMAX, 1);
-    CHECK(r.accountMargin() == 0.0, "a DBL_MAX fill price is rejected");
-  }
-  {
-    RiskEngine r; // negative / non-finite seeds are rejected (never poison the cost)
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    seedHeld(r, "rb", true, -1, 100); // negative volume
-    seedHeld(r, "rb", true, 1, -5);   // negative cost
-    CHECK(r.accountMargin() == 0.0, "position replacement rejects a negative volume / margin");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxAccountMargin = 100000;
-    r.configure(c);
-    setFuture(r, "rb", 10);
-    setSimpleMargin(r, "rb", 0.1);
-    seedHeld(r, "rb", true, 1, 0);
-    CHECK(r.tryReserveOpen("zero-seed-margin", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a positive held position with zero reported margin fails closed");
-  }
-  {
-    RiskEngine r; // valid lot count, but price*multiplier overflows -> per-fill backstop
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 1e299);
-    recordTrade(r, "rb", true, true, 1e299, 1);
-    CHECK(std::isfinite(r.accountMargin()) && r.accountMargin() > 0.0,
-          "onTrade pins an overflowing fill to a finite fail-safe cost");
-  }
-  {
-    // An unusable price under a monetary cap must fail closed. Reserving zero
-    // would let a market/zero/sentinel-priced opening order bypass maxAccountMargin.
-    RiskEngine r;
-    RiskLimits c;
-    c.maxAccountMargin = 100000;
-    r.configure(c);
-    r.setSession(1, 7);
-    setFuture(r, "rb", 10);
-    // Valid reference + schedule so a usable price would be admissible; only the
-    // DBL_MAX limit price (rejected by sanePositive inside priceKnown, though it
-    // passes the structural isfinite gate) is left to force fail-closed here.
-    setReference(r, "rb", 3500);
-    r.setMarginSchedule("rb", '1', 0.1, 0.0, 0.1, 0.0, false);
-    CHECK(r.tryReserveOpen("o1", "rb", true, DMAX, 1) ==
-              OpenGate::MetadataUnavailable,
-          "reservation: a DBL_MAX limit price fails closed under a cost cap");
-    r.onOrderUpdate(1, 7, "o1", "rb", true, true, '1', '0', DMAX, 1, 1);
-    recordTrade(r, "rb", true, true, 9000, 2);
-    CHECK(r.tryReserveOpen("o2", "rb", true, 9000, 1) ==
-              OpenGate::MetadataUnavailable,
-          "reservation: a DBL_MAX order update leaves the ledger fail-closed");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxAccountMargin = 100000;
-    r.configure(c);
-    seedHeld(r, "rb", true, 1, DMAX); // absurd seed -> clamped finite
-    seedHeld(r, "rb", true, 1, DMAX); // repeated huge replacement stays finite
-    CHECK(r.tryReserveOpen("o1", "rb", true, 3500, 1) == OpenGate::CostLimit,
-          "a huge seed trips the cost cap fail-safe (never NaN-voids it)");
-  }
-
-  // --- resetPositions clears positions but keeps multipliers + caps (config metadata) ---
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 10);
-    setPositionLimit(r, "rb", true, 2);
-    recordTrade(r, "rb", true, true, 3500, 1);
-    CHECK(r.accountMargin() > 0, "before reset: held margin is tracked");
-    r.resetPositions();
-    CHECK(r.accountMargin() == 0.0, "resetPositions() clears held margin");
-    CHECK(r.tryReserveOpen("while-reset", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "resetPositions() keeps opens fail-closed until authoritative reseed");
-    CHECK(r.replacePositionsIfRevision(r.revision(), {}),
-          "authoritative flat snapshot clears reset uncertainty");
-    recordTrade(r, "rb", true, true, 3500, 1);
-    CHECK(r.accountMargin() == 35000, "instrument metadata survives resetPositions");
-    CHECK(r.tryReserveOpen("o", "rb", true, 3500, 5) == OpenGate::VolumeLimit, "lot cap survives resetPositions");
-  }
-
-  // --- short-side mirrors (the long side is covered above) ---
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 10);
-    recordTrade(r, "rb", false, true, 3500, 2);
-    CHECK(r.accountMargin() == 70000, "short open accumulates held margin (70000)");
-    recordTrade(r, "rb", true, false, 3400, 1);
-    CHECK(r.accountMargin() == 35000, "short close releases proportional margin");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setPositionLimit(r, "rb", true, 10);
-    seedHeld(r, "rb", true, 1, 35000);
-    recordTrade(r, "rb", false, false, 3500, 2); // a close (here over-held: 2 > 1)
-    // Every close marks the position ledger uncertain (risk.cc close branch: the
-    // realtime stream and a position query share no sequence watermark, so a
-    // possible double-release must never reopen a cap) — so opening inserts fail
-    // closed until an authoritative position sync. (An over-close is one trigger,
-    // but the guard is unconditional; the specific over-held nuance is not
-    // separately observable through this gate.)
-    CHECK(r.tryReserveOpen("after-close", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a close marks the position ledger uncertain so opening inserts fail closed until authoritative resync");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxAccountMargin = 50000;
-    r.configure(c);
-    seedHeld(r, "rb", false, 2, 60000); // seed a SHORT position over the cap
-    CHECK(r.tryReserveOpen("o", "rb", false, 1, 1) == OpenGate::CostLimit, "seeded short cost trips the global cap");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", false, 2); // SHORT lot cap
-    CHECK(r.tryReserveOpen("s1", "rb", false, 3500, 2) == OpenGate::Ok, "short reserve 2 at cap, ok");
-    CHECK(r.tryReserveOpen("s2", "rb", false, 3500, 1) == OpenGate::VolumeLimit, "short over cap blocked");
-    r.onOrderUpdate(1, 7, "s1", "rb", true, false, '1', '1', 3500, 2, 1,
-                    "20260710|SHFE|rb|sys-s1");
-    CHECK(r.tryReserveOpen("s2", "rb", false, 3500, 1) == OpenGate::VolumeLimit,
-          "short order-before-trade retains the in-flight fill reservation");
-    r.onTrade("20260710|SHFE|sgap", "s1",
-              "20260710|SHFE|rb|sys-s1", "rb", false, true, '1', 3500, 1);
-    r.onOrderUpdate(1, 7, "s1", "rb", true, false, '1', '2', 3500, 2, 1,
-                    "20260710|SHFE|rb|sys-s1");
-    CHECK(r.tryReserveOpen("s2", "rb", false, 3500, 1) == OpenGate::Ok,
-          "short partial cancel releases only its unfilled remainder");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", false, 3);
-    std::vector<OpenOrderInfo> working;
-    OpenOrderInfo a;
-    a.frontId = 1; a.sessionId = 7; a.orderRef = "9"; a.instrumentId = "rb"; a.isLong = false; a.vol = 2; a.price = 3500;
-    OpenOrderInfo z; // vol 0 -> skipped by the rebuild
-    z.frontId = 1; z.sessionId = 7; z.orderRef = "x"; z.instrumentId = "rb"; z.isLong = false; z.vol = 0; z.price = 3500;
-    working.push_back(a);
-    working.push_back(z);
-    r.rebuildOpenReservations(working);
-    CHECK(r.tryReserveOpen("s3", "rb", false, 3500, 2) == OpenGate::VolumeLimit, "rebuild short: 2 reserved + 2 > 3 blocked (0-vol row skipped)");
-  }
-
-  // --- per-instrument cost cap counting an existing HELD position (instrCost) ---
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "ag", 15);
-    setSimpleMargin(r, "ag", 1.0);
-    setMarginLimit(r, "ag", 100000);
-    recordTrade(r, "ag", true, true, 4000, 1);
-    CHECK(r.tryReserveOpen("o", "ag", true, 4000, 1) == OpenGate::CostLimit,
-          "per-instrument cap counts held + reserved (60000 + 60000 > 100000)");
-  }
-
-  // --- edge guards ---
-  {
-    RiskEngine r; // uncapped instrument is accepted but still tracked for later caps
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    CHECK(r.tryReserveOpen("o", "rb", true, 3500, 100) == OpenGate::Ok, "uncapped instrument: accepted and tracked for later cap activation");
-  }
-  {
-    RiskEngine r; // unconfigured -> rate limiter disabled
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    CHECK(r.allowRate(), "rate limiter disabled (rate 0) always allows");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxOrdersPerSec = 0.5;
-    r.configure(c);
-    CHECK(r.allowRate(),
-          "fractional order rate gets a one-token minimum burst (never starves forever)");
-    CHECK(!r.allowRate(), "fractional order rate still throttles the next immediate send");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
     c.maxCloseOrdersPerSec = 1;
     c.closeOrderBurst = 1;
     r.configure(c);
-    CHECK(r.allowCloseRate() && !r.allowCloseRate(),
-          "closing orders use an independent optional token bucket");
+    int opens = 0;
+    for (int i = 0; i < 6; ++i)
+      if (r.allowRate())
+        ++opens;
+    const bool closeFirst = r.allowCloseRate();
+    const bool closeSecond = r.allowCloseRate();
+    CHECK(opens == 3, "allowRate admits exactly the opening-order burst");
+    CHECK(closeFirst && !closeSecond,
+          "allowCloseRate uses an independent bucket that opening exhaustion cannot starve");
   }
   {
     RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    CHECK(r.refPrice("rb") == 0.0, "refPrice is 0 with no snapshot attached");
-    RiskLimits c;
-    c.maxNotional = 100000;
-    r.configure(c);
-    setFuture(r, "rb", 0);  // non-positive multipliers are ignored: the value
-    setFuture(r, "rb", -1); // stays UNKNOWN (not stored as 0/-1, which would
-                            // zero the notional and bypass the cap).
-    CHECK(!r.check("rb", 3500, 3500, 1).ok,
-          "setInstrument ignores a non-positive multiplier (stays unknown -> capped notional fails closed)");
+    bool allowed = false;
+    auto guard = r.acquireOrderSend(true, allowed);
+    r.haltAll(); // same thread: an inline vendor callback may take the barrier
+    CHECK(allowed && r.mode() == RiskMode::HaltAll,
+          "the send barrier is re-entrant on the sending thread (no self-deadlock)");
   }
   {
     RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxOrderVolume = 10;
-    c.maxNotional = 1e9;
-    r.configure(c);
-    CHECK(!r.check("rb", 3500, 0, 0).ok, "check: volume <= 0 is blocked");
-    CHECK(!r.check("rb", std::numeric_limits<double>::infinity(), 0, 1).ok, "check: a non-finite price is blocked");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    r.rejectInsertUnscoped("nope"); // no matching live ref -> no-op
-    RiskLimits c;
-    c.maxAccountMargin = 1e6;
-    r.configure(c);
-    for (int i = 0; i < 5; i++)
-      seedHeld(r, "rb", true, 1, 1e308); // huge authoritative margin stays fail-closed
-    CHECK(r.tryReserveOpen("o", "rb", true, 1, 1) == OpenGate::CostLimit,
-          "an overflowed cost sum stays finite and still trips the cap (never NaN-voids it)");
-  }
-
-  // --- onOrderUpdate tracking / release / rebuild ---
-  {
-    RiskEngine r; // a non-opening order must have NO reservation side effects
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setPositionLimit(r, "rb", true, 1); // long capped at 1 lot
-    r.onOrderUpdate(1, 1, "x", "rb", false, true, '1', '3', 3500, 1, 0); // isOpen=false
-    // If the `if (!isOpen) return;` guard were removed, this non-opening update
-    // would consume the 1-lot long cap and the reserve below would trip
-    // VolumeLimit. It must stay Ok — proving the order was genuinely ignored.
-    CHECK(r.tryReserveOpen("mine", "rb", true, 3500, 1) == OpenGate::Ok,
-          "onOrderUpdate ignores a non-opening order (no reservation side effects)");
-  }
-  {
-    // an untracked working order under the GLOBAL cost cap starts being tracked
-    RiskEngine r;
-    RiskLimits c;
-    c.maxAccountMargin = 100000;
-    r.configure(c);
-    r.setSession(1, 7);
-    setFuture(r, "rb", 10);
-    setSimpleMargin(r, "rb", 1.0);
-    r.onOrderUpdate(2, 9, "1", "rb", true, true, '1', '3', 3500, 1, 0);
-    CHECK(r.tryReserveOpen("mine", "rb", true, 3500, 2) == OpenGate::CostLimit,
-          "untracked order under the global cost cap consumes it (35000 + 70000 > 100000)");
-  }
-  {
-    // an untracked working order under a PER-INSTRUMENT cost cap starts being tracked
-    RiskEngine r;
-    r.setSession(1, 7);
-    setFuture(r, "ag", 15);
-    setSimpleMargin(r, "ag", 1.0);
-    setMarginLimit(r, "ag", 50000);
-    r.onOrderUpdate(2, 9, "1", "ag", true, true, '1', '3', 2000, 1, 0);
-    CHECK(r.tryReserveOpen("mine", "ag", true, 2000, 1) == OpenGate::CostLimit,
-          "untracked order under the per-instrument cost cap consumes it (30000 + 30000 > 50000)");
-  }
-  {
-    // an untracked working SHORT order under a per-side lot cap starts being tracked
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", false, 5);
-    r.onOrderUpdate(2, 9, "1", "rb", true, false, '1', '3', 3500, 3, 0);
-    CHECK(r.tryReserveOpen("mine", "rb", false, 3500, 3) == OpenGate::VolumeLimit,
-          "untracked short order consumes the short lot cap (3 + 3 > 5)");
-  }
-  {
-    RiskEngine r; // no cap at all -> still retained for later cap activation
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    r.onOrderUpdate(2, 9, "1", "rb", true, true, '1', '3', 3500, 1, 0);
-    setPositionLimit(r, "rb", true, 1);
-    CHECK(r.tryReserveOpen("mine", "rb", true, 3500, 1) == OpenGate::VolumeLimit,
-          "untracked order with no cap in force is retained for later caps");
-  }
-  {
-    RiskEngine r;
-    r.setSession(2, 9);
-    setPositionLimit(r, "rb", true, 1);
-    CHECK(r.tryReserveOpen("1", "rb", true, 3500, 1) == OpenGate::Ok,
-          "malformed-order setup reserves one lot");
-    r.onOrderUpdate(2, 9, "1", "rb", true, true, '1', '3', 3500, 1, 2);
-    CHECK(r.tryReserveOpen("2", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "volTraded > volTotal makes both ledgers fail closed");
-  }
-  {
-    RiskEngine r; // exact request rejection on a SHORT reservation
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", false, 5);
-    r.tryReserveOpen("s", "rb", false, 3500, 2); // reserve 2 short
-    CHECK(r.bindInsertRequest(102, "s"),
-          "short reservation binds before its insert");
-    r.rejectInsertByRequest(102, "s");
-    CHECK(r.tryReserveOpen("s2", "rb", false, 3500, 5) == OpenGate::Ok, "exact rejection frees a short reservation");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 1);
-    r.onOrderUpdate(2, 9, "shared", "rb", true, true, '1', '3', 3500,
-                    1, 0, "20260710|SHFE|rb|external");
-    r.rejectInsertUnscoped("shared");
-    CHECK(r.tryReserveOpen("after-ambiguous-reject", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a rejection without front/session cannot release another terminal's same-ref reservation");
-  }
-  {
-    // rebuild clears prior in-flight reservations before re-reserving, and dedupes
-    // duplicate (front:session:ref) rows.
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 5);
-    r.tryReserveOpen("o", "rb", true, 3500, 4); // a prior reservation (4 long pend) to be cleared
-    std::vector<OpenOrderInfo> working;
-    OpenOrderInfo a;
-    a.frontId = 1; a.sessionId = 7; a.orderRef = "7"; a.instrumentId = "rb"; a.isLong = true; a.vol = 2; a.price = 3500;
-    OpenOrderInfo dup = a; // same (front:session:ref) -> deduped
-    working.push_back(a);
-    working.push_back(dup);
-    r.rebuildOpenReservations(working);
-    CHECK(r.tryReserveOpen("o2", "rb", true, 3500, 3) == OpenGate::Ok,
-          "rebuild cleared the prior reservation + deduped the row (2 reserved + 3 = 5 at cap, ok)");
-    CHECK(r.tryReserveOpen("o3", "rb", true, 3500, 1) == OpenGate::VolumeLimit, "rebuild: a further lot over cap is blocked");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 1);
-    r.setMarginSchedule("rb", '1', 0.1, 0.0, 0.1, 0.0, false);
-    setReference(r, "rb", 100);
-    setMarginLimit(r, "rb", 15);
-    OpenOrderInfo working;
-    working.frontId = 1;
-    working.sessionId = 7;
-    working.orderRef = "priced-below-market";
-    working.instrumentId = "rb";
-    working.vol = 1;
-    working.price = 1;
-    r.rebuildOpenReservations({working});
-    MarginLimitEvidence evidence;
-    CHECK(r.tryReserveOpen("after-priced-snapshot", "rb", true, 100, 1, '1', &evidence) ==
-              OpenGate::CostLimit,
-          "rebuild values a working order at max(limit, fresh reference)");
-    CHECK(!evidence.account && evidence.limit == 15 && evidence.held == 0 && evidence.pending == 10 && evidence.requested == 10, "instrument rejection reports the exact pending margin");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 1);
-    r.setMarginSchedule("rb", '1', 0.1, 0.0, 0.1, 0.0, false);
-    setReference(r, "rb", 100);
-    setMarginLimit(r, "rb", 1000);
-    OpenOrderInfo working;
-    working.frontId = 1;
-    working.sessionId = 7;
-    working.orderRef = "zero-price";
-    working.instrumentId = "rb";
-    working.vol = 1;
-    working.price = 0;
-    r.rebuildOpenReservations({working});
-    CHECK(r.tryReserveOpen("after-zero-price", "rb", true, 100, 1) ==
-              OpenGate::MetadataUnavailable,
-          "zero-price snapshot reservation stays unknown under a monetary cap");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 1);
-    r.setMarginSchedule("rb", '1', 0.1, 0.0, 0.1, 0.0, false);
-    setMarginLimit(r, "rb", 1000);
-    OpenOrderInfo working;
-    working.frontId = 1;
-    working.sessionId = 7;
-    working.orderRef = "missing-reference";
-    working.instrumentId = "rb";
-    working.vol = 1;
-    working.price = 100;
-    r.rebuildOpenReservations({working});
-    CHECK(r.tryReserveOpen("after-missing-reference", "rb", true, 100, 1) ==
-              OpenGate::MetadataUnavailable,
-          "snapshot reservation without a fresh reference fails monetary gates closed");
-  }
-
-  // --- production regression cases: monotonic/idempotent ledger + fail-closed metadata ---
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 5);
-    CHECK(r.tryReserveOpen("1", "rb", true, 3500, 2) == OpenGate::Ok,
-          "duplicate ref: first insert reserves normally");
-    CHECK(r.tryReserveOpen("1", "rb", true, 3500, 2) ==
-              OpenGate::DuplicateOrderRef,
-          "duplicate ref: a second insert cannot overwrite the original ledger entry");
-    CHECK(r.tryReserveOpen("2", "rb", true, 3500, 3) == OpenGate::Ok,
-          "duplicate ref: no phantom reservation is created");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 1);
-    CHECK(r.tryReserveOpen("retry", "rb", true, 3500, 1) == OpenGate::Ok,
-          "pre-send rollback: first reservation succeeds");
-    CHECK(r.bindInsertRequest(103, "retry"),
-          "pre-send rollback: exact request binding succeeds");
-    r.rollbackInsertRequest(103, "retry");
-    CHECK(r.tryReserveOpen("retry", "rb", true, 3500, 1) == OpenGate::Ok,
-          "pre-send rollback: rate/send failure may retry the same OrderRef");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 1);
-    CHECK(r.tryReserveOpen("same-ref", "rb", true, 3500, 1) == OpenGate::Ok &&
-              r.bindInsertRequest(201, "same-ref"),
-          "session A binds its reservation to request 201");
-    r.invalidateSession();
-    r.setSession(2, 8, "9999", "investor");
-    CHECK(r.replacePositionsIfRevision(r.revision(), {}) &&
-              r.rebuildOpenReservationsIfRevision(r.revision(), {}),
-          "session B starts from authoritative empty ledgers");
-    CHECK(r.tryReserveOpen("same-ref", "rb", true, 3500, 1) == OpenGate::Ok &&
-              r.bindInsertRequest(202, "same-ref"),
-          "session B may independently reuse the same OrderRef");
-    // The rejection carries the confirmed account, as the SPI now passes from the
-    // echoed InputOrder (without it, a concrete-account session would treat every
-    // insert rejection as Ambiguous and leak the reservation). Session A's
-    // reservation was authoritatively evicted by session B's rebuild, so its late
-    // rejection is a clean no-op and never releases session B's live reservation.
-    r.rejectInsertByRequest(201, "same-ref", "9999", "investor");
-    CHECK(r.tryReserveOpen("after-old-reject", "rb", true, 3500, 1) ==
-              OpenGate::VolumeLimit,
-          "late session-A rejection cannot release session-B reservation");
-    r.rejectInsertByRequest(202, "same-ref", "9999", "investor");
-    CHECK(r.tryReserveOpen("after-current-reject", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "the correctly correlated session-B rejection releases only B");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 1);
-    CHECK(r.tryReserveOpen("null-row", "rb", true, 3500, 1) == OpenGate::Ok &&
-              r.bindInsertRequest(205, "null-row"),
-          "null response-row setup has an exact request binding");
-    r.rejectInsertByRequest(205, "");
-    CHECK(r.tryReserveOpen("after-null-row", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "request id alone safely correlates a rejection with a null row");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 1);
-    CHECK(r.tryReserveOpen("unknown-id", "rb", true, 3500, 1) == OpenGate::Ok &&
-              r.bindInsertRequest(206, "unknown-id"),
-          "unknown-response setup has a live exact binding");
-    r.rejectInsertByRequest(999, "unknown-id");
-    CHECK(r.tryReserveOpen("after-unknown-id", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "unknown or evicted request id fails closed without releasing exposure");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 1);
-    CHECK(r.tryReserveOpen("unscoped", "rb", true, 3500, 1) == OpenGate::Ok &&
-              r.bindInsertRequest(203, "unscoped"),
-          "unscoped rejection setup has one bound reservation");
-    r.rejectInsertUnscoped("unscoped");
-    CHECK(r.tryReserveOpen("after-unscoped", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "OnErrRtn without request id retains exposure and fails closed");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 1);
-    CHECK(r.tryReserveOpen("observed", "rb", true, 3500, 1) == OpenGate::Ok &&
-              r.bindInsertRequest(204, "observed"),
-          "observed-order setup has one bound reservation");
-    r.onOrderUpdate(1, 7, "observed", "rb", true, true, '1', '3', 3500,
-                    1, 0, "20260710|SHFE|rb|observed");
-    r.rejectInsertByRequest(204, "observed");
-    CHECK(r.tryReserveOpen("after-contradiction", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "rejection after a working OnRtnOrder never releases accepted exposure");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 2);
-    const std::string sys = "20260710|SHFE|rb|old";
-    r.onOrderUpdate(2, 9, "1", "rb", true, true, '1', '3', 3500, 2, 0, sys);
-    r.onOrderUpdate(2, 9, "1", "rb", true, true, '1', '5', 3500, 2, 0, sys);
-    r.onOrderUpdate(2, 9, "1", "rb", true, true, '1', '3', 3500, 2, 0, sys);
-    CHECK(r.tryReserveOpen("mine", "rb", true, 3500, 2) == OpenGate::Ok,
-          "terminal order ignores a stale replay with the same exchange identity");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 3);
-    const std::string oldSys = "20260710|SHFE|rb|old";
-    const std::string newSys = "20260711|SHFE|rb|new";
-    r.onOrderUpdate(2, 9, "1", "rb", true, true, '1', '3', 3500, 2, 0,
-                    oldSys);
-    r.onOrderUpdate(2, 9, "1", "rb", true, true, '1', '5', 3500, 2, 0,
-                    oldSys);
-    r.onOrderUpdate(2, 9, "1", "rb", true, true, '1', '3', 3500, 2, 0,
-                    newSys);
-    CHECK(r.tryReserveOpen("ambiguous-reuse", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a terminal key reused by a different exchange order fails closed");
-    OpenOrderInfo current;
-    current.frontId = 2;
-    current.sessionId = 9;
-    current.orderRef = "1";
-    current.orderSysKey = newSys;
-    current.instrumentId = "rb";
-    current.isLong = true;
-    current.vol = 2;
-    current.price = 3500;
-    CHECK(r.rebuildOpenReservationsIfRevision(r.revision(), {current}),
-          "authoritative order sync supersedes a reused terminal tombstone");
-    CHECK(r.tryReserveOpen("after-reuse-sync", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "reused working order is counted after authoritative reconciliation");
-    CHECK(r.tryReserveOpen("reuse-cap", "rb", true, 3500, 1) ==
-              OpenGate::VolumeLimit,
-          "reused working order cannot be omitted from the position cap");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 10);
-    const std::string oldSys = "20260710|SHFE|rb|old-terminal";
-    const std::string newSys = "20260711|SHFE|rb|new-terminal";
-    r.onOrderUpdate(2, 9, "terminal-reuse", "rb", true, true, '1', '5',
-                    3500, 2, 0, oldSys);
-    const uint64_t before = r.revision();
-    r.onOrderUpdate(2, 9, "terminal-reuse", "rb", true, true, '1', '5',
-                    3500, 2, 1, newSys);
-    CHECK(r.revision() > before &&
-              r.tryReserveOpen("blocked-terminal-reuse", "rb", true, 3500,
-                               1) == OpenGate::MetadataUnavailable,
-          "a different terminal exchange identity cannot masquerade as a duplicate terminal report");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 2);
-    const std::string sys = "20260710|SHFE|rb|terminal";
-    r.onOrderUpdate(2, 9, "same", "rb", true, true, '1', '3', 3500, 2, 0,
-                    sys);
-    r.onOrderUpdate(2, 9, "same", "rb", true, true, '1', '5', 3500, 2, 0,
-                    sys);
-    OpenOrderInfo stale;
-    stale.frontId = 2;
-    stale.sessionId = 9;
-    stale.orderRef = "same";
-    stale.orderSysKey = sys;
-    stale.instrumentId = "rb";
-    stale.isLong = true;
-    stale.vol = 2;
-    stale.price = 3500;
-    CHECK(r.rebuildOpenReservationsIfRevision(r.revision(), {stale}),
-          "authoritative sync recognizes a stale row for the same terminal exchange order");
-    CHECK(r.tryReserveOpen("after-stale-snapshot", "rb", true, 3500, 2) ==
-              OpenGate::Ok,
-          "a stale snapshot row cannot resurrect terminal exposure");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 2);
-    r.onOrderUpdate(2, 9, "ambiguous", "rb", true, true, '1', '3', 3500, 2,
-                    0);
-    r.onOrderUpdate(2, 9, "ambiguous", "rb", true, true, '1', '5', 3500, 2,
-                    0);
-    OpenOrderInfo ambiguous;
-    ambiguous.frontId = 2;
-    ambiguous.sessionId = 9;
-    ambiguous.orderRef = "ambiguous";
-    ambiguous.instrumentId = "rb";
-    ambiguous.isLong = true;
-    ambiguous.vol = 2;
-    ambiguous.price = 3500;
-    CHECK(!r.rebuildOpenReservationsIfRevision(r.revision(), {ambiguous}),
-          "a tombstone collision without exchange fingerprints rejects the snapshot");
-    CHECK(r.tryReserveOpen("after-ambiguous-snapshot", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "an ambiguous tombstone snapshot stays fail-closed");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    const std::string sys = "20260710|SHFE|rb|evicted";
-    CHECK(r.tryReserveOpen("evicted", "rb", true, 3500, 1) == OpenGate::Ok,
-          "evicted-tombstone cleanup setup reserves an order");
-    r.onOrderUpdate(1, 7, "evicted", "rb", true, true, '1', '0', 3500, 1,
-                    1, sys);
-    // Force this tombstone out of the bounded 65,536-entry FIFO while its
-    // reported fill still owns a reservation awaiting OnRtnTrade.
-    for (int i = 0; i < 65536; ++i) {
-      const std::string id = "terminal-" + std::to_string(i);
-      r.onUnsupportedOrderUpdate(2, 9, id, '5', "sys-" + id);
+    std::atomic<bool> started{false}, done{false};
+    std::thread changer;
+    {
+      bool allowed = false;
+      auto guard = r.acquireOrderSend(true, allowed);
+      changer = std::thread([&] {
+        started = true;
+        r.haltAll();
+        done = true;
+      });
+      while (!started)
+        std::this_thread::yield();
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      CHECK(allowed && !done && r.mode() == RiskMode::Normal,
+            "a mode change waits while an admitted send holds the barrier");
     }
-    r.onTrade("20260710|SHFE|rb|trade|evicted", "evicted", sys, "rb", true,
-              true, '1', 3500, 1);
-    CHECK(r.tryReserveOpen("evicted", "rb", true, 3500, 1) == OpenGate::Ok,
-          "a released reservation prunes its already-evicted terminal state");
+    changer.join();
+    CHECK(done && r.mode() == RiskMode::HaltAll,
+          "the mode change lands once the send barrier is released");
   }
   {
     RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setPositionLimit(r, "rb", true, 10);
-    const std::string sys = "20260710|SHFE|rb|multi";
-    r.onUnsupportedOrderUpdate(2, 9, "multi", '3', sys);
-    CHECK(r.tryReserveOpen("blocked-by-multi", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a live unsupported order makes position-dependent gates fail closed");
-    r.onUnsupportedOrderUpdate(2, 9, "multi", '5', sys);
-    r.onUnsupportedOrderUpdate(2, 9, "multi", '3', sys);
-    CHECK(r.tryReserveOpen("after-multi-terminal", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "terminal unsupported order ignores a stale replay with the same exchange identity");
+    const bool confirmed = confirmAccount(r);
+    std::atomic<bool> started{false}, done{false};
+    std::thread transition;
+    {
+      bool allowed = false;
+      auto guard = r.acquireOrderSendForAccount(true, "9999", "inv", allowed);
+      transition = std::thread([&] {
+        started = true;
+        r.invalidateSession();
+        done = true;
+      });
+      while (!started)
+        std::this_thread::yield();
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      CHECK(confirmed && allowed && !done && r.acceptsOrderAccount("9999", "inv"),
+            "a session transition cannot revoke the account mid-send: it waits for the barrier");
+    }
+    transition.join();
+    CHECK(done && !r.acceptsOrderAccount("9999", "inv"),
+          "the session transition revokes the account once the send leaves the barrier");
+  }
+}
+
+static void testLoginLifecycle() {
+  struct LoginCase {
+    int requestId, frontId, sessionId;
+    const char *broker, *user, *label;
+  };
+  const LoginCase rejectedLogins[] = {
+      {0, 1, 7, "9999", "op", "acceptLoginSession rejects request id 0"},
+      {-41, 1, 7, "9999", "op", "acceptLoginSession rejects a negative request id"},
+      {42, 1, 7, "9999", "op", "acceptLoginSession rejects an uncorrelated request id"},
+      {41, 1, 7, "", "op", "acceptLoginSession rejects an empty BrokerID"},
+      {41, 1, 7, "9999", "", "acceptLoginSession rejects an empty UserID"},
+      {41, 0, 7, "9999", "op", "acceptLoginSession rejects FrontID 0"},
+      {41, -1, 7, "9999", "op", "acceptLoginSession rejects a negative FrontID"},
+      {41, 1, 0, "9999", "op", "acceptLoginSession rejects SessionID 0"},
+      {41, 1, 7, "8888", "op", "acceptLoginSession rejects a BrokerID other than the requested one"},
+      {41, 1, 7, "9999", "other", "acceptLoginSession rejects a UserID other than the requested one"},
+  };
+  for (const auto &c : rejectedLogins) {
+    RiskEngine r;
+    r.beginSessionTransition(41, true, "9999", "op");
+    const bool rejected = !r.acceptLoginSession(c.requestId, c.frontId,
+                                                c.sessionId, c.broker, c.user);
+    CHECK(rejected && r.acceptLoginSession(41, 1, 7, "9999", "op"), c.label);
   }
   {
     RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setPositionLimit(r, "rb", true, 10);
-    r.onUnsupportedOrderUpdate(2, 9, "multi-reuse", '3',
-                               "20260710|SHFE|rb|old-multi");
-    r.onUnsupportedOrderUpdate(2, 9, "multi-reuse", '5',
-                               "20260710|SHFE|rb|old-multi");
-    r.onUnsupportedOrderUpdate(2, 9, "multi-reuse", '3',
-                               "20260711|SHFE|rb|new-multi");
-    CHECK(r.tryReserveOpen("blocked-by-multi-reuse", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "unsupported terminal-key reuse fails closed instead of being ignored");
-    CHECK(r.rebuildOpenReservationsIfRevision(r.revision(), {}),
-          "authoritative empty order sync clears unsupported key-reuse ambiguity");
-    CHECK(r.tryReserveOpen("after-multi-reuse-sync", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "opens resume after authoritative unsupported-order reconciliation");
+    r.beginSessionTransition(43, false, "9999", "op");
+    CHECK(!r.acceptLoginSession(43, 1, 7, "9999", "op"),
+          "a login response cannot complete a logout transition");
   }
   {
     RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setPositionLimit(r, "rb", true, 10);
-    r.onUnsupportedOrderUpdate(2, 9, "unsupported-terminal-reuse", '5',
-                               "20260710|SHFE|rb|old-unsupported");
-    const uint64_t before = r.revision();
-    r.onUnsupportedOrderUpdate(2, 9, "unsupported-terminal-reuse", '5',
-                               "20260711|SHFE|rb|new-unsupported");
-    CHECK(r.revision() > before &&
-              r.tryReserveOpen("blocked-unsupported-terminal-reuse", "rb",
-                               true, 3500, 1) ==
-                  OpenGate::MetadataUnavailable,
-          "unsupported terminal reports with different identities fail closed");
+    r.beginSessionTransition(0, true);
+    const bool zero = !r.acceptLoginSession(0, 1, 7, "9999", "op");
+    r.beginSessionTransition(-9, true);
+    CHECK(zero && !r.acceptLoginSession(-9, 1, 7, "9999", "op"),
+          "a non-positive transition id never correlates a login response");
   }
   {
     RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setPositionLimit(r, "rb", true, 10);
-    OpenOrderInfo unsupported;
-    unsupported.frontId = 2;
-    unsupported.sessionId = 9;
-    unsupported.orderRef = "multi-snapshot";
-    unsupported.instrumentId = "rb";
-    unsupported.vol = 1;
-    unsupported.price = 3500;
-    unsupported.supportedSingleLeg = false;
-    CHECK(r.rebuildOpenReservationsIfRevision(r.revision(), {unsupported}),
-          "authoritative order sync records unsupported working orders");
-    CHECK(r.tryReserveOpen("blocked-by-multi-snapshot", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "unsupported snapshot rows fail closed instead of being ignored");
-    CHECK(r.rebuildOpenReservationsIfRevision(r.revision(), {}),
-          "a later empty order snapshot clears unsupported working state");
-    CHECK(r.tryReserveOpen("after-multi-sync", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "position-dependent opens resume after the unsupported order is gone");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 1);
-    CHECK(r.tryReserveOpen("unsupported-terminal", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "unsupported-terminal setup reserves a normal opening order");
-    r.onUnsupportedOrderUpdate(1, 7, "unsupported-terminal", '5');
-    CHECK(r.tryReserveOpen("after-unsupported-terminal", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "an unsupported-format terminal cannot release a known single-leg reservation");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setPositionLimit(r, "rb", true, 10);
-    r.onUnsupportedOrderUpdate(0, 0, "", '3');
-    CHECK(r.tryReserveOpen("malformed-order", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "an unsupported callback without identity fails closed");
-    CHECK(r.replacePositionsIfRevision(r.revision(), {}),
-          "position sync can still reconcile held exposure");
-    CHECK(r.tryReserveOpen("still-blocked", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "position sync does not clear unresolved working-order ambiguity");
-    CHECK(r.rebuildOpenReservationsIfRevision(r.revision(), {}),
-          "order sync clears identity-less working-order ambiguity");
-    CHECK(r.tryReserveOpen("order-reconciled", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "opens resume only after authoritative order reconciliation");
-  }
-  {
-    // Another terminal can deliver Trade before our first Order callback. The
-    // later terminal Order must recognize that fill as already applied instead
-    // of recreating it as an undelivered-fill reservation.
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 2);
-    r.onTrade("20260710|SHFE|trade-first", "77", "SHFE|sys77", "rb",
-              true, true, '1', 3500, 2);
-    r.onOrderUpdate(2, 9, "77", "rb", true, true, '1', '0', 3500, 2,
-                    2, "SHFE|sys77");
-    r.onTrade("20260710|SHFE|close-after-trade-first", "", "", "rb",
-              false, false, '1', 3500, 2);
-    // A close deliberately makes the position ledger uncertain (a delayed
-    // realtime close for a fill already in a prior snapshot must not double
-    // release). Reconcile positions before checking the reservation ledger, as a
-    // strategy does to resume opening after a close.
-    r.replacePositionsIfRevision(r.revision(), {});
-    CHECK(r.tryReserveOpen("mine", "rb", true, 3500, 2) == OpenGate::Ok,
-          "trade-before-order does not leave a ghost reservation");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 1);
-    CHECK(r.tryReserveOpen("same-ref", "rb", true, 3500, 1) == OpenGate::Ok,
-          "cross-terminal trade setup reserves this session's order");
-    r.onTrade("20260710|SHFE|other-trade", "same-ref",
-              "20260710|SHFE|ag|other-sys", "ag", true, true, '1', 8000, 1);
-    CHECK(r.tryReserveOpen("rb-still-reserved", "rb", true, 3500, 1) ==
-              OpenGate::VolumeLimit,
-          "an unknown concrete OrderSysID cannot release a same-ref order from another session");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    CHECK(r.tryReserveOpen("ambiguous-ref", "rb", true, 3500, 1) == OpenGate::Ok,
-          "sys-less trade setup reserves this session's order");
-    r.onTrade("20260710|SHFE|no-sys", "ambiguous-ref", "", "rb",
-              true, true, '1', 3500, 1);
-    CHECK(r.tryReserveOpen("after-sys-less", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a trade without OrderSysID never releases by cross-session OrderRef alone");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setFuture(r, "rb", 10);
-    setSimpleMargin(r, "rb", 1.0);
-    CHECK(r.tryReserveOpen("economic-conflict", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "economic-conflict setup reserves a long order");
-    r.onOrderUpdate(1, 7, "economic-conflict", "rb", true, true, '1', '3',
-                    3500, 1, 0, "20260710|SHFE|rb|sys-conflict");
-    r.onTrade("20260710|SHFE|economic-conflict", "economic-conflict",
-              "20260710|SHFE|rb|sys-conflict", "rb", false, true, '1',
-              3500, 1);
-    CHECK(r.accountMargin() == 35000,
-          "a sys-id match with conflicting economics applies the fill exactly once");
-    CHECK(r.tryReserveOpen("after-economic-conflict", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "conflicting trade/order economics fail both ledgers closed");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    r.onOrderUpdate(2, 9, "sys-a", "rb", true, true, '1', '3', 3500, 1, 0,
-                    "20260710|SHFE|rb|duplicate-sys");
-    r.onOrderUpdate(3, 10, "sys-b", "rb", true, true, '1', '3', 3500, 1, 0,
-                    "20260710|SHFE|rb|duplicate-sys");
-    CHECK(r.tryReserveOpen("after-duplicate-sys", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "one OrderSysID cannot be rebound to a different order identity");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 10);
-    setSimpleMargin(r, "rb", 1.0);
-    recordTrade(r, "20260710|SHFE|T1", "rb", true, true, 3500, 1);
-    recordTrade(r, "20260710|SHFE|T1", "rb", true, true, 3500, 1);
-    CHECK(r.accountMargin() == 35000,
-          "duplicate trade callback changes the held ledger exactly once");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 10);
-    setSimpleMargin(r, "rb", 1.0);
-    recordTrade(r, "20260710|SHFE|collision", "rb", true, true, 3500, 1);
-    recordTrade(r, "20260710|SHFE|collision", "rb", true, true, 3500, 2);
-    CHECK(r.accountMargin() == 35000 &&
-              r.tryReserveOpen("after-trade-key-collision", "rb", true, 3500, 1) ==
-                  OpenGate::MetadataUnavailable,
-          "same trade key with different economics fails closed without double-applying");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    for (int i = 0; i < 65536; ++i)
-      recordTrade(r, "20260710|SHFE|rb|bounded-" + std::to_string(i), "rb",
-                  true, true, 3500, 1);
-    recordTrade(r, "20260710|SHFE|rb|bounded-overflow", "rb", true, true,
-                3500, 1);
-    CHECK(r.tryReserveOpen("after-dedupe-cap", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "an exhausted same-day trade dedupe window fails closed");
-    CHECK(r.replacePositionsIfRevision(r.revision(), {}),
-          "a same-day authoritative position snapshot still commits safely");
-    CHECK(r.tryReserveOpen("same-day-still-blocked", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "same-day sync cannot pretend discarded trade identities are recoverable");
-    recordTrade(r, "20260711|SHFE|rb|new-day", "rb", true, true, 3500, 1);
-    CHECK(r.tryReserveOpen("new-day-before-sync", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "new-day rollover stays closed until missed exposure is reconciled");
-    CHECK(r.replacePositionsIfRevision(r.revision(), {}),
-          "new-day authoritative position sync reconciles the exhausted epoch");
-    CHECK(r.tryReserveOpen("new-day-reconciled", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "bounded trade dedupe resumes only after day rollover plus reconciliation");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    r.onTrade("20260710|SHFE|bad", "1", "20260710|SHFE|rb|1", "rb",
-              true, true, '1', DMAX, 1);
-    CHECK(r.tryReserveOpen("after-malformed-trade", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a malformed trade callback makes the position ledger fail closed");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    r.onOrderUpdate(2, 9, "bad", "rb", true, true, '1', '3', DMAX, 1, 0);
-    CHECK(r.tryReserveOpen("after-malformed-order", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a malformed opening-order callback makes the order ledger fail closed");
-  }
-  {
-    RiskEngine r;
-    r.setSession(2, 9);
-    CHECK(r.tryReserveOpen("same-ref", "rb", true, 3500, 1) == OpenGate::Ok,
-          "identity-conflict setup reserves the original order");
-    r.onOrderUpdate(2, 9, "same-ref", "ag", true, true, '1', '3', 8000, 10, 0);
-    CHECK(r.tryReserveOpen("after-identity-conflict", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a conflicting order identity makes the order ledger fail closed");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    r.onOrderUpdate(2, 9, "modified", "rb", true, true, '1', '3', 3500, 1, 0);
-    r.onOrderUpdate(2, 9, "modified", "rb", true, true, '1', '3', 3500, 10, 0);
-    CHECK(r.tryReserveOpen("after-volume-increase", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "an increased working remainder requires authoritative order reconciliation");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setPositionLimit(r, "rb", true, 10);
-    r.onTrade("", "1", "SHFE|unknown", "rb", true, true, '1', 3500, 1);
-    CHECK(r.tryReserveOpen("after-keyless", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a trade without a stable id makes position-dependent gates fail closed");
-    CHECK(r.replacePositionsIfRevision(r.revision(),
-                                       {PositionSeed{"rb", true, 1, 0}}),
-          "an authoritative snapshot reconciles a keyless-trade ambiguity");
-    CHECK(r.tryReserveOpen("after-keyless-sync", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "position-dependent opens resume after keyless-trade reconciliation");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    recordTrade(r, "20261301|SHFE|bad-day", "rb", true, true, 3500, 1);
-    CHECK(r.accountMargin() == 0.0 &&
-              r.tryReserveOpen("after-bad-day", "rb", true, 3500, 1) ==
-                  OpenGate::MetadataUnavailable,
-          "an impossible trading date cannot enter or rotate the trade ledger");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    r.markTradeLedgerUncertain();
-    r.markOrderLedgerUncertain();
-    CHECK(r.tryReserveOpen("reconnect-gap", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "reconciliation uncertainty blocks opens even without configured position caps");
-    CHECK(r.replacePositionsIfRevision(r.revision(), {}) &&
-              r.rebuildOpenReservationsIfRevision(r.revision(), {}),
-          "both authoritative snapshots clear reconnect uncertainty");
-    CHECK(r.tryReserveOpen("reconnect-ready", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "opens resume after both ledgers reconcile");
-  }
-  {
-    RiskEngine r;
-    r.invalidateSession();
-    CHECK(r.tryReserveOpen("before-login", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a front transition blocks opens until login publishes a concrete session identity");
-    CHECK(!r.allowUnsupportedRiskRequest(),
-          "an unknown login identity also blocks unsupported risk mutations");
-    r.setSession(1, 7, "9999", "investor");
-    CHECK(r.replacePositionsIfRevision(r.revision(), {}) &&
-              r.rebuildOpenReservationsIfRevision(r.revision(), {}),
-          "a concrete login identity can be reconciled with both authoritative ledgers");
-    CHECK(r.tryReserveOpen("after-login-sync", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "opens resume only after login identity and both snapshots are known");
+    r.beginSessionTransition(44, true);
+    CHECK(r.acceptLoginSession(44, 1, 7, "any-broker", "any-user"),
+          "a transition without a requested identity accepts the concrete response identity");
+    CHECK(!r.acceptLoginSession(44, 1, 7, "any-broker", "any-user"),
+          "a correlated login response is consumed exactly once");
+    CHECK(!r.acceptsOrderAccount("any-broker", "inv") &&
+              !r.allowUnsupportedRiskRequest(),
+          "a login alone grants no order authority until the account is confirmed");
   }
   {
     RiskEngine r;
     constexpr int signedSessionId = -2147483647;
-    r.beginSessionTransition(2999, true, "9999", "signed-user");
-    CHECK(!r.acceptLoginSession(2999, 1, 0, "9999", "signed-user"),
-          "SessionID zero is not a concrete login identity");
-    CHECK(r.acceptLoginSession(2999, 1, signedSessionId, "9999", "signed-user"),
-          "a negative non-zero signed SessionID is a valid CTP login identity");
-    CHECK(r.confirmSessionAccount(1, signedSessionId, "9999", "signed-user"),
-          "account confirmation preserves the exact negative SessionID");
-    CHECK(r.replacePositionsIfRevision(r.revision(), {}) &&
-              r.rebuildOpenReservationsIfRevision(r.revision(), {}) &&
-              r.tryReserveOpen("signed-session-ready", "rb", true, 3500, 1) ==
-                  OpenGate::Ok,
-          "a reconciled negative SessionID session receives normal order authority");
+    r.beginSessionTransition(45, true, "9999", "op");
+    CHECK(r.acceptLoginSession(45, 1, signedSessionId, "9999", "op") &&
+              r.confirmSessionAccount(1, signedSessionId, "9999", "inv") &&
+              r.acceptsOrderAccount("9999", "inv"),
+          "a negative non-zero signed SessionID is a valid CTP identity end to end");
   }
   {
     RiskEngine r;
-    r.beginSessionTransition(3001, true);
-    r.beginSessionTransition(3002, false); // supersedes the pending login
-    CHECK(!r.acceptLoginSession(3001, 1, 7, "old", "old-user"),
-          "a delayed login response cannot supersede a newer logout transition");
-    r.finishSessionTransition(3002);
-    CHECK(r.replacePositionsIfRevision(r.revision(), {}) &&
-              r.rebuildOpenReservationsIfRevision(r.revision(), {}) &&
-              r.tryReserveOpen("still-logged-out", "rb", true, 3500, 1) ==
-                  OpenGate::MetadataUnavailable,
-          "authoritative ledgers cannot compensate for a superseded login identity");
-    r.beginSessionTransition(3003, true);
-    r.finishSessionTransition(3001); // stale final callback must not clear 3003
-    CHECK(r.acceptLoginSession(3003, 2, 8, "9999", "new-user"),
-          "only the newest correlated login publishes native session identity");
-    // The high-level session() confirms the trading account after the SPI login;
-    // login alone leaves the account unconfirmed (sessionIdentityKnown_ = false).
-    r.confirmSessionAccount(2, 8, "9999", "new-user");
-    CHECK(r.replacePositionsIfRevision(r.revision(), {}) &&
-              r.rebuildOpenReservationsIfRevision(r.revision(), {}) &&
-              r.tryReserveOpen("new-login-ready", "rb", true, 3500, 1) ==
-                  OpenGate::Ok,
-          "the newest login can trade only after both authoritative ledgers reconcile");
+    r.beginSessionTransition(60, true, "9999", "op");
+    r.finishSessionTransition(0);
+    r.finishSessionTransition(-1);
+    r.finishSessionTransition(59);
+    CHECK(r.acceptLoginSession(60, 1, 7, "9999", "op"),
+          "finishSessionTransition ignores non-positive and stale ids");
+    r.beginSessionTransition(61, true, "9999", "op");
+    r.finishSessionTransition(61);
+    CHECK(!r.acceptLoginSession(61, 1, 7, "9999", "op"),
+          "a finished transition cannot be completed by a late response");
   }
   {
     RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 10);
-    setSimpleMargin(r, "rb", 1.0);
-    for (const char *day : {"20260707", "20260708", "20260709", "20260710"})
-      recordTrade(r, std::string(day) + "|SHFE|T" + day, "rb", true, true, 1, 1);
-    const double before = r.accountMargin();
-    recordTrade(r, "20260707|SHFE|T20260707", "rb", true, true, 1, 1);
-    CHECK(r.accountMargin() == before,
-          "a duplicate from a compacted trading day cannot re-enter the ledger");
-    setPositionLimit(r, "rb", true, 100);
-    CHECK(r.tryReserveOpen("ambiguous", "rb", true, 1, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a compacted-day callback makes position-dependent gates fail closed");
-    CHECK(r.replacePositionsIfRevision(r.revision(), {}),
-          "an authoritative position replacement clears compacted-day ambiguity");
-    CHECK(r.tryReserveOpen("after-sync", "rb", true, 1, 1) == OpenGate::Ok,
-          "position-dependent opens resume after authoritative reconciliation");
+    r.beginSessionTransition(70, true, "9999", "op");
+    r.beginSessionTransition(71, false, "9999", "op"); // supersedes the login
+    CHECK(!r.acceptLoginSession(70, 1, 7, "9999", "op"),
+          "a delayed login response cannot override a newer logout transition");
+    r.finishSessionTransition(70); // stale final callback of the old login
+    CHECK(r.timeoutSessionTransition(71),
+          "a stale finish leaves the newer transition pending");
   }
   {
     RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 2);
-    CHECK(r.tryReserveOpen("1", "rb", true, 3500, 2) == OpenGate::Ok,
-          "position sync regression: working order reserves two lots");
-    r.resetPositions();
-    CHECK(r.tryReserveOpen("while-reset", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "manual position reset blocks opens pending authoritative replacement");
-    CHECK(r.replacePositionsIfRevision(r.revision(), {}),
-          "position sync regression applies authoritative flat held snapshot");
-    CHECK(r.tryReserveOpen("2", "rb", true, 3500, 1) == OpenGate::VolumeLimit,
-          "position sync does not clear working-order reservations");
+    const bool confirmed = confirmAccount(r);
+    r.beginSessionTransition(80, true, "9999", "op");
+    CHECK(confirmed && !r.acceptsOrderAccount("9999", "inv") &&
+              !r.confirmSessionAccount(1, 7, "9999", "inv"),
+          "beginSessionTransition revokes the confirmed account and the old login identity");
   }
   {
     RiskEngine r;
-    r.setSession(1, 7);
-    CHECK(r.tryReserveOpen("before", "rb", true, 3500, 1) == OpenGate::Ok,
-          "late cap: uncapped working order is still tracked");
-    setPositionLimit(r, "rb", true, 1);
-    CHECK(r.tryReserveOpen("after", "rb", true, 3500, 1) == OpenGate::VolumeLimit,
-          "late cap: enabling a lot cap counts an existing working order");
+    CHECK(!r.timeoutSessionTransition(0) && !r.timeoutSessionTransition(-1),
+          "timeoutSessionTransition ignores non-positive ids");
+    r.beginSessionTransition(90, true, "9999", "op");
+    CHECK(!r.timeoutSessionTransition(89),
+          "a timeout for another id returns false (its own callback already settled)");
+    CHECK(r.timeoutSessionTransition(90),
+          "a timeout of the pending id wins and revokes it");
+    CHECK(!r.acceptLoginSession(90, 1, 7, "9999", "op"),
+          "a revoked transition rejects its late login response");
+    CHECK(!r.timeoutSessionTransition(90),
+          "a revoked transition times out only once");
+    r.beginSessionTransition(91, true, "9999", "op");
+    const bool login = r.acceptLoginSession(91, 1, 7, "9999", "op");
+    CHECK(login && !r.timeoutSessionTransition(91) &&
+              r.confirmSessionAccount(1, 7, "9999", "inv"),
+          "a login callback that beat the timer keeps its identity (timeout returns false)");
   }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    const std::vector<InstrumentPositionLimitUpdate> invalidBatch{
-        {"rb", true, 1, true, 1},
-        {"", true, 1, false, 0}};
-    CHECK(!r.setInstrumentPositionLimits(invalidBatch),
-          "an invalid position-limit batch is rejected atomically");
-    CHECK(r.tryReserveOpen("no-partial-position-cap", "rb", true, 1, 2) ==
-              OpenGate::Ok,
-          "a rejected position-limit batch commits no partial cap");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "ag", 15);
-    setSimpleMargin(r, "ag", 1.0);
-    const std::vector<InstrumentMarginLimitUpdate> invalidBatch{
-        {"ag", 10},
-        {"", 10}};
-    CHECK(!r.setInstrumentMarginLimits(invalidBatch),
-          "an invalid margin-limit batch is rejected atomically");
-    CHECK(r.tryReserveOpen("no-partial-margin-cap", "ag", true, 1, 1) ==
-              OpenGate::Ok,
-          "a rejected margin-limit batch commits no partial cap");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    CHECK(r.tryReserveOpen("before", "rb", true, 3500, 1) == OpenGate::Ok,
-          "late money cap: unknown-cost working order is tracked");
-    RiskLimits c;
-    c.maxAccountMargin = 100000;
-    r.configure(c);
-    CHECK(r.tryReserveOpen("blocked", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "late money cap fails closed while existing working cost is unknown");
-    setFuture(r, "rb", 10);
-    setSimpleMargin(r, "rb", 1.0);
-    CHECK(r.tryReserveOpen("after", "rb", true, 3500, 1) == OpenGate::Ok,
-          "metadata refresh revalues existing reservations without a resync");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    recordTrade(r, "20260710|local|held", "rb", true, true, 3500, 1);
-    RiskLimits c;
-    c.maxAccountMargin = 1000000000;
-    r.configure(c);
-    setFuture(r, "rb", 10);
-    setSimpleMargin(r, "rb", 0.1);
-    CHECK(r.tryReserveOpen("blocked", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "late money cap does not treat best-effort historical held cost as exact");
-    seedHeld(r, "rb", true, 1, 3500);
-    CHECK(r.tryReserveOpen("after", "rb", true, 3500, 1) == OpenGate::Ok,
-          "authoritative position seed clears unknown held-cost state");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 3);
-    std::vector<PositionSeed> seed{{"rb", true, 1, 100}};
-    const uint64_t rev = r.revision();
-    CHECK(r.replacePositionsIfRevision(rev, seed),
-          "atomic position sync accepts an unchanged ledger revision");
-    const uint64_t stale = r.revision();
-    CHECK(r.tryReserveOpen("1", "rb", true, 3500, 2) == OpenGate::Ok,
-          "atomic position sync regression: callback mutation advances revision");
-    CHECK(!r.replacePositionsIfRevision(stale, {}),
-          "atomic position sync rejects a snapshot raced by a realtime callback");
-    CHECK(r.tryReserveOpen("2", "rb", true, 3500, 1) == OpenGate::VolumeLimit,
-          "failed atomic sync preserves both held and pending exposure");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    r.markTradeLedgerUncertain();
-    const uint64_t snapshotRevision = r.revision();
-    r.markTradeLedgerUncertain();
-    CHECK(r.revision() > snapshotRevision,
-          "a second ambiguous trade callback advances revision while already uncertain");
-    CHECK(!r.replacePositionsIfRevision(snapshotRevision, {}),
-          "an already-uncertain trade callback still invalidates an in-flight position snapshot");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    r.markOrderLedgerUncertain();
-    const uint64_t snapshotRevision = r.revision();
-    r.onUnsupportedOrderUpdate(0, 0, "", '3');
-    CHECK(r.revision() > snapshotRevision,
-          "a second ambiguous order callback advances revision while already uncertain");
-    CHECK(!r.rebuildOpenReservationsIfRevision(snapshotRevision, {}),
-          "an already-uncertain order callback still invalidates an in-flight order snapshot");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7);
-    setPositionLimit(r, "rb", true, 1);
-    CHECK(r.tryReserveOpen("snapshot-kept", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "conflicting snapshot setup reserves existing exposure");
-    OpenOrderInfo a;
-    a.frontId = 2; a.sessionId = 9; a.orderRef = "dup";
-    a.instrumentId = "rb"; a.isLong = true; a.hedgeFlag = '1';
-    a.vol = 1; a.traded = 0; a.price = 3500;
-    OpenOrderInfo b = a;
-    b.vol = 2;
-    CHECK(!r.rebuildOpenReservationsIfRevision(r.revision(), {a, b}),
-          "a conflicting duplicate order row invalidates the whole snapshot");
-    CHECK(r.tryReserveOpen("snapshot-still-kept", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "a rejected conflicting snapshot leaves state intact and fail-closed");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    OpenOrderInfo a;
-    a.frontId = 2; a.sessionId = 9; a.orderRef = "sys1";
-    a.instrumentId = "rb"; a.isLong = true; a.hedgeFlag = '1';
-    a.vol = 1; a.traded = 0; a.price = 3500;
-    a.orderSysKey = "20260710|SHFE|rb|one-sys";
-    OpenOrderInfo b = a;
-    b.frontId = 3; b.sessionId = 10; b.orderRef = "sys2";
-    CHECK(!r.rebuildOpenReservationsIfRevision(r.revision(), {a, b}),
-          "an OrderSysID collision invalidates the authoritative order snapshot");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxNotional = 100000;
-    r.configure(c);
-    // Pass a VALID reference (and, for the zero-price case, a valid multiplier)
-    // so each order reaches the sub-gate it names instead of failing early at the
-    // missing-reference sub-gate — otherwise a fail-open regression in the named
-    // gate would be masked (all paths return the same !ok).
-    CHECK(!r.check("rb", 3500, 3500, 1).ok,
-          "unknown multiplier cannot bypass maxNotional");
-    setFuture(r, "rb", DMAX);
-    CHECK(!r.check("rb", 3500, 3500, 1).ok,
-          "invalid multiplier metadata remains unknown and fails closed");
-    setFuture(r, "rb", 10); // valid multiplier: now only the zero limit price fails
-    CHECK(!r.check("rb", 0, 3500, 1).ok,
-          "zero-price opening order cannot bypass maxNotional");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxAccountMargin = 100000;
-    r.configure(c);
-    setFuture(r, "rb", 10);
-    // Valid reference + schedule so ONLY the zero limit price can fail closed
-    // (else priceKnown short-circuits on the missing reference and masks it).
-    setReference(r, "rb", 3500);
-    r.setMarginSchedule("rb", '1', 0.1, 0.0, 0.1, 0.0, false);
-    CHECK(r.tryReserveOpen("1", "rb", true, 0, 1) ==
-              OpenGate::MetadataUnavailable,
-          "zero-price opening order cannot bypass maxAccountMargin");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxAccountMargin = 100000;
-    r.configure(c);
-    setFuture(r, "rb", 10);
-    // Valid reference + price so the MISSING margin schedule is the gate that
-    // fires (not the missing-reference short-circuit).
-    setReference(r, "rb", 3500);
-    CHECK(r.tryReserveOpen("2", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "missing margin schedule fails closed");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 10);
-    r.setMarginSchedule("rb", '1', 0.0, 1500.0, 0.0, 1600.0, false);
-    recordTrade(r, "20260710|local|T1", "rb", true, true, 3500, 2);
-    CHECK(r.accountMargin() == 3000,
-          "per-lot margin component is included in held margin");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxAccountMargin = 100000;
-    r.configure(c);
-    setFuture(r, "rb", 10);
-    // Valid reference so the ONLY thing missing is the exchange base rate the
-    // relative schedule needs — without it, priceKnown would mask this gate.
-    setReference(r, "rb", 3500);
-    r.setMarginSchedule("rb", '1', 0.1, 0.0, 0.1, 0.0, true);
-    CHECK(r.tryReserveOpen("1", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "relative margin schedule fails closed without an exchange base rate");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    setFuture(r, "rb", 10);
-    r.setExchangeMarginSchedule("rb", '1', 0.08, 500.0, 0.09, 600.0);
-    r.setMarginSchedule("rb", '1', 0.02, 100.0, 0.01, 200.0, true);
-    recordTrade(r, "20260710|local|relative", "rb", true, true, 3500, 1);
-    CHECK(r.accountMargin() == 4100,
-          "relative investor schedule adds exchange by-money and per-lot base");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxAccountMargin = 100000;
-    r.configure(c);
-    r.setInstrument("m2409-C-2500", 10, '2', "m"); // option
-    setSimpleMargin(r, "m2409-C-2500", 0.1);
-    CHECK(r.tryReserveOpen("1", "m2409-C-2500", true, 100, 1) ==
-              OpenGate::MetadataUnavailable,
-          "non-futures products cannot use the futures margin formula");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxNotional = 100000;
-    r.configure(c);
-    r.setInstrument("m2409-C-2500", 10, '2', "m"); // option premium is not futures notional
-    CHECK(!r.check("m2409-C-2500", 100, 100, 1, true).ok,
-          "non-futures products cannot masquerade premium as futures notional");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxNotional = 1;
-    c.maxPriceDeviation = 0.01;
-    r.configure(c);
-    r.reduceOnly();
-    CHECK(r.check("rb", 0, 0, 1, false).ok,
-          "kill-switch and metadata outage still allow risk-reducing closes");
-    bool openAllowed = true;
-    { auto guard = r.acquireOrderSend(true, openAllowed); }
-    CHECK(!openAllowed, "reduce-only final send barrier rejects an opening order");
-    bool closeAllowed = false;
-    { auto guard = r.acquireOrderSend(false, closeAllowed); }
-    CHECK(closeAllowed, "reduce-only final send barrier admits a closing order");
-    r.haltAll();
-    CHECK(!r.check("rb", 1, 0, 1, false).ok &&
-              !r.allowUnsupportedRiskRequest(),
-          "HALT_ALL blocks close inserts and unsupported mutations");
-    r.resume();
-    CHECK(!r.allowUnsupportedRiskRequest(),
-          "NORMAL does not bypass configured controls for unsupported mutations");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    CHECK(r.allowUnsupportedRiskRequest(),
-          "unsupported mutation is allowed when every local risk control is disabled");
-    r.recordUnsupportedRiskMutation();
-    CHECK(r.tryReserveOpen("binding-after-complex", "rb", true, 3500, 1) ==
-              OpenGate::Ok,
-          "unsupported-mutation history does not disable pure binding mode");
-    CHECK(r.bindInsertRequest(104, "binding-after-complex"),
-          "pure binding reservation gets an exact request owner");
-    r.rollbackInsertRequest(104, "binding-after-complex");
-    RiskLimits c;
-    c.maxOrderVolume = 10;
-    r.configure(c);
-    CHECK(!r.allowUnsupportedRiskRequest(),
-          "complex insert fails closed when it cannot traverse configured risk");
-    CHECK(r.tryReserveOpen("managed-after-complex", "rb", true, 3500, 1) ==
-              OpenGate::MetadataUnavailable,
-          "enabling local risk after an advanced mutation keeps normal opens fail-closed");
-    r.configure({});
-    r.reduceOnly();
-    CHECK(!r.allowUnsupportedRiskRequest(),
-          "parked/complex insert cannot bypass halt");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxPriceDeviation = 0.02;
-    c.maxReferenceAgeMs = 100;
-    r.configure(c);
-    auto snap = std::make_shared<MockSnap>();
-    snap->px["rb"] = 3500;
-    snap->age = 101;
-    r.setMdSnapshot(snap);
-    CHECK(r.refPrice("rb") == 0.0 && !r.check("rb", 3500, r.refPrice("rb"), 1).ok,
-          "stale market data cannot satisfy a deviation rule");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    std::vector<PositionSeed> good{{"rb", true, 1, 100}};
-    CHECK(r.replacePositionsIfRevision(r.revision(), good),
-          "snapshot validation setup installs a valid held position");
-    const uint64_t rev = r.revision();
-    std::vector<PositionSeed> bad{{
-        "rb", true, std::numeric_limits<double>::quiet_NaN(), 0}};
-    CHECK(!r.replacePositionsIfRevision(rev, bad) &&
-              r.accountMargin() == 100,
-          "a malformed authoritative snapshot is rejected without clearing live state");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxNotional = std::numeric_limits<double>::infinity();
-    r.configure(c);
-    setFuture(r, "rb", 10);
-    CHECK(!r.check("rb", 1, 0, 1).ok,
-          "non-finite native maxNotional fails closed instead of disabling the cap");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxOrderVolume = -1;
-    r.configure(c);
-    CHECK(!r.check("rb", 3500, 3500, 1, true).ok &&
-              r.check("rb", 3500, 3500, 1, false).ok,
-          "a negative native risk field fails closed for opens but preserves closes");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxOrdersPerSec = std::numeric_limits<double>::infinity();
-    r.configure(c);
-    CHECK(!r.allowRate(),
-          "non-finite native order rate fails closed instead of disabling throttling");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 7); // standalone: seed a session so onTrade fills accumulate
-    RiskLimits c;
-    c.maxOrdersPerSec = -1;
-    r.configure(c);
-    CHECK(!r.allowRate(),
-          "negative native order rate fails closed instead of disabling throttling");
-  }
-  {
-    RiskEngine r;
-    r.setSession(1, 1);
-    CHECK(!setPositionLimit(r, "rb", true,
-                            std::numeric_limits<double>::infinity()),
-          "non-finite native lot cap is rejected");
-  }
+}
 
+static void testAccountConfirmation() {
+  struct ConfirmCase {
+    bool login;
+    int frontId, sessionId;
+    const char *broker, *investor, *label;
+  };
+  const ConfirmCase rejected[] = {
+      {false, 1, 7, "9999", "inv", "confirmSessionAccount requires a correlated login first"},
+      {true, 0, 7, "9999", "inv", "confirmSessionAccount rejects FrontID 0"},
+      {true, 1, 0, "9999", "inv", "confirmSessionAccount rejects SessionID 0"},
+      {true, 2, 7, "9999", "inv", "confirmSessionAccount rejects another FrontID"},
+      {true, 1, 8, "9999", "inv", "confirmSessionAccount rejects another SessionID"},
+      {true, 1, 7, "", "inv", "confirmSessionAccount rejects an empty BrokerID"},
+      {true, 1, 7, "9999", "", "confirmSessionAccount rejects an empty InvestorID"},
+      {true, 1, 7, "8888", "inv", "confirmSessionAccount rejects a BrokerID other than the login's"},
+  };
+  for (const auto &c : rejected) {
+    RiskEngine r;
+    if (c.login) {
+      r.beginSessionTransition(50, true, "9999", "op");
+      r.acceptLoginSession(50, 1, 7, "9999", "op");
+    }
+    const bool refused = !r.confirmSessionAccount(c.frontId, c.sessionId,
+                                                  c.broker, c.investor);
+    CHECK(refused && !r.acceptsOrderAccount("9999", "inv") &&
+              (!c.login || r.confirmSessionAccount(1, 7, "9999", "inv")),
+          c.label);
+  }
+  {
+    RiskEngine r;
+    CHECK(confirmAccount(r) && r.acceptsOrderAccount("9999", "inv"),
+          "a confirmed InvestorID may differ from the login operator UserID");
+  }
+}
+
+static void testSessionSeedingAndInvalidation() {
+  {
+    RiskEngine r;
+    r.setSession(1, 7);
+    CHECK(r.acceptsOrderAccount("9999", "inv") && r.acceptsOrderAccount("", ""),
+          "a standalone numeric session without account text accepts any account");
+    r.setSession(1, 8);
+    CHECK(!r.acceptsOrderAccount("9999", "inv"),
+          "once a session was seeded, a re-seed must carry a concrete account");
+    r.setSession(1, 8, "9999", "");
+    const bool noInvestor = !r.acceptsOrderAccount("9999", "inv");
+    r.setSession(1, 8, "", "inv");
+    CHECK(noInvestor && !r.acceptsOrderAccount("9999", "inv"),
+          "a re-seed with a missing BrokerID or InvestorID stays unconfirmed");
+    r.setSession(1, 8, "9999", "inv");
+    CHECK(r.acceptsOrderAccount("9999", "inv") && !r.acceptsOrderAccount("9999", "x"),
+          "a re-seed with a concrete account confirms exactly that account");
+  }
+  {
+    RiskEngine broker, investor;
+    broker.setSession(1, 7, "9999", "");
+    investor.setSession(1, 7, "", "inv");
+    CHECK(!broker.acceptsOrderAccount("9999", "inv") &&
+              !broker.acceptsOrderAccount("9999", "") &&
+              !investor.acceptsOrderAccount("9999", "inv") &&
+              !investor.acceptsOrderAccount("", "inv"),
+          "partial standalone account text never matches an order account");
+  }
+  {
+    RiskEngine r;
+    r.beginSessionTransition(100, true, "9999", "op");
+    r.setSession(1, 7, "9999", "inv");
+    CHECK(!r.acceptLoginSession(100, 1, 7, "9999", "op") &&
+              r.acceptsOrderAccount("9999", "inv"),
+          "setSession clears a pending transition and installs the seeded identity");
+  }
+  {
+    RiskEngine r;
+    r.invalidateSession();
+    CHECK(!r.acceptsOrderAccount("9999", "inv") && !r.allowUnsupportedRiskRequest(),
+          "after a front transition no account is accepted until a fresh identity");
+    r.setSession(1, 7);
+    CHECK(!r.acceptsOrderAccount("9999", "inv"),
+          "after a front transition a numeric-only seed is not a concrete identity");
+  }
+  {
+    RiskEngine r;
+    const bool confirmed = confirmAccount(r);
+    r.invalidateSession();
+    CHECK(confirmed && !r.acceptsOrderAccount("9999", "inv"),
+          "invalidateSession revokes the confirmed account");
+    r.beginSessionTransition(110, true, "9999", "op");
+    r.invalidateSession();
+    const bool pendingDropped = !r.acceptLoginSession(110, 1, 7, "9999", "op");
+    r.beginSessionTransition(111, true, "9999", "op");
+    r.acceptLoginSession(111, 1, 7, "9999", "op");
+    r.invalidateSession();
+    CHECK(pendingDropped && !r.confirmSessionAccount(1, 7, "9999", "inv"),
+          "invalidateSession drops a pending login and forgets an unconfirmed login identity");
+  }
+}
+
+static void testAccountScope() {
+  {
+    RiskEngine r;
+    const Gate unknown = accountGate(r, true, "9999", "inv");
+    CHECK(!unknown.allowed && unknown.held &&
+              sameReason(r.lastBlockReason(), kAccountMismatch) &&
+              !r.acceptsOrderAccount("9999", "inv"),
+          "an unknown session identity is ambiguous: account-bound sends fail closed");
+  }
+  RiskEngine r;
+  CHECK(confirmAccount(r), "account scope setup confirms 9999/inv");
+  const Gate open = accountGate(r, true, "9999", "inv");
+  const Gate close = accountGate(r, false, "9999", "inv");
+  CHECK(open.allowed && open.held && close.allowed && close.held &&
+            r.acceptsOrderAccount("9999", "inv"),
+        "the confirmed account is the current scope for opening and closing sends");
+  struct ScopeCase {
+    std::string broker, investor;
+    const char *label;
+  };
+  const ScopeCase refused[] = {
+      {"8888", "inv", "a foreign BrokerID is refused"},
+      {"9999", "other", "a foreign InvestorID is refused"},
+      {"", "inv", "an empty BrokerID is ambiguous and refused"},
+      {"9999", "", "an empty InvestorID is ambiguous and refused"},
+      {" 9999", "inv", "a leading-space BrokerID is ambiguous and refused"},
+      {"9999", "inv ", "a trailing-space InvestorID is ambiguous and refused"},
+      {"\t9999", "inv", "a control-character padded BrokerID is ambiguous and refused"},
+      {std::string("99\0" "99", 5), "inv", "a BrokerID with an embedded NUL is ambiguous and refused"},
+  };
+  for (const auto &c : refused) {
+    const Gate g = accountGate(r, false, c.broker, c.investor);
+    CHECK(!g.allowed && g.held && sameReason(r.lastBlockReason(), kAccountMismatch) &&
+              !r.acceptsOrderAccount(c.broker, c.investor),
+          c.label);
+  }
+  r.reduceOnly();
+  const Gate reducedOpen = accountGate(r, true, "9999", "inv");
+  const bool reducedReason = sameReason(r.lastBlockReason(), kReduceOnly);
+  const Gate reducedClose = accountGate(r, false, "9999", "inv");
+  const Gate reducedForeign = accountGate(r, false, "8888", "inv");
+  CHECK(!reducedOpen.allowed && reducedReason && reducedClose.allowed &&
+            !reducedForeign.allowed &&
+            sameReason(r.lastBlockReason(), kAccountMismatch),
+        "REDUCE_ONLY is judged before the account; closes still need the confirmed account");
+  r.haltAll();
+  const Gate haltedForeign = accountGate(r, true, "8888", "inv");
+  CHECK(!haltedForeign.allowed && sameReason(r.lastBlockReason(), kHalted) &&
+            !accountGate(r, false, "9999", "inv").allowed,
+        "HALT_ALL refuses every account-bound send with the halt reason");
+}
+
+static void testUnsupportedRequests() {
+  RiskEngine r;
+  CHECK(r.allowUnsupportedRiskRequest(),
+        "a standalone engine with no front lifecycle and no rule admits unsupported requests");
+  r.reduceOnly();
+  const bool reduced = !r.allowUnsupportedRiskRequest();
+  r.haltAll();
+  const bool halted = !r.allowUnsupportedRiskRequest();
+  r.resume();
+  CHECK(reduced && halted && r.allowUnsupportedRiskRequest(),
+        "unsupported requests pass only in NORMAL mode");
+  r.invalidateSession();
+  CHECK(!r.allowUnsupportedRiskRequest(),
+        "an unknown session identity refuses unsupported requests");
+  r.beginSessionTransition(120, true, "9999", "op");
+  r.acceptLoginSession(120, 1, 7, "9999", "op");
+  CHECK(!r.allowUnsupportedRiskRequest(),
+        "a login without account confirmation still refuses unsupported requests");
+  r.confirmSessionAccount(1, 7, "9999", "inv");
+  CHECK(r.allowUnsupportedRiskRequest(),
+        "a confirmed session with no local rule admits unsupported requests");
+  struct Rule {
+    void (*apply)(RiskLimits &);
+    const char *label;
+  };
+  const Rule rules[] = {
+      {[](RiskLimits &c) { c.maxOrderVolume = 1; },
+       "maxOrderVolume makes unsupported requests fail closed"},
+      {[](RiskLimits &c) { c.maxPriceDeviation = 0.01; },
+       "maxPriceDeviation makes unsupported requests fail closed"},
+      {[](RiskLimits &c) { c.maxNotional = 1; },
+       "maxNotional makes unsupported requests fail closed"},
+      {[](RiskLimits &c) { c.maxOrdersPerSec = 1; },
+       "an opening-order rate makes unsupported requests fail closed"},
+      {[](RiskLimits &c) { c.maxCloseOrdersPerSec = 1; },
+       "a closing-order rate makes unsupported requests fail closed"},
+      {[](RiskLimits &c) { c.maxReferenceAgeMs = 0; },
+       "an invalid configuration makes unsupported requests fail closed"},
+  };
+  for (const auto &rule : rules) {
+    RiskLimits c;
+    rule.apply(c);
+    r.configure(c);
+    CHECK(!r.allowUnsupportedRiskRequest(), rule.label);
+    r.configure(RiskLimits{});
+  }
+  RiskLimits inert;
+  inert.orderBurst = 5;
+  inert.closeOrderBurst = 5;
+  inert.maxReferenceAgeMs = 500;
+  r.configure(inert);
+  CHECK(r.allowUnsupportedRiskRequest(),
+        "bursts without rates and a reference window alone enable no local rule");
+}
+
+int main() {
+  testRateLimiter();
+  testConfigure();
+  testCheck();
+  testReferencePrice();
+  testInstrumentMetadata();
+  testModesAndSendBarrier();
+  testLoginLifecycle();
+  testAccountConfirmation();
+  testSessionSeedingAndInvalidation();
+  testAccountScope();
+  testUnsupportedRequests();
   REPORT("RISK-CPP TEST");
 }

@@ -44,7 +44,6 @@ let h = `/* AUTO-GENERATED. Do not edit. */
 #ifndef CTP_TRADERSPI_GEN_H
 #define CTP_TRADERSPI_GEN_H
 #include "ThostFtdcTraderApi.h"
-#include "../native/arm.h"
 #include "../native/channel.h"
 #include "../native/risk.h"
 namespace ctp {
@@ -60,7 +59,6 @@ public:
   ~TraderSpi() {}
 
   void setRisk(RiskEngine *r) { risk_ = r; }
-  void setArmRegistry(ArmRegistry *a) { arm_ = a; }
 
 `;
 for (const s of spi) h += `  void ${s.name}(${rawDecl(s)}) override;\n`;
@@ -68,7 +66,6 @@ h += `
 private:
   EventChannel *ch_;
   RiskEngine *risk_ = nullptr;
-  ArmRegistry *arm_ = nullptr;
 };
 } // namespace ctp
 #endif
@@ -97,72 +94,7 @@ namespace ctp {
 static int eid(CThostFtdcRspInfoField *e) { return e ? e->ErrorID : 0; }
 static const char *emsg(CThostFtdcRspInfoField *e) { return (e && e->ErrorID) ? e->ErrorMsg : ""; }
 
-static bool validSingleOffset(const char *flags, size_t capacity) {
-  return capacity > 0 && flags[0] >= '0' && flags[0] <= '6' &&
-         (capacity == 1 || flags[1] == '\\0');
-}
-
-static bool validHedgeFlag(char flag) {
-  return flag == '1' || flag == '2' || flag == '3' || flag == '5' ||
-         flag == '6' || flag == '7';
-}
-
-static bool validSingleHedge(const char *flags, size_t capacity) {
-  return capacity > 0 && validHedgeFlag(flags[0]) &&
-         (capacity == 1 || flags[1] == '\\0');
-}
-
 `;
-
-// These callbacks prove that account state changed through a path the ordinary
-// single-leg order/position ledger cannot model. CTP broadcasts many realtime
-// returns across an investor's sessions, so this covers activity initiated by
-// another terminal as well as requests sent by this process. Keep the list
-// explicit: an SDK rename/removal must force a codegen review.
-const UNSUPPORTED_RISK_RETURNS = new Set([
-  "OnRtnExecOrder", "OnRtnQuote", "OnRtnOptionSelfClose", "OnRtnCombAction",
-  "OnRtnOffsetSetting", "OnRtnSpdApply", "OnRtnHedgeCfm",
-  "OnRtnFromBankToFutureByBank", "OnRtnFromFutureToBankByBank",
-  "OnRtnRepealFromBankToFutureByBank", "OnRtnRepealFromFutureToBankByBank",
-  "OnRtnFromBankToFutureByFuture", "OnRtnFromFutureToBankByFuture",
-  "OnRtnRepealFromBankToFutureByFutureManual",
-  "OnRtnRepealFromFutureToBankByFutureManual",
-  "OnRtnRepealFromBankToFutureByFuture",
-  "OnRtnRepealFromFutureToBankByFuture",
-]);
-for (const name of UNSUPPORTED_RISK_RETURNS) {
-  if (!spi.some((callback) => callback.name === name))
-    throw new Error(`required unsupported-risk callback is absent: ${name}`);
-}
-
-// Every realtime OnRtn* return must be EXPLICITLY classified, mirroring the
-// request-side classifyRequest() guarantee. Otherwise a future SDK that adds a
-// new position-changing return would fall through to a plain event push with no
-// risk handling — a silent fail-open. A return is either risk-wired
-// (OnRtnTrade/OnRtnOrder feed the ledger), an unsupported mutation that taints
-// it (UNSUPPORTED_RISK_RETURNS), or informational / non-position-changing
-// (below: bulletins, notices, instrument status, RFQ response, bank ACCOUNT
-// registration + balance queries, conditional-order errors). An unclassified
-// OnRtn* throws here and forces a codegen review before it can ship.
-const RISK_WIRED_RTN_RETURNS = new Set(["OnRtnTrade", "OnRtnOrder"]);
-const INFORMATIONAL_RTN_RETURNS = new Set([
-  "OnRtnBulletin", "OnRtnCFMMCTradingAccountToken", "OnRtnCancelAccountByBank",
-  "OnRtnChangeAccountByBank", "OnRtnErrorConditionalOrder", "OnRtnForQuoteRsp",
-  "OnRtnInstrumentStatus", "OnRtnOpenAccountByBank", "OnRtnPrivateSeqNo",
-  "OnRtnQueryBankBalanceByFuture", "OnRtnTradingNotice",
-]);
-for (const callback of spi) {
-  if (!callback.name.startsWith("OnRtn")) continue;
-  if (RISK_WIRED_RTN_RETURNS.has(callback.name) ||
-      UNSUPPORTED_RISK_RETURNS.has(callback.name) ||
-      INFORMATIONAL_RTN_RETURNS.has(callback.name))
-    continue;
-  throw new Error(
-    `unclassified OnRtn* callback '${callback.name}': classify it as risk-wired, ` +
-    `unsupported-mutation, or informational before codegen — otherwise it emits ` +
-    `a plain event push with no risk handling (a silent fail-open).`
-  );
-}
 
 for (const s of spi) {
   const reqId = s.hasReqId ? "id" : "0";
@@ -185,46 +117,19 @@ for (const s of spi) {
   }
   c += `void TraderSpi::${s.name}(${rawDecl(s)}) {\n`;
   if (s.name === "OnFrontConnected" || s.name === "OnFrontDisconnected") {
-    // ArmRegistry::onTick takes the arm lock before entering the RiskEngine.
-    // Preserve that lock order here: clear mandates first, then close the
-    // session ledger. During a front transition CTP cannot accept a normal
-    // order before the new login completes.
-    c += `  if (arm_)\n    arm_->clear();\n  if (risk_)\n    risk_->invalidateSession();\n`;
-  } else if (s.name === "OnRtnTrade") {
-    c += `  if (p && risk_) {\n    std::string tradingDay, tradeDate, broker, investor, exchange, instrument, tradeId, orderSysId, orderRef;\n    const bool stringsValid = boundedCtpField(p->TradingDay, tradingDay) && boundedCtpField(p->TradeDate, tradeDate) && boundedCtpField(p->BrokerID, broker) && boundedCtpField(p->InvestorID, investor) && boundedCtpField(p->ExchangeID, exchange) && boundedCtpField(p->InstrumentID, instrument) && boundedExchangeId(p->TradeID, tradeId) && boundedExchangeId(p->OrderSysID, orderSysId) && boundedCtpField(p->OrderRef, orderRef);\n    if (stringsValid && !instrument.empty() && !broker.empty() && !investor.empty() && (p->Direction == '0' || p->Direction == '1') && p->OffsetFlag >= '0' && p->OffsetFlag <= '6' && validHedgeFlag(p->HedgeFlag)) {\n      const std::string &day = !tradingDay.empty() ? tradingDay : tradeDate;\n      std::string key;\n      if (!day.empty() && !exchange.empty() && !tradeId.empty())\n        key = day + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|trade|" + tradeId;\n      else if (!day.empty() && !exchange.empty() && p->SequenceNo != 0)\n        key = day + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|sequence|" + std::to_string(p->SequenceNo);\n      const std::string sys = !tradingDay.empty() && !exchange.empty() && !orderSysId.empty() ? tradingDay + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|" + orderSysId : std::string();\n      risk_->onTrade(key, orderRef, sys, instrument, p->Direction == '0', p->OffsetFlag == '0', p->HedgeFlag, p->Price, p->Volume, broker, investor);\n    } else {\n      risk_->markTradeLedgerUncertain();\n    }\n  }\n`;
-  } else if (s.name === "OnRtnOrder") {
-    // reconcile the order's in-flight reservation to its working remainder;
-    // keyed by the originating (FrontID, SessionID, OrderRef)
-    c += `  if (p && risk_) {\n    std::string day, broker, investor, exchange, instrument, orderSysId, orderRef;\n    const bool stringsValid = boundedCtpField(p->TradingDay, day) && boundedCtpField(p->BrokerID, broker) && boundedCtpField(p->InvestorID, investor) && boundedCtpField(p->ExchangeID, exchange) && boundedCtpField(p->InstrumentID, instrument) && boundedExchangeId(p->OrderSysID, orderSysId) && boundedCtpField(p->OrderRef, orderRef);\n    const std::string sys = stringsValid && !day.empty() && !broker.empty() && !investor.empty() && !exchange.empty() && !instrument.empty() && !orderSysId.empty() ? day + "|" + broker + "|" + investor + "|" + exchange + "|" + instrument + "|" + orderSysId : std::string();\n    if (stringsValid && !broker.empty() && !investor.empty() && validSingleOffset(p->CombOffsetFlag, sizeof(p->CombOffsetFlag)) && validSingleHedge(p->CombHedgeFlag, sizeof(p->CombHedgeFlag)) && (p->Direction == '0' || p->Direction == '1') && !instrument.empty() && !orderRef.empty()) {\n      risk_->onOrderUpdate(p->FrontID, p->SessionID, orderRef, instrument, p->CombOffsetFlag[0] == '0', p->Direction == '0', p->CombHedgeFlag[0], p->OrderStatus, p->LimitPrice, p->VolumeTotalOriginal, p->VolumeTraded, sys, broker, investor);\n    } else {\n      risk_->onUnsupportedOrderUpdate(p->FrontID, p->SessionID, orderRef, p->OrderStatus, sys, broker, investor);\n    }\n  }\n`;
-  } else if (s.name === "OnRspOrderInsert" || s.name === "OnErrRtnOrderInsert") {
-    // Only an ordinary single-leg OPEN owns a reservation. OnRsp carries the
-    // exact request id; OnErrRtn does not, so the latter must conservatively
-    // make a matching ledger uncertain instead of releasing by a reusable ref.
-    const correlated = s.name === "OnRspOrderInsert";
-    // A valid close row owns no open reservation and is safely ignored. A null
-    // or malformed row is ambiguous and therefore enters the conservative
-    // correlation path (requestId can still identify an open exactly).
-    const rejectionGuard = correlated ? "eid(e) != 0 && " : "";
-    c += `  if (risk_ && ${rejectionGuard}(!p || !validSingleOffset(p->CombOffsetFlag, sizeof(p->CombOffsetFlag)) || p->CombOffsetFlag[0] == '0')) {\n    std::string orderRef, broker, investor;\n    if (p) { boundedCtpField(p->OrderRef, orderRef); boundedCtpField(p->BrokerID, broker); boundedCtpField(p->InvestorID, investor); }\n    risk_->${correlated ? "rejectInsertByRequest(id, orderRef, broker, investor)" : "rejectInsertUnscoped(orderRef, broker, investor)"};\n  }\n`;
+    // During a front transition CTP cannot accept a normal order before the
+    // new login completes; account-bound sends stay closed until then.
+    c += `  if (risk_)\n    risk_->invalidateSession();\n`;
   } else if (s.name === "OnRspUserLogin") {
     // Publish only the newest explicitly requested login. A delayed success
     // from a superseded login/logout must not restore an obsolete session key.
     c += `  if (risk_ && last) {\n    if (!p || eid(e) != 0 || !risk_->acceptLoginSession(id, p->FrontID, p->SessionID, p->BrokerID, p->UserID))\n      risk_->finishSessionTransition(id);\n  }\n`;
   } else if (s.name === "OnRspUserLogout") {
     c += `  if (risk_ && last)\n    risk_->finishSessionTransition(id);\n`;
-  } else if (UNSUPPORTED_RISK_RETURNS.has(s.name)) {
-    c += `  if (p && risk_)\n    risk_->recordUnsupportedRiskMutation();\n`;
-  } else if (s.name === "OnRspQryInstrumentMarginRate") {
-    // Preserve every dimension needed by CTP's futures-margin formula. Relative
-    // schedules need an exchange base rate and therefore remain fail-closed.
-    c += `  if (p && risk_ && eid(e) == 0) {\n    std::string broker, investor, investUnit, instrument;\n    if (boundedCtpField(p->BrokerID, broker) && boundedCtpField(p->InvestorID, investor) && boundedCtpField(p->InvestUnitID, investUnit) && boundedCtpField(p->InstrumentID, instrument))\n      risk_->applyInvestorMarginSchedule(id, broker, investor, investUnit, instrument, p->HedgeFlag, p->LongMarginRatioByMoney, p->LongMarginRatioByVolume, p->ShortMarginRatioByMoney, p->ShortMarginRatioByVolume, p->IsRelative != 0);\n  }\n  if (risk_ && last) risk_->finishMarginScheduleQuery(id, eid(e) == 0);\n`;
-  } else if (s.name === "OnRspQryExchangeMarginRate") {
-    // Base schedule used when the investor schedule is marked IsRelative.
-    c += `  if (p && risk_ && eid(e) == 0) {\n    std::string broker, instrument;\n    if (boundedCtpField(p->BrokerID, broker) && boundedCtpField(p->InstrumentID, instrument))\n      risk_->applyExchangeMarginSchedule(id, broker, instrument, p->HedgeFlag, p->LongMarginRatioByMoney, p->LongMarginRatioByVolume, p->ShortMarginRatioByMoney, p->ShortMarginRatioByVolume);\n  }\n  if (risk_ && last) risk_->finishMarginScheduleQuery(id, eid(e) == 0);\n`;
   } else if (s.name === "OnRspQryInstrument") {
-    // feed the contract multiplier straight into the risk engine (no JS round-
-    // trip) - idempotent metadata, same pattern as the margin rate above.
-    c += `  if (p && risk_ && eid(e) == 0) {\n    std::string instrument, product;\n    if (boundedCtpField(p->InstrumentID, instrument) && boundedCtpField(p->ProductID, product))\n      risk_->setInstrument(instrument, p->VolumeMultiple, p->ProductClass, product);\n    else\n      risk_->invalidateInstrument("");\n  }\n`;
+    // Feed the contract multiplier straight into the risk engine (no JS
+    // round-trip) for the maxNotional check - idempotent metadata.
+    c += `  if (p && risk_ && eid(e) == 0) {\n    std::string instrument;\n    if (boundedCtpField(p->InstrumentID, instrument))\n      risk_->setInstrument(instrument, p->VolumeMultiple, p->ProductClass);\n    else\n      risk_->invalidateInstrument("");\n  }\n`;
   }
   c += `  ch_->push(ET_${member(s.name)}, ${reqId}, ${isLast}, ${errId}, ${errMsg}, ${sid}, ${ptr}, ${len});\n`;
   c += `}\n\n`;
@@ -238,21 +143,16 @@ let rh = `/* AUTO-GENERATED. Do not edit. */
 #include "ThostFtdcTraderApi.h"
 #define CTP_RISK_BLOCKED -10001
 #define CTP_RATE_LIMITED -10002
-#define CTP_POSITION_LIMIT -10003
-#define CTP_POSITION_VOLUME_LIMIT -10004
-#define CTP_DUPLICATE_ORDER_REF -10005
 #define CTP_UNSUPPORTED_RISK_PATH -10006
-#define CTP_RISK_METADATA_UNAVAILABLE -10007
 #define CTP_INVALID_ORDER_FIELDS -10008
 namespace ctp {
 class RiskEngine;
-struct MarginLimitEvidence;
 enum {
 `;
 req.forEach((r, i) => (rh += `  M_${r.name} = ${i + 1},\n`));
 rh += `};
 int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len,
-              int requestId, RiskEngine *risk, MarginLimitEvidence *marginEvidence);
+              int requestId, RiskEngine *risk);
 } // namespace ctp
 #endif
 `;
@@ -268,29 +168,14 @@ let rc = `/* AUTO-GENERATED. Do not edit. */
 
 namespace ctp {
 
-static bool validOffsetFlags(const char *flags, size_t capacity) {
-  return capacity > 0 && flags[0] >= '0' && flags[0] <= '6' &&
-         (capacity == 1 || flags[1] == '\\0');
-}
-
 static bool hasOpenOffset(const char *flags, size_t capacity) {
   for (size_t i = 0; i < capacity && flags[i]; ++i)
     if (flags[i] == '0') return true;
   return false;
 }
 
-static bool validHedgeFlag(char flag) {
-  return flag == '1' || flag == '2' || flag == '3' || flag == '5' ||
-         flag == '6' || flag == '7';
-}
-
-static bool validSingleHedge(const char *flags, size_t capacity) {
-  return capacity > 0 && validHedgeFlag(flags[0]) &&
-         (capacity == 1 || flags[1] == '\\0');
-}
-
 int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len,
-              int requestId, RiskEngine *risk, MarginLimitEvidence *marginEvidence) {
+              int requestId, RiskEngine *risk) {
   switch (methodId) {
 `;
 // Every non-query request must be classified here. Queries are read-only by CTP
@@ -351,10 +236,6 @@ for (const r of req) {
     rc += `    if (risk) risk->beginSessionTransition(requestId, ${r.name !== "ReqUserLogout" ? "true" : "false"}, f.BrokerID, f.UserID);\n`;
   if (r.name === "ReqQryInstrument")
     rc += `    if (risk) risk->invalidateInstrument(f.InstrumentID);\n`;
-  else if (r.name === "ReqQryInstrumentMarginRate")
-    rc += `    if (risk) risk->beginMarginScheduleQuery(requestId, false, f.InstrumentID, f.HedgeFlag, f.BrokerID, f.InvestorID);\n`;
-  else if (r.name === "ReqQryExchangeMarginRate")
-    rc += `    if (risk) risk->beginMarginScheduleQuery(requestId, true, f.InstrumentID, f.HedgeFlag, f.BrokerID, "");\n`;
   if (classification === "order") {
     rc += `    if (risk) {\n`;
     rc += `      OrdinaryOrderIdentity identity;\n`;
@@ -365,52 +246,24 @@ for (const r of req) {
     rc += `      if (!sendAllowed) return CTP_RISK_BLOCKED;\n`;
     rc += `      RiskVerdict v = risk->check(identity.instrumentId, f.LimitPrice, risk->refPrice(identity.instrumentId), f.VolumeTotalOriginal, isOpen);\n`;
     rc += `      if (!v.ok) return CTP_RISK_BLOCKED;\n`;
-    rc += `      if (isOpen) {\n`;
-    rc += `        OpenGate g = risk->tryReserveOpen(identity.orderRef, identity.instrumentId, f.Direction == '0', f.LimitPrice, f.VolumeTotalOriginal, f.CombHedgeFlag[0], marginEvidence);\n`;
-    rc += `        if (g == OpenGate::VolumeLimit) return CTP_POSITION_VOLUME_LIMIT;\n`;
-    rc += `        if (g == OpenGate::CostLimit) return CTP_POSITION_LIMIT;\n`;
-    rc += `        if (g == OpenGate::DuplicateOrderRef) return CTP_DUPLICATE_ORDER_REF;\n`;
-    rc += `        if (g == OpenGate::MetadataUnavailable) return CTP_RISK_METADATA_UNAVAILABLE;\n`;
-    rc += `        if (!risk->bindInsertRequest(requestId, identity.orderRef)) return CTP_RISK_METADATA_UNAVAILABLE;\n`;
-    rc += `      }\n`;
-    rc += `      if (isOpen && !risk->allowRate()) {\n`;
-    rc += `        risk->rollbackInsertRequest(requestId, identity.orderRef);\n`;
-    rc += `        return CTP_RATE_LIMITED;\n`;
-    rc += `      }\n`;
-    rc += `      if (!isOpen && !risk->allowCloseRate()) return CTP_RATE_LIMITED;\n`;
-    rc += `      int sendRc = api->ReqOrderInsert(&f, requestId);\n`;
-    rc += `      if (sendRc != 0 && isOpen) risk->rollbackInsertRequest(requestId, identity.orderRef); // request not accepted; safe to retry this ref\n`;
-    rc += `      return sendRc;\n`;
+    rc += `      if (isOpen ? !risk->allowRate() : !risk->allowCloseRate()) return CTP_RATE_LIMITED;\n`;
+    rc += `      return api->ReqOrderInsert(&f, requestId);\n`;
     rc += `    }\n`;
-  } else if (classification === "unsupported-risk-mutation") {
+  } else if (classification === "unsupported-risk-mutation" || classification === "funds") {
+    // Requests these stateless rules cannot judge (and funds transfers, which
+    // change collateral) are forwarded only with no local rule enabled.
     rc += `    if (risk) {\n`;
     rc += `      bool sendAllowed = false;\n`;
     rc += `      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);\n`;
     rc += `      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;\n`;
-    rc += `      int sendRc = api->${r.name}(&f, requestId);\n`;
-    rc += `      if (sendRc == 0) risk->recordUnsupportedRiskMutation();\n`;
-    rc += `      return sendRc;\n`;
-    rc += `    }\n`;
-  } else if (classification === "funds") {
-    rc += `    if (risk) {\n`;
-    rc += `      bool sendAllowed = false;\n`;
-    rc += `      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);\n`;
-    // Funds transfers change available collateral but are not represented by
-    // the local ledger. Forward them only in protocol-binding mode, exactly
-    // like every other unsupported risk mutation.
-    rc += `      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;\n`;
-    rc += `      int sendRc = api->${r.name}(&f, requestId);\n`;
-    rc += `      if (sendRc == 0) risk->recordUnsupportedRiskMutation();\n`;
-    rc += `      return sendRc;\n`;
+    rc += `      return api->${r.name}(&f, requestId);\n`;
     rc += `    }\n`;
   } else if (classification === "conditional-action") {
     rc += `    if (risk && f.ActionFlag != '0') {\n`;
     rc += `      bool sendAllowed = false;\n`;
     rc += `      auto sendGuard = risk->acquireOrderSend(true, sendAllowed);\n`;
     rc += `      if (!sendAllowed || !risk->allowUnsupportedRiskRequest()) return CTP_UNSUPPORTED_RISK_PATH;\n`;
-    rc += `      int sendRc = api->${r.name}(&f, requestId);\n`;
-    rc += `      if (sendRc == 0) risk->recordUnsupportedRiskMutation();\n`;
-    rc += `      return sendRc;\n`;
+    rc += `      return api->${r.name}(&f, requestId);\n`;
     rc += `    }\n`;
   }
   if (SESSION_TRANSITION_REQUESTS.has(r.name)) {
@@ -418,13 +271,7 @@ for (const r of req) {
     rc += `    if (sendRc != 0 && risk) risk->finishSessionTransition(requestId);\n`;
     rc += `    return sendRc;\n  }\n`;
   } else {
-    if (r.name === "ReqQryInstrumentMarginRate" || r.name === "ReqQryExchangeMarginRate") {
-      rc += `    int sendRc = api->${r.name}(&f, requestId);\n`;
-      rc += `    if (sendRc != 0 && risk) risk->finishMarginScheduleQuery(requestId, false);\n`;
-      rc += `    return sendRc;\n  }\n`;
-    } else {
-      rc += `    return api->${r.name}(&f, requestId);\n  }\n`;
-    }
+    rc += `    return api->${r.name}(&f, requestId);\n  }\n`;
   }
 }
 rc += `  default:

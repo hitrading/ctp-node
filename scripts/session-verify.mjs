@@ -12,7 +12,10 @@ td.on("front-connected", async () => {
       brokerId: e.CTP_BROKER ?? "9999", userId: e.CTP_USER, password: e.CTP_PASS,
       appId: "simnow_client_test", authCode: "0000000000000000",
       confirmSettlement: true,
-      sync: { multipliers: ["au2608", "ag2608"], positions: true, orders: true },
+      sync: {
+        multipliers: ["au2608", "ag2608"],
+        marginRates: { instrumentIds: ["au2608", "ag2608"], hedgeFlag: "1" },
+      },
     });
     log("session() OK ->", JSON.stringify(r));
     log("tradingDay:", td.tradingDay);

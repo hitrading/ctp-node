@@ -2,7 +2,6 @@
 #ifndef CTP_TRADERSPI_GEN_H
 #define CTP_TRADERSPI_GEN_H
 #include "ThostFtdcTraderApi.h"
-#include "../native/arm.h"
 #include "../native/channel.h"
 #include "../native/risk.h"
 namespace ctp {
@@ -194,7 +193,6 @@ public:
   ~TraderSpi() {}
 
   void setRisk(RiskEngine *r) { risk_ = r; }
-  void setArmRegistry(ArmRegistry *a) { arm_ = a; }
 
   void OnFrontConnected() override;
   void OnFrontDisconnected(int arg) override;
@@ -378,7 +376,6 @@ public:
 private:
   EventChannel *ch_;
   RiskEngine *risk_ = nullptr;
-  ArmRegistry *arm_ = nullptr;
 };
 } // namespace ctp
 #endif

@@ -37,14 +37,20 @@ ok(c.encode(STRUCT_ID.QryMulticastInstrument, { instrumentId: "中文" }) instan
 // --- request(): non-zero send codes route through riskRejectMessage; throws/timeout ---
 await rejects(c.request(() => -10001), "pre-trade risk", "request -10001 -> pre-trade risk");
 await rejects(c.request(() => -10002), "rate limited", "request -10002 -> rate limited");
-await rejects(c.request(() => -10003), "position margin limit", "request -10003 -> position margin");
-await rejects(c.request(() => -10004), "max position volume", "request -10004 -> position volume");
-await rejects(c.request(() => -10005), "duplicate orderRef", "request -10005 -> duplicate orderRef");
 await rejects(c.request(() => -10006), "cannot be fully covered", "request -10006 -> unsupported risk path");
-await rejects(c.request(() => -10007), "risk state or metadata unavailable", "request -10007 -> unavailable risk state/metadata");
 await rejects(c.request(() => -10008), "invalid order", "request -10008 -> invalid order fields");
 await rejects(c.request(() => -10009), "session transition", "request -10009 -> ambiguous session transition");
 await rejects(c.request(() => -1), "code -1", "request generic non-zero code");
+// The ledger-era sentinels (-10003 margin cap, -10004 lot cap, -10005 duplicate
+// OrderRef, -10007 ledger/metadata unavailable) are retired: the native gate no
+// longer emits them, so they carry no risk-specific message or extra evidence.
+for (const retired of [-10003, -10004, -10005, -10007]) {
+  let retiredError;
+  await c.request(() => retired).catch((e) => { retiredError = e; });
+  ok(retiredError?.message === `request rejected by CTP API (code ${retired})` &&
+     retiredError.ctpReturnCode === retired && !("marginRejection" in retiredError),
+    `retired risk code ${retired} falls through to the generic send rejection`);
+}
 let flowCode;
 await c.request(() => -3).catch((e) => { flowCode = e.ctpReturnCode; });
 ok(flowCode === -3, "send rejections expose the native CTP return code");
@@ -173,10 +179,10 @@ c.pending.set(idd, { ...mk(() => {}, (er) => { dj = er; }, true), timer: setTime
 c.emit("front-disconnected", 0, {});
 ok(dj && /disconnect/.test(msgOf(dj)), "front-disconnected rejects all pending requests");
 
-// --- JS ids stay below the upper-half range reserved for native armed orders ---
+// --- JS request ids cycle within 1..0x3fffffff (positive int32, never 0) ---
 c.reqSeq = 0x3fffffff;
 ok(c.nextRequestId() === 1,
-  "nextRequestId wraps before the native armed-order id range");
+  "nextRequestId wraps from 0x3fffffff back to 1, skipping the 0 sentinel");
 
 // Every generated ReqQry* / ReqQuery* uses this scheduler, so concurrent queries
 // cannot bypass CTP's process/client flow-control interval.

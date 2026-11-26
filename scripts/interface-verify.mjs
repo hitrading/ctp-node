@@ -41,8 +41,15 @@ const sendOutcome = async (o) => {
 td.on("front-connected", async () => {
   try {
     // ---- session() handshake ----
-    const s = await td.session({ brokerId: C.brokerId, userId: C.userId, password: C.password, appId: C.appId, authCode: C.authCode, confirmSettlement: true, sync: { multipliers: ["au2608"], positions: true, orders: true } });
-    check(s && typeof s.multipliers === "number", `session() -> ${JSON.stringify(s)}`);
+    const s = await td.session({ brokerId: C.brokerId, userId: C.userId, password: C.password, appId: C.appId, authCode: C.authCode, confirmSettlement: true, sync: { multipliers: ["au2608"], marginRates: { instrumentIds: ["au2608"], hedgeFlag: "1" } } });
+    check(s && typeof s.multipliers === "number" && typeof s.marginRates === "number", `session() -> ${JSON.stringify(s)}`);
+    // Margin schedules are resolved for the caller's own calculations (the native
+    // gate keeps no margin ledger); read back the session's completed result.
+    try {
+      const [rate] = td.readMarginRates(["au2608"], "1");
+      check(rate.instrumentId === "au2608" && (rate.longMarginRatioByMoney > 0 || rate.longMarginRatioByVolume > 0),
+        `readMarginRates(au2608) -> long ${rate.longMarginRatioByMoney}/money + ${rate.longMarginRatioByVolume}/lot`);
+    } catch (err) { check(false, `readMarginRates(au2608): threw ${err.message}`); }
     check(td.apiVersion.length > 0, `apiVersion -> ${td.apiVersion}`);
     check(/^\d{8}$/.test(td.tradingDay), `tradingDay -> ${td.tradingDay}`);
     check(td.droppedRecords === 0, `droppedRecords -> ${td.droppedRecords}`);
@@ -60,16 +67,17 @@ td.on("front-connected", async () => {
     await tryQ("reqQrySettlementInfoConfirm", () => td.reqQrySettlementInfoConfirm({ brokerId: C.brokerId, investorId: C.userId }));
 
     // ---- auto-sourced risk inputs (fed into the C++ engine directly from the SPI
-    // responses OnRspQryInstrument / OnRspQryInstrumentMarginRate - no JS feed) ----
+    // response OnRspQryInstrument - no JS feed) ----
     log("== auto-sourced risk inputs ==");
-    td.trackMarketData(md); // monetary gates require the same fresh C++ reference
+    td.trackMarketData(md); // the notional gate requires a fresh C++ reference
     // Multiplier proof: au2608 x1000 reached the engine. A maxNotional that only
-    // trips WHEN the multiplier is applied - 700*1*1000 = 700k > 200k -> blocked;
-    // with the 1.0 default it would be 700 < 200k -> pass. check() blocks client-
-    // side (no send): a clean, deterministic proof the multiplier auto-sourced.
-    td.setRiskLimits({ maxOrderVolume: 0, maxNotional: 200000, maxAccountMargin: 0 });
-    check(/maxNotional/i.test(await sendOutcome({ ...ob, instrumentId: "au2608", direction: "0", combOffsetFlag: "0", limitPrice: 700, volumeTotalOriginal: 1 })),
-      "auto multiplier: au2608 x1000 sourced from OnRspQryInstrument (700*1*1000 > 200k notional -> blocked)");
+    // trips WHEN the multiplier is applied - max(700, live ref) * 1 * 1000 >= 700k
+    // > 200k -> blocked with the "exceeds maxNotional" reason (a missing multiplier
+    // would block with a different reason). check() blocks before the send: a
+    // clean, deterministic proof the multiplier auto-sourced.
+    td.setRiskLimits({ maxOrderVolume: 0, maxNotional: 200000 });
+    check(/exceeds maxNotional/i.test(await sendOutcome({ ...ob, instrumentId: "au2608", direction: "0", combOffsetFlag: "0", limitPrice: 700, volumeTotalOriginal: 1 })),
+      "auto multiplier: au2608 x1000 sourced from OnRspQryInstrument (>= 700*1*1000 > 200k notional -> blocked)");
     td.setRiskLimits({ maxNotional: 0 }); // clear the probe cap
 
     // ---- boundary conditions on the order gate (no fills) ----

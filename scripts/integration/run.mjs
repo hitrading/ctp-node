@@ -1,9 +1,9 @@
 /*
  * run.mjs - live SimNow integration test (credential-gated). Validates the WIRE
  * behavior that unit tests cannot: the connect/login handshake, the one-call
- * session() (authenticate -> login -> confirm settlement -> sync multipliers /
- * positions / orders), an account query, and the C++ pre-trade risk gate
- * end-to-end against the REAL CTP API.
+ * session() (authenticate -> login -> confirm settlement -> sync multipliers),
+ * an account query, and the stateless C++ pre-trade risk gate end-to-end against
+ * the REAL CTP API.
  *
  * Safe to run any time: the only orders it sends are deliberately oversized so the
  * pre-trade gate rejects them BEFORE they reach the exchange - nothing ever rests.
@@ -53,7 +53,7 @@ async function main() {
     deadline(40000, "session"),
   ]);
   ok(counts && typeof counts.multipliers === "number",
-     `session() handshake ok (multipliers=${counts?.multipliers}, positions=${counts?.positions}, orders=${counts?.orders})`);
+     `session() handshake ok (frontId=${counts?.identity?.frontId}, sessionId=${counts?.identity?.sessionId}, multipliers=${counts?.multipliers})`);
 
   // 3) account query returns a row (proves req/rsp correlation over the wire)
   const acct = await Promise.race([

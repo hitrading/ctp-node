@@ -1,12 +1,12 @@
 <!-- LANG-SWITCH -->
 **English** · [简体中文](native-hooks.zh-CN.md)
 
-# Native-sinkable hooks (risk / rate-limit / arm)
+# Native-sinkable hooks (risk / rate-limit / market-data snapshot)
 
 Goal: keep ~95% of strategy work in JS/TS (fast iteration, good ecosystem) while
-giving the **latency- and safety-critical** slices C++-grade determinism — no GC
-pause or event-loop hiccup can defeat them. JS sets the rules; C++ enforces and
-executes them.
+giving the **safety-critical** slices C++-grade determinism — no GC pause or
+event-loop hiccup can defeat them. JS sets the rules; C++ enforces them on the
+order path.
 
 ## Two worlds
 
@@ -16,97 +16,72 @@ executes them.
 | GC pauses | none | yes (occasional ms-tens-of-ms) |
 | Determinism | microsecond, predictable | jitter (GC / JIT / scheduling) |
 
-A tick first arrives on the **C++ callback thread**. A pure-JS strategy must
-cross to JS and wait for the event loop — eating that jitter. "Sinking down"
-keeps the critical decision on the C++ thread; JS only configures and is
-notified afterward.
+A tick first arrives on the **C++ callback thread**; a pure-JS check must cross
+to JS and wait for the event loop. "Sinking down" keeps the last-line checks in
+C++, right before the vendor send call; JS only configures them and is told why
+an order was refused.
 
 ## What is sunk down
 
-1. **Risk (pre-trade)** — `src/native/risk.h` `RiskEngine`
-   Hard checks run before every send: kill-switch, max order volume, max
-   single-order notional (fat-finger guard), price-deviation guard, open-MARGIN
-   caps (account-wide and per-instrument), and a per-instrument max position
-   (lots, capped per side). Enforced in C++ so they hold even if the JS process
-   is mid-GC, blocked, or buggy. *Safety win - worth it even for slow
-   strategies.*
-   - Status: **implemented with a deliberately bounded product model**. The price-deviation guard reads its reference from
-     the C++ MD snapshot cache (the LVC; see §4 below) via `trackMarketData(md)`
-     — no `setRefPrice`, no JS round-trip, and it covers armed orders too. The
-     single-order notional check is still notional (price × volume × multiplier
-     — a fat-finger guard). Futures/TAS open-order margin uses the CTP formula
-     `price × volume × multiplier × byMoney + volume × byVolume`, separately by
-     side/hedge flag. Held snapshots use CTP `UseMargin` and retain separate
-     instrument/side/hedge buckets so a close releases the matching schedule;
-     relative investor
-     schedules are added to the matching exchange base schedule. This is a
-     conservative local gate, not a universal replica of every broker margin
-     algorithm; unsupported product classes fail closed under monetary caps.
-   - **Architecture principle: latency-sensitive metadata and realtime ledger
-     events flow directly from SPI callbacks into C++.** Authoritative position
-     and working-order query snapshots are aggregated in TypeScript, then
-     committed through revision-checked native batch operations. Special-cased
-     in `scripts/codegen/generate-trader.mjs`
-     (emitted into `traderspi.gen.cc`):
-     - contract multipliers ← `OnRspQryInstrument` (internal `setInstrument`)
-     - per-contract/hedge margin schedules ← `OnRspQryInstrumentMarginRate`.
-       Long/short by-money and by-volume components are retained separately.
-       `OnRspQryExchangeMarginRate` supplies the base for `IsRelative` investor
-       schedules. Missing multipliers or either required schedule fail closed.
-     - login session (FrontID/SessionID, for reservation keys) ← `OnRspUserLogin`
-       (`setSession`), published synchronously so reservation keys are correct
-       before any order can be sent
-     - fills ← `OnRtnTrade` (`onTrade`)
-     - order updates ← `OnRtnOrder` (`onOrderUpdate`)
+1. **Risk (pre-trade, stateless)** — `src/native/risk.h` `RiskEngine`
+   Hard checks run before every order insert: the kill-switch modes
+   (`REDUCE_ONLY` / `HALT_ALL`), max order volume, max single-order notional
+   (fat-finger guard) and the price-deviation guard. Enforced in C++ so they hold
+   even if the JS process is mid-GC, blocked, or buggy. *Safety win — worth it
+   even for slow strategies.*
+   - **Stateless by design.** Every rule judges one order from the order itself,
+     the latest market reference and static instrument metadata. Nothing depends
+     on what the account holds or has working, so there is no position/order
+     ledger to rebuild after a reconnect and no state that can disagree with the
+     caller's books. Volume, deviation and notional checks apply to opening
+     orders; a closing order is refused only in `HALT_ALL` (or by the close-order
+     rate limiter), so exits keep working when a quote or metadata is missing.
+   - **What it deliberately does not do: account-level caps.** Account margin,
+     per-instrument margin and position-lot caps need the account's positions,
+     working orders and funds. CTP's position snapshot and its realtime
+     order/trade stream share no common sequence number, so a ledger inside the
+     binding could only mark itself uncertain after closes, refuse openings and
+     guess at empty snapshots from a funds cross-check — duplicating the caller's
+     own books and able to disagree with them. Those caps belong to the trading
+     layer that owns the account facts (`reqQryInvestorPosition`, `reqQryOrder`,
+     `reqQryTradingAccount`, `rtn-order` / `rtn-trade`); `syncMarginRates()` /
+     `readMarginRates()` resolve margin schedules for its own calculations.
+   - The price-deviation and notional checks read their reference from the C++
+     MD snapshot cache (the LVC; see §3 below) via `trackMarketData(md)` — no
+     `setRefPrice`, no JS round-trip. A missing quote, or one older than
+     `maxReferenceAgeMs`, fails an enabled check closed for opening orders. The
+     notional check uses `max(order price, reference) × volume × multiplier` and
+     is enabled only for Futures/TAS product classes; other classes fail closed
+     while it is on.
+   - **Data sourcing: metadata and the session identity flow directly from SPI
+     callbacks into C++.** Special-cased in `scripts/codegen/generate-trader.mjs`
+     (emitted into `traderspi.gen.cc` / `traderreq.gen.cc`):
+     - contract multipliers and product classes ← `OnRspQryInstrument`
+       (internal `setInstrument`); sending a `reqQryInstrument` first
+       invalidates the queried contract (or all contracts), so a failed or empty
+       refresh cannot leave stale metadata active
+     - login session (FrontID/SessionID/BrokerID) ← `OnRspUserLogin`, correlated
+       with the request id of the latest login request; `session()` then confirms
+       the trading account (InvestorID) before any ordinary order insert is
+       accepted. Front connect/disconnect and every login/logout request revoke
+       the confirmation.
 
-     So any `reqQryInstrument` keeps multipliers current and querying
-     `reqQryInstrumentMarginRate` for the contracts you trade keeps the margin
-     cap schedule current — there is no JS metadata relay
-     (those C++ entry points exist only for tests / offline use). Multipliers
-     and margin rates are static metadata stored separately from position state,
-     so `resetPositions()` / a `syncPositions()` resync never wipes them.
-   - In-flight reservation: the position caps count `held + working` (orders
-     sent but not yet filled), so a burst of opens can't slip past before fills
-     report. Reservations are tracked per `(FrontID, SessionID, OrderRef)` and
-     reconciled from `OnRtnOrder` (self-correcting; released on fill/cancel/
-     reject and on a failed send). Terminal tombstones also retain the concrete
-     trading-day/exchange/instrument/`OrderSysID` fingerprint: matching late
-     replays are ignored, while a reused or ambiguous key fails closed until an
-     authoritative `syncOrders()` snapshot supersedes it. Because CTP delivers an investor's order/
-     trade returns to *all* their sessions, this also accounts for orders placed
-     from **another terminal on the same account** (their fills update the
-     position by instrument; their working orders consume the cap).
-     Trade idempotency keeps at most 65,536 exact fingerprints, retiring complete
-     older days first. Exhausting that budget inside one active trading day does
-     not evict ambiguous keys: opening inserts stay fail-closed until a later
-     trading day is observed and `syncPositions()` reconciles the missed epoch.
-   - What stays JS-driven (NOT auto-sourced): `seedPositions` / `syncPositions`
-     (open-position seeding) and `rebuildReservations` / `syncOrders` (rebuild
-     the reservation from the broker's working orders, via `reqQryOrder`). These
-     are deliberate resync operations. They apply revision-checked atomic
-     replacements, preserve working reservations, and retry if realtime callbacks
-     race the query. They stay explicit, JS-orchestrated calls; auto-
-     running them on every query would be a dangerous side-effect. Call
-     `syncOrders()` after login and after any reconnect.
+     So any `reqQryInstrument` keeps multipliers current — there is no JS
+     metadata relay. Margin schedules are not fed to the native gate.
+   - **Unsupported requests.** Advanced mutations (quote/exec/comb/parked
+     inserts, order modify, offset setting, spread/hedge confirmation) and
+     bank/futures transfers cannot be judged by these per-order rules. They pass
+     only in `NORMAL`, for a confirmed session, with no local control configured,
+     and leave no state behind. Every non-query SDK request must be classified
+     by the generator; an unreviewed method fails code generation.
 
 2. **Rate limit** — `src/native/risk.h` `RateLimiter`
-   Token bucket guaranteeing the seat never exceeds the exchange/CTP order rate,
+   Token buckets — one for opening inserts, an independent one for closing
+   inserts — guaranteeing the seat never exceeds the configured order rate,
    immune to JS bursts after a pause.
    - Status: **real** (token bucket).
 
-3. **Arm (latency-critical trigger)** — `src/native/arm.h` `ArmRegistry`
-   A narrow rule ("fire the instant ask ≤ X") evaluated on the MD callback
-   thread, parameterized from JS. Only for genuinely latency-sensitive
-   strategies.
-   - Status: **wired**. `trader.arm(md, spec)` shares the registry (shared_ptr)
-     with the MarketData feeding ticks; on a hit the order is built from the
-     JS-encoded template, passed through the Trader's `RiskEngine`, and sent via
-     `ReqOrderInsert` on the MD callback thread (no JS). A successful send removes
-     the arm immediately; halt/rate/metadata/send refusal keeps it armed with a
-     retry backoff. Ack arrives via normal trader events. Teardown-safe: the sink is cleared under the registry lock
-     before the API is released.
-
-4. **Market-data snapshot (last-value cache)** — `src/native/snapshot.h`
+3. **Market-data snapshot (last-value cache)** — `src/native/snapshot.h`
    `SnapshotCache`
    A C++ last-value cache (LVC) holding the latest full `DepthMarketDataField`
    per instrument. A successful MD login activates a new empty epoch; only
@@ -118,24 +93,23 @@ notified afterward.
      tick (or `null` outside the active epoch / if none seen / unsubscribed), `md.last(id)` returns just
      the last price — no waiting for a tick, no per-tick bookkeeping in your
      strategy.
-   - **The deviation reference flows MD→risk entirely in C++.** The Trader's
-     price-deviation check reads the cache in C++ via `trackMarketData(md)`: the
-     MarketData shares the cache as a `shared_ptr` (mirroring how the armed-order
-     registry is shared), so the risk engine reads live prices straight from the
-     MD feed with no JS round-trip — and the check therefore also covers armed
-     orders that fire from C++ with no JS in the loop. Unauthenticated or
-     post-disconnect ticks remain observable protocol events but cannot drive
-     the cache or an armed mandate. (The `SnapshotCache`
+   - **The reference flows MD→risk entirely in C++.** The Trader's
+     price-deviation and notional checks read the cache in C++ via
+     `trackMarketData(md)`: the MarketData shares the cache as a `shared_ptr`,
+     so the risk engine reads live prices straight from the MD feed with no JS
+     round-trip. Unauthenticated or post-disconnect ticks remain observable
+     protocol events but cannot update the cache. (The `SnapshotCache`
      implements `RefPriceSource`; the risk engine holds it via `setMdSnapshot`.)
 
 ## Threading / safety model
 
 - Config is written on the **slow path** (JS thread) and read on the **hot
-  path** (JS or callback thread). Risk config uses **atomics** (lock-free
+  path** (the order send). Risk config uses **atomics** (lock-free
   reads); the rate limiter uses a tiny mutex (bounded, uncontended).
-- `ArmRegistry` is indexed by instrument, so `onTick` scans only that contract's
-  active triggers (successful arms are erased immediately). A short mutex keeps
-  arm/disarm and Trader teardown linearizable with an in-flight send.
+- Configuration, mode changes, session transitions and every order insert share
+  one send barrier, so a limit/mode/session change is linearized with in-flight
+  sends: no order can pass the checks under the old state and then be sent after
+  the change returns, or go out under a newly logged-in account.
 - Queue/state-producing test hooks (`_injectTestTick`, `_injectTestForQuote`,
   `_injectTestLifecycle`, `_burstTicks`, `_produceTestTicks`, `_burstEvents`)
   are disabled unless `CTP_NODE_TEST_HOOKS=1` is explicitly set. Never enable
@@ -150,15 +124,14 @@ design avoids. The hot path stays memcpy + atomics. Observability is layered the
 way low-latency systems do it:
 
 - **Counters / events, not logs, in C++.** `droppedRecords` (market data safely
-  drops the oldest logical record; Trader overflow is ordered/lossless),
-  arm fire count, and the streaming events (`front-connected`,
-  `front-disconnected` with reason, `rsp-*` with `errorId`/`errorMsg`) are
-  surfaced to JS.
+  drops the oldest logical record; Trader overflow is ordered/lossless) and the
+  streaming events (`front-connected`, `front-disconnected` with reason, `rsp-*`
+  with `errorId`/`errorMsg`) are surfaced to JS.
 - **Reasons surfaced, not swallowed.** A pre-trade-risk rejection carries the
   specific cause back to JS (e.g. `blocked by pre-trade risk: order volume
-  exceeds maxOrderVolume`; position caps and rate limit have their own
-  messages), so logs say *why*. Costs nothing on the hot path — it's set only
-  on the (rare) reject.
+  exceeds maxOrderVolume`; the rate limiter and unsupported-request gate have
+  their own messages), so logs say *why*. Costs nothing on the hot path — it's
+  set only on the (rare) reject.
 - **Do the actual logging in JS**, off the callback thread, from those events —
   any async logger (pino/winston) is fine there. If C++-side audit logging is
   ever needed, add an opt-in async/deferred logger (lock-free queue + background
@@ -169,42 +142,32 @@ way low-latency systems do it:
 All of this is exposed on `Trader` (`src/trader.ts`):
 
 ```ts
-// Pre-trade risk (published to the C++ enforcer; takes effect immediately):
-td.setRiskLimits({ maxOrderVolume: 5, maxPriceDeviation: 0.02, maxOrdersPerSec: 20, maxAccountMargin: 5_000_000 });
-td.trackMarketData(md);                   // C++ reference for deviation + monetary valuation
-td.setInstrumentPositionLimits({ rb2610: 100, ru2610: { long: 100, short: 20 } });
-td.setInstrumentMarginLimits({ ag2608: 2_000_000, au2608: 5_000_000 }); // per-instrument margin caps
+// Stateless pre-trade risk (published to the C++ enforcer; takes effect immediately):
+td.setRiskLimits({ maxOrderVolume: 5, maxPriceDeviation: 0.02, maxNotional: 2_000_000, maxOrdersPerSec: 20 });
+td.trackMarketData(md);                   // C++ reference for the deviation + notional checks
 td.reduceOnly(); td.resume();              // block increases; closes/cancels stay available
 
 // Synchronous market-data snapshot from the C++ last-value cache (no event wait):
 const tick = md.snapshot("rb2510");       // latest full DepthMarketDataField, or null
 const px = md.last("rb2510");             // just the last price (0 if none)
 
-// Multipliers and margin rates are sourced in C++ from the SPI callbacks (no JS
-// feed). A plain query keeps them current — there is nothing to relay back:
+// Multipliers are sourced in C++ from the SPI callback (no JS feed). A plain
+// query keeps them current — there is nothing to relay back:
 await td.reqQryInstrument({});            // multipliers <- OnRspQryInstrument
-await td.reqQryInstrumentMarginRate({ instrumentId: "rb2510" }); // rate <- OnRspQryInstrumentMarginRate
 
-// Deliberate JS-driven atomic resyncs (call explicitly, not per query):
-await td.syncOrders();                    // rebuild reservations; marks held side uncertain
-await td.syncPositions();                 // final held snapshot; preserve reservations
-
-// Latency-critical armed trigger (fires from C++ on the MD thread):
-const armed = td.arm(md, {
-  instrumentId: "rb2510", side: "buy", triggerPrice: 3500,
-  order: { /* InputOrder; orderRef auto-assigned if blank */ },
-});
-armed.disarm();                           // remove the trigger
-// One-shot; the fill/ack arrives via the normal rtn-order / rtn-trade events.
+// Account facts and account-level caps live in your own trading layer:
+const positions = await td.reqQryInvestorPosition({ brokerId, investorId });
+const orders = await td.reqQryOrder({ brokerId, investorId });
+await td.syncMarginRates(["rb2510"], "1");
+const [rate] = td.readMarginRates(["rb2510"], "1"); // resolved schedule for your own margin math
 ```
 
 ## Status
 
-The offline suite covers the risk ledger, arm state machine, generated send path,
-backpressure and lifecycle isolation. A credential-gated SimNow integration suite
-is available separately; it is not evidence of continuous soak coverage. Margin
-estimation models both formula components and relative+exchange-base schedules;
-missing metadata fails closed. Live soak remains a separate release gate.
+The offline suite covers the stateless risk gate (standalone C++ unit suites),
+the generated send path, backpressure and lifecycle isolation. A credential-gated
+SimNow integration suite is available separately; it is not evidence of
+continuous soak coverage. Live soak remains a separate release gate.
 
 ## Process lifecycle: create once, reuse
 

@@ -1,3 +1,128 @@
+# Migrating 4.x → 5.0
+
+5.0 makes the native pre-trade risk gate **stateless** and removes armed orders.
+Every native rule now judges one order from the order itself, the latest
+market-data reference and static instrument metadata. C++ no longer keeps a
+position or working-order ledger, so the account-level exposure caps — account
+margin, per-instrument margin and position lots — move to the trading layer that
+owns the account facts.
+
+Why: CTP's position snapshot and its realtime order/trade stream share no common
+sequence number. A ledger inside the binding could only mark itself uncertain
+after every close, refuse openings until a resync, and guess at empty snapshots
+from a funds cross-check — duplicating the caller's own books and able to
+disagree with them. Armed orders fired straight from the market-data thread,
+bypassing every business check the caller runs before sending.
+
+TypeScript reports every removed member at compile time. In JavaScript, a call
+to a removed method throws `TypeError: ... is not a function`, and the removed
+option fields are rejected rather than ignored:
+`setRiskLimits({ maxAccountMargin })` throws `unknown field maxAccountMargin`,
+`session({ sync: { positions, orders } })` throws `unknown field positions`.
+
+## Removed APIs
+
+| 4.x | 5.0 replacement |
+|---|---|
+| `RiskLimits.maxAccountMargin` | Your trading layer compares its own margin figure (for example `reqQryTradingAccount` → `currMargin` + `frozenMargin`, plus an estimate for the order about to be sent) with your cap before calling `reqOrderInsert()`. |
+| `Trader.setInstrumentPositionLimit()` / `setInstrumentPositionLimits()`, type `InstrumentPositionLimit` | Per-instrument lot caps in your trading layer, from positions (`reqQryInvestorPosition`) and working orders (`reqQryOrder`) kept current with `rtn-order` / `rtn-trade`. |
+| `Trader.setInstrumentMarginLimit()` / `setInstrumentMarginLimits()` | Per-instrument margin caps in your trading layer; multipliers from `reqQryInstrument`, schedules from `syncMarginRates()` / `readMarginRates()`. |
+| `Trader.syncPositions()`, `seedPositions()`, `seedFromPositions()`, `resetPositions()`, type `PositionSeed` | `reqQryInvestorPosition({ brokerId, investorId })` into your own position book. |
+| `Trader.syncOrders()` | `reqQryOrder({ brokerId, investorId })` into your own order book. |
+| `Trader.accountMargin` | `reqQryTradingAccount({ brokerId, investorId })` (`currMargin`, `frozenMargin`, `available`), or your own book. |
+| `session()` options `sync.positions` / `sync.orders`; result fields `positions` / `orders` | Query positions and orders yourself after `session()` resolves. The result is now `{ identity, multipliers, marginRates }`. |
+| `Trader.arm()`, `Trader.armStats`, `MarketData.attachArm()`, types `ArmSpec` / `ArmHandle` | Evaluate the trigger in your own process (in the `rtn-depth-market-data` handler, or from `md.snapshot()`), run your normal pre-send checks, then call `reqOrderInsert()`. |
+| `err.marginRejection` on a `-10003` rejection | Removed with `-10003`. A native rejection carries `err.ctpReturnCode` and the reason in `err.message`. |
+
+## Retired return codes
+
+| Code | 4.x meaning | 5.0 |
+|---|---|---|
+| `-10003` | blocked by a margin cap | Retired with the margin caps. |
+| `-10004` | blocked by a position-lot cap | Retired with the lot caps. |
+| `-10005` | duplicate `OrderRef` in this front/session | Retired. The Trader still rejects an explicit `orderRef` that is not above its high-water mark (`RangeError`), and the CTP counter itself rejects a duplicate (`不允许重复报单`). |
+| `-10007` | risk metadata or ledger unavailable | Retired. A missing or stale reference price or a missing multiplier for an enabled rule is reported as `-10001`, with the reason in the message. |
+
+Unchanged: `-10001` (stateless gate refusal), `-10002` (rate limit), `-10006`
+(unsupported request or mode), `-10008` (invalid order fields), `-10009`
+(session transition in flight).
+
+## Behaviour changes
+
+- **Opening no longer waits for a resync.** 4.x kept opening orders fail-closed
+  after every handshake until both `syncOrders()` and `syncPositions()` had
+  committed, and again after any close fill. In 5.0 an opening order is admitted
+  as soon as `session()` has confirmed the account and the configured stateless
+  rules pass.
+- **Unsupported requests are no longer lifetime-sticky.** In 4.x, once CTP had
+  accepted an advanced request (quote/exec/comb/parked insert, order modify,
+  bank/futures transfer) in pure binding mode — or one was observed from another
+  terminal — later enabling a local control kept ordinary opens fail-closed. In
+  5.0 each request is judged on its own: advanced requests still pass only in
+  `NORMAL`, for a confirmed session, with no local control configured (`-10006`
+  otherwise), and they leave no state behind.
+- **Orders from other terminals no longer affect admission.** 4.x counted their
+  working orders against the lot caps and blocked opens while an unsupported
+  (for example multi-leg) working order existed. CTP delivers the returns of the
+  investor's other sessions too, so your own book can account for them.
+- **`syncMarginRates()` feeds only `readMarginRates()`.** Schedules are resolved
+  in TypeScript for your own calculations; they are no longer published to the
+  native gate.
+- The 3.0 notes below about the position ledger turning uncertain after close
+  fills, and about calling `syncPositions()` after `syncOrders()`, no longer
+  apply.
+
+Kept as before: `maxOrderVolume`, `maxPriceDeviation`, `maxReferenceAgeMs`,
+`maxNotional`, the open/close rate limiters, `reduceOnly()` / `haltAll()` /
+`resume()`, `trackMarketData()`, `syncMultipliers()`, `syncMarginRates()` /
+`readMarginRates()`, `frontInfo` and the per-front query pacing, the `session()`
+handshake with its account confirmation, and the single-instrument GFD/FAK/FOK
+limit-order allowlist.
+
+## Before / after
+
+Account caps:
+
+```ts
+// 4.x
+td.setRiskLimits({ maxOrderVolume: 10, maxAccountMargin: 2_000_000 });
+td.setInstrumentPositionLimit("rb2610", 100);
+await td.session({ ...creds }); // also synced orders + positions into the C++ ledger
+
+// 5.0
+td.setRiskLimits({ maxOrderVolume: 10 }); // per-order gates stay in C++
+await td.session({ ...creds });
+const acct = { brokerId: creds.brokerId, investorId: creds.userId };
+book.reset(
+  await td.reqQryInvestorPosition(acct),
+  await td.reqQryOrder(acct),
+  (await td.reqQryTradingAccount(acct))[0],
+);
+td.on("rtn-order", (o) => book.onOrder(o));
+td.on("rtn-trade", (t) => book.onTrade(t));
+// ...and check your caps against `book` before every reqOrderInsert().
+```
+
+`book` stands for your own ledger; the binding does not provide one.
+
+Armed order:
+
+```ts
+// 4.x
+td.arm(md, { instrumentId: "rb2610", side: "sell", triggerPrice: 3450, order: exitOrder });
+
+// 5.0
+let exitSent = false;
+md.on("rtn-depth-market-data", (t) => {
+  if (exitSent || t.instrumentId !== "rb2610") return;
+  const bid = t.bidPrice1;
+  if (!(bid > 0 && bid < 1e300) || bid < 3450) return; // skip the DBL_MAX no-bid sentinel
+  exitSent = true;
+  // run your own pre-send checks here, then:
+  td.reqOrderInsert(exitOrder).catch((e) => { exitSent = false; console.warn(e.message); });
+});
+```
+
 # Migrating 2.x → 3.0
 
 3.0 reshapes the risk API and moves risk data sourcing into C++. Most renames

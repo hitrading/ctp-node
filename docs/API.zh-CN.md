@@ -12,10 +12,12 @@
 - [`MarketData`](#marketdata) — 行情客户端
 - [`Trader`](#trader) — 交易客户端
 - [`CtpClient`](#ctpclient) — 公共基类（事件、关闭、背压）
-- [类型](#类型) — `RiskLimits`、`InstrumentPositionLimit`、`SessionOptions`、`ArmSpec`、`ArmHandle`、`CallbackOptions`、`RspInfo`、`MdLoginReq`
+- [类型](#类型) — `RiskLimits`、`SessionOptions`、`CallbackOptions`、`RspInfo`、`MdLoginReq`
 - [枚举与结构体类型](#枚举与结构体类型)
 - [风控一览](#风控一览)
 - [实战示例](#实战示例) — 策略骨架 · 重连处理 · 组合下单
+
+从 4.x 升级？已删除的账本、上限与预埋单见 [MIGRATION.md](MIGRATION.md)。
 
 ```ts
 import {
@@ -68,8 +70,8 @@ import { Trader, Direction, OffsetFlag } from "@hitrading/ctp-node";
 
 const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
-td.setRiskLimits({ maxOrderVolume: 10, maxOrdersPerSec: 20 });
-td.setInstrumentPositionLimit("rb2510", 100); // 单边持仓不超过 100 手
+td.setRiskLimits({ maxOrderVolume: 10, maxOrdersPerSec: 20 }); // C++ 逐笔闸门
+// 账户级上限（保证金、持仓手数）放在你自己的交易层。
 
 td.on("front-connected", async () => {
   await td.session({
@@ -112,9 +114,12 @@ td.on("rtn-trade", (t) => console.log("已成交", t.instrumentId, t.price, t.vo
 **背压。** 行情溢出使用有界 keep-newest 暂存并保留最新行情，不再覆盖 JS 正在读取的槽位。交易端
 在 4096 槽满后进入有序无损队列，不主动丢弃报单/成交/查询回报；持续消费不及时会以增长内存为代价。
 
-**盘前风控在 C++ 中执行。** 所有风控限制（`setRiskLimits`、`setInstrumentPositionLimit`、`reduceOnly` / `haltAll` 等）都在原生
-插件内、报单发送路径上、抵达 CTP 之前就执行——没有 JS 往返。被拦截的报单会让
-`reqOrderInsert()` reject，原因在错误消息里。
+**盘前风控在 C++ 中执行，而且是无状态的。** 风控限制（`setRiskLimits`）与风控模式（`reduceOnly` /
+`haltAll`）都在原生插件内、报单发送路径上、抵达 CTP 之前就执行——没有 JS 往返。被拦截的报单会让
+`reqOrderInsert()` reject，原因在错误消息里。每条规则只依据这一笔报单本身、最新行情参考价
+（`trackMarketData`）和静态合约元数据（来自 `reqQryInstrument`）判断。本绑定不维护持仓或挂单账本，
+所以重连后没有要重建的东西，也不会与你自己的账本不一致。账户级敞口上限——账户保证金、单合约保证金、
+持仓手数——属于掌握账户事实的交易层，见[账户事实与账户级上限](#账户事实与账户级上限)。
 
 > 完整的实战示例（策略骨架、重连处理、组合下单）见文末的[实战示例](#实战示例)。
 
@@ -159,8 +164,8 @@ const md2 = new MarketData("./flow/md/", [
 > SimNow 行情前置接受匿名 `login({})`；实盘前置需要凭证。
 >
 > 每次行情 `login()` / `logout()` 都必须完成后再开始下一次。部分前置会把这两类回包的
-> `requestId` 固定为 0，因此 binding 会主动拒绝重叠的会话切换。若一次请求超时，原生行情缓存与
-> 预埋单路径会保持 fail-closed：先忽略第一条迟到的最终回包（或等待前置状态变化重置），之后才允许
+> `requestId` 固定为 0，因此 binding 会主动拒绝重叠的会话切换。若一次请求超时，原生行情缓存
+> 会保持 fail-closed：先忽略第一条迟到的最终回包（或等待前置状态变化重置），之后才允许
 > 建立新的已认证缓存 epoch。
 
 ```ts
@@ -271,23 +276,6 @@ const px = md.last("rb2510");
 if (px > 0) console.log("最新成交价", px);
 ```
 
-### `md.attachArm(trader)` → `void`
-
-把这路行情的 tick 路由到某个 `Trader` 的预埋触发器（见
-[`Trader.arm`](#tdarmmd-spec--armhandle)）。通常你调用 `td.arm(md, …)`，它会替你调用本方法。
-一条行情最多服务一个**仍存活**的 Trader；第二个存活 Trader 会被拒绝，但旧 Trader 关闭后可以安全替换，
-且不会由行情对象继续强引用已关闭的 JS 对象。
-一路 `MarketData` 只服务于一个 `Trader` 的触发器；再 attach 另一个不同的 `Trader` 会抛错。
-
-```ts
-// 显式调用（一般不需要——td.arm() 会自动做）：
-md.attachArm(td);
-
-// attach 第二个不同且仍存活的 trader 会抛错：
-md.attachArm(td);        // ok
-md.attachArm(otherTd);   // 抛错：已在服务另一个 Trader
-```
-
 ### `md.apiVersion` / `md.tradingDay` → `string`（只读）
 
 CTP API 版本字符串，以及当前交易日（`YYYYMMDD`），连接后可用。
@@ -351,15 +339,15 @@ md.on("front-disconnected", (reason) => console.warn("行情断开，码", reaso
 
 ## `Trader`
 
-交易客户端：报单、查询、持仓/风控跟踪，以及延迟敏感的预埋触发器。继承
+交易客户端：报单、查询，以及无状态的原生盘前风控闸门。继承
 [`CtpClient`](#ctpclient)；所有生成的 `reqXxx` 请求方法都可用（见
 [请求方法](#生成的请求方法)）。
 
 ### `new Trader(flowPath, fronts)`
 
-参数同 [`MarketData`](#new-marketdataflowpath-fronts)。Trader 会记住登录响应里的凭证，因此
-`sync*` 无需传参；并会把自动 `OrderRef` 计数器播种到经纪商 `maxOrderRef` 之上，使 ref 永不与上
-一会话冲突。
+参数同 [`MarketData`](#new-marketdataflowpath-fronts)。Trader 会记住已确认的账户，因此
+`sync*` 辅助方法从不需要传账户字段；并会把自动 `OrderRef` 计数器播种到经纪商 `maxOrderRef` 之上，
+使 ref 永不与上一会话冲突。
 
 ```ts
 const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
@@ -367,35 +355,36 @@ const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 const td2 = new Trader("./flow/td/", ["tcp://182.254.243.31:30002", "tcp://182.254.243.31:30001"]);
 ```
 
-### `td.session(opts)` → `Promise<{ identity, multipliers, marginRates, positions, orders }>`
+### `td.session(opts)` → `Promise<{ identity, multipliers, marginRates }>`
 
-连接后的一站式握手：**认证 → 登录 → 确认结算单 → 同步乘数 / 可选保证金率 / 报单 / 持仓**。在 `front-connected`
+连接后的一站式握手：**认证 → 登录 → 确认结算单 → 同步乘数 / 可选保证金率**。在 `front-connected`
 处理函数里调用（重连后再调一次）。返回经请求关联确认的
 `identity: { frontId, sessionId, maxOrderRef }` 以及各同步步骤的行数。其中 `maxOrderRef`
-是本次登录响应报告的值；Trader 的自动分配器可能保留更高的进程内高水位。每一步只是包装了对应的请求/同步方法，
-所以需要更细控制时你也可以自己手写流程。
+是本次登录响应报告的值；Trader 的自动分配器可能保留更高的进程内高水位。
 
-握手一开始，持仓账本和工作单账本就会被标记为不确定，使所有开仓请求在潜在重连缺口期间
-fail-closed。成功的 `syncPositions()` 与 `syncOrders()` 只清除各自的不确定状态；若关闭其中某项
-同步，对应闸门会一直 fail-closed，直到之后完成该项对账。
-
-新建 Trader 从首次 `front-connected` 回调到达前就处于同样的 fail-closed 状态。
+`session()` 也是把原生报单闸门绑定到交易账户的那一步。握手一开始就会撤销上一会话的报单权限；
+只有本次握手确认了新登录的 `frontId` / `sessionId` 和交易账户（`investorId`）之后，普通报单才会
+重新被接受。新建的 Trader 处于未确认状态，每次前置连接/断开以及每次登录/登出请求都会撤销确认，
+所以每次 `front-connected` 都要跑 `session()`。它不查询持仓或挂单：这些放在你自己的账本里（见
+[账户事实与账户级上限](#账户事实与账户级上限)）。
 
 `opts` 是 [`SessionOptions`](#sessionoptions)：
 
 登录回报必须包含明确的 `frontId` / `sessionId`，且 `brokerId` / `userId`
 必须与请求一致。即使柜台把空回报或身份不匹配的回报标记为成功，
-`session()` 也会拒绝继续；沿用旧/零会话键或对账到其他账户都会让本地账本不安全。
+`session()` 也会拒绝继续：这些字段标识了原生报单闸门所绑定的会话，接受旧/零会话或其他账户
+会让报单以过期身份发出。
 
 | 字段 | 类型 | 含义 |
 |---|---|---|
 | `brokerId` | `string` | 经纪商代码（必填）。 |
 | `userId` | `string` | 投资者代码（必填）。 |
+| `investorId` | `string?` | 为报单确认的交易账户。默认等于 `userId`；登录操作员与投资者不同时显式设置。 |
 | `password` | `string` | 密码（必填）。 |
 | `appId` | `string?` | 终端认证的 app id。SimNow：`"simnow_client_test"`。 |
 | `authCode` | `string?` | 终端授权码。SimNow：16 个零。两者都省略则跳过认证。 |
 | `confirmSettlement` | `boolean?` | 登录后确认结算单（实盘账户必须确认，否则报单被拒）。默认 `true`。 |
-| `sync` | `object?` | `{ multipliers?: boolean \| string[], marginRates?: { instrumentIds: string[], hedgeFlag: "1" \| "2" \| "3" \| "5" \| "6" \| "7" }, positions?: boolean, orders?: boolean }`。乘数/持仓/报单默认拉取；保证金表必须显式给出有限合约列表和套保标志，因为 CTP 每个合约需一次查询，且不同套保标志使用不同费率表。 |
+| `sync` | `object?` | `{ multipliers?: boolean \| string[], marginRates?: { instrumentIds: string[], hedgeFlag: "1" \| "2" \| "3" \| "5" \| "6" \| "7" } }`。乘数默认拉取（全部合约；传列表限定范围，传 `false` 跳过）；保证金表必须显式给出有限合约列表和套保标志，因为 CTP 每个合约需一次查询，且不同套保标志使用不同费率表。 |
 
 ```ts
 // SimNow 完整握手
@@ -404,7 +393,7 @@ td.on("front-connected", async () => {
     brokerId: "9999", userId: "id", password: "pw",
     appId: "simnow_client_test", authCode: "0000000000000000",
   });
-  console.log("已同步", counts); // { identity, multipliers, marginRates, positions, orders }
+  console.log("已同步", counts); // { identity, multipliers, marginRates }
 });
 
 // 把乘数同步限定到你交易的合约（冷启动更快）
@@ -413,8 +402,6 @@ await td.session({
   sync: {
     multipliers: ["rb2510", "au2508"],
     marginRates: { instrumentIds: ["rb2510", "au2508"], hedgeFlag: "2" },
-    positions: true,
-    orders: true,
   },
 });
 
@@ -422,9 +409,10 @@ await td.session({
 await td.session({ brokerId: "9999", userId: "id", password: "pw", confirmSettlement: false });
 ```
 
-> 手写等价流程：`await td.reqAuthenticate(...)` → `await td.reqUserLogin(...)` →
-> `await td.reqSettlementInfoConfirm(...)` → `await td.syncMultipliers()` → `await td.syncMarginRates([...])` →
-> `await td.syncOrders()` → `await td.syncPositions()`。
+> 每一步都包装了对应的请求/同步方法：`reqAuthenticate(...)` → `reqUserLogin(...)` →
+> `reqSettlementInfoConfirm(...)` → `syncMultipliers()` → `syncMarginRates([...])`。手写流程可以查询，
+> 但只有 `session()` 会向原生报单闸门确认交易账户：手写登录之后的普通报单会以 `-10001`
+> （`order account does not match confirmed session`）被拒。
 
 ### `td.reqOrderInsert(req?)` → `Promise<void>`
 
@@ -432,9 +420,8 @@ await td.session({ brokerId: "9999", userId: "id", password: "pw", confirmSettle
 `rtn-order` / `rtn-trade`（用 `orderRef` 关联）。只有发送本身被拒（风控网关、限频、或 CTP API
 错误码）才会 **reject**。`orderRef` 留空会自动分配一个唯一的数字 ref。
 
-普通报单要求已确认的登录身份，`brokerId` 和 `investorId` 会自动从当前会话补齐。
-显式传入不一致的值会在编码前被拒绝，避免把当前账户的持仓/工作单快照
-用到另一账户的报单上。
+普通报单要求已完成 `session()` 确认，`brokerId` 和 `investorId` 会自动从当前会话补齐。
+显式传入不一致的值会在编码前被拒绝，因此报单只能以原生闸门已确认的账户发出。
 
 `req` 是 `Partial<InputOrder>`；你几乎总会设置的字段：
 
@@ -448,7 +435,7 @@ await td.session({ brokerId: "9999", userId: "id", password: "pw", confirmSettle
 | `orderRef` | `string?` | 留空则自动分配；显式值必须是 1–12 位十进制数字。 |
 | `orderPriceType` | `OrderPriceType?` | 可选；若设置必须为 `"2"`（限价）。默认限价。 |
 
-> **只接受单合约的 GFD、FAK 和 FOK 限价单。** GFD 使用 `timeCondition: "3", volumeCondition: "1"`，FAK 使用 `"1", "1"`，FOK 使用 `"1", "3"`。`reqOrderInsert` 会主动拒绝（抛 `TypeError`）本地风控预留台账无法表示的其它时间/成交量条件组合、最小成交量、触发、止损、互换、强平等变体，以及多腿的 offset/hedge 标志。
+> **只接受单合约的 GFD、FAK 和 FOK 限价单。** GFD 使用 `timeCondition: "3", volumeCondition: "1"`，FAK 使用 `"1", "1"`，FOK 使用 `"1", "3"`。`reqOrderInsert` 会主动拒绝（抛 `TypeError`）原生闸门无法按“一个合约、一个限价”判断的其它时间/成交量条件组合、最小成交量、触发、止损、互换、强平等变体，以及多腿的 offset/hedge 标志。
 
 ```ts
 import { Direction, OffsetFlag } from "@hitrading/ctp-node";
@@ -533,13 +520,13 @@ const trades = await td.reqQryTrade({ brokerId: "9999", investorId: "id" });
 
 ### `td.syncMultipliers(instrumentIds?)` → `Promise<number>`
 
-触发合约查询，使 C++ 风控引擎取到合约乘数——它直接从 CTP 的 `OnRspQryInstrument` 响应里取，因此
-本方法不再调用 JS setter。按乘数精确计算名义价值和持仓保证金限制所必需。不传参则一次请求查询全部
+触发合约查询，使 C++ 风控引擎取到合约乘数与产品类别——它直接从 CTP 的 `OnRspQryInstrument` 响应里取，
+因此本方法不调用任何 JS setter。按乘数精确执行 `maxNotional` 校验所必需。不传参则一次请求查询全部
 合约；传符号列表可限定范围。显式空数组是返回 `0` 的 no-op，只有省略参数才表示“查询全部”。会穿越
 冷启动限频重试，返回最终回调行含可用乘数的合约数量。
 
-合约刷新会在请求发出前先使旧乘数失效，因此失败/空刷新不会继续使用陈旧元数据。若账户已有持仓，
-随后还应调用 `syncPositions()` 更新权威 `UseMargin`；在此之前金额型开仓闸门保持 fail-closed。
+合约刷新会在请求发出前先使旧乘数失效，因此失败/空刷新不会继续使用陈旧元数据；在刷新成功前，
+已启用的 `maxNotional` 校验对该合约 fail-closed。
 
 ```ts
 const n = await td.syncMultipliers();           // 全部合约
@@ -549,45 +536,26 @@ console.log(n, "个合约带有乘数");
 
 ### `td.syncMarginRates(instrumentIds, hedgeFlag?)` → `Promise<number>`
 
-投资者保证金按当次完整合约目录中的 ProductID 分组查询，柜台品种设置由具体合约设置覆盖。特殊合约即使返回非法值也不能继承品种设置。C++ 在完整成功回报后原子展开到合约风控；相对保证金仍逐合约查询交易所基础值。`readMarginRates(instrumentIds, hedgeFlag)` 只读取本会话完整同步成功的合约费率副本；失败、缺项、重连或同品种重查使旧结果失效，不回退旧费率。
+为有限交易合约集解析投资者多空按金额/按手保证金率（套保标志默认 `"1"`，投机），供**你自己**计算
+保证金——原生闸门不使用它们。投资者表按当次完整合约目录中的 ProductID 分组查询；合约级行优先于
+品种行，即使合约级行非法也不继承品种设置。仅当返回 `IsRelative` 时才追加交易所基础表查询，相对
+投资者表与该基础表逐字段相加。共享调度器会自动间隔发送每笔查询。返回得到可用费率的合约数量。
 
-为有限交易合约集查询投资者表（套保标志默认 `"1"`，投机）；仅当返回 `IsRelative` 时才追加
-交易所基础表查询，共享调度器会自动间隔发送。相对投资者表会与交易所基础表逐字段相加；任一缺失
-仍 fail-closed。
+刷新过程中会丢弃所请求合约（以及同品种其他合约）此前解析的结果；只有全部所请求合约都解析成功时
+才保留新结果，部分成功的刷新一个都不保留。
 
-刷新开始前会同时使旧投资者表和交易所基础表失效。已有持仓时，刷新费率后还应调用
-`syncPositions()`；引擎不会把按旧费率估算的持仓保证金继续当作权威值。
+### `td.readMarginRates(instrumentIds, hedgeFlag)` → `CtpResolvedMarginRate[]`
 
-### `td.syncPositions()` → `Promise<number>`
-
-从 CTP（`reqQryInvestorPosition`，取每行的 `UseMargin`）拉取持仓**保证金**并播种到风控引擎的持仓
-跟踪器。空快照必须连续确认两次；应用时用版本号原子替换并保留工作单预约，查询期间若有实时回报会
-重试。始终使用已确认的登录身份，传入账户覆盖参数会被拒绝。返回播种的持仓数。
-
-```ts
-const held = await td.syncPositions();
-console.log("已播种", held, "个持仓，保证金 =", td.accountMargin);
-```
-
-### `td.syncOrders()` → `Promise<number>`
-
-从 CTP 当前挂单（`reqQryOrder`）重建在途预约——一次权威重同步。登录后和任何重连后都应调用，
-使持仓上限把已在经纪商挂着的报单也算进去（重连前下的，或——因为 CTP 也会投递——同账户另一终端
-下的）。`a`/`b`/`c` 条件单状态同样保留预约；应用快照时校验实时账本版本。先查询乘数和相关绝对
-保证金表。返回重新预约的挂单开仓单数。
-
-如果账户中存在仍在工作的多腿/不支持订单（包括其他终端下的单），单腿账本无法表达其风险敞口。
-快照仍会原子提交并记录这类订单，然后本方法抛错；在后续一次成功的 `syncOrders()` 确认它已消失前，
-所有开仓请求都会 fail-closed。
-
-`syncOrders()` 还会主动把持仓侧重新标为不确定，因此必须在它**之后**运行 `syncPositions()`；即使调用者
-把顺序写反，也只会保持 fail-closed，不会在两个缺少事务共同切点的经纪商快照上恢复开仓。
+返回当前会话最近一次完整 `syncMarginRates()`（或 `session({ sync: { marginRates } })`）解析结果的副本：
+`{ instrumentId, hedgeFlag, longMarginRatioByMoney, longMarginRatioByVolume,
+shortMarginRatioByMoney, shortMarginRatioByVolume }`。所请求合约没有完整结果时抛错；重连或登录/登出
+之后在重新同步前也会抛错，绝不返回旧值。
 
 ```ts
-await td.syncMultipliers();
-const working = await td.syncOrders();
-await td.syncPositions();
-console.log("重新预约了", working, "笔挂单");
+await td.syncMarginRates(["rb2510"], "1");
+const [rb] = td.readMarginRates(["rb2510"], "1");
+// 按你自己的公式：x10 合约、3500 价位的一手多单
+const margin = 3500 * 10 * rb.longMarginRatioByMoney + rb.longMarginRatioByVolume;
 ```
 
 ### 风控配置
@@ -597,19 +565,26 @@ console.log("重新预约了", working, "笔挂单");
 把盘前风控限制发布给 C++ 执行器（立即生效）。非有限值（`NaN`/`Infinity`）会被**抛错拒绝**，而不
 是静默关闭该控制。`config` 是 [`RiskLimits`](#risklimits)，会整体替换上一份配置；控制字段省略或传
 仅 `0` 表示关闭；负数会被拒绝。`maxReferenceAgeMs` 例外：必须为正数，省略时恢复默认 3000 ms。
-未知字段（包括已删除的旧名称 `maxMargin`）会直接报错，不会被静默忽略。
+未知字段（包括已删除的名称 `maxMargin`、`maxAccountMargin`）会直接报错，不会被静默忽略。
+
+手数、偏离、名义价值限制和开仓限频只作用于**开仓**报单。平仓报单仍需已确认的会话和合法字段，
+但在风控规则中只会被 `HALT_ALL`（以及已配置的平仓限频器）拦截，因此缺少参考价或元数据时退出仍然可用。
+
+`maxNotional` 只对 CTP 期货/TAS 产品类启用：期权权利金或组合价格不会冒充期货名义价值，产品类别
+未知/不支持时，启用的名义价值闸会 fail-closed。名义价值按 `max(委托价, 新鲜参考价)` 估值，避免卖开
+低限价低估。必须通过 [`trackMarketData()`](#tdtrackmarketdatamd--this) 接入行情；参考价缺失或超过
+`maxReferenceAgeMs` 时，偏离与名义价值校验对开仓报单 fail-closed。
 
 ```ts
 // 全套
 td.setRiskLimits({
-  maxOrderVolume: 10,          // 单笔 ≤ 10 手
+  maxOrderVolume: 10,          // 单笔开仓 ≤ 10 手
   maxPriceDeviation: 0.02,     // 距参考价 ≤ 2%
   maxNotional: 5_000_000,      // Futures/TAS 单笔开仓名义价值 ≤ 5M
   maxOrdersPerSec: 20,         // 令牌桶限频
   orderBurst: 40,              // 桶容量（默认 = maxOrdersPerSec）
   maxCloseOrdersPerSec: 10,    // 可选：独立平仓限频
   closeOrderBurst: 20,
-  maxAccountMargin: 20_000_000, // 全账户已持仓 + 工作单预约保证金 ≤ 20M
 });
 
 // 只设几项（其余保持关闭）
@@ -622,23 +597,19 @@ td.setRiskLimits({ maxNotional: 0 });
 #### `td.reduceOnly()` / `td.haltAll()` / `td.resume()` → `this`
 
 原子模式为 `NORMAL`、`REDUCE_ONLY`、`HALT_ALL`。`reduceOnly()` 拦截普通开仓、全部高级变更请求和
-银期转账，但保留撤单与单腿普通平仓；`haltAll()` 还会拦截平仓报单、清空全部 arm，并在 `resume()`
-前拒绝新建 arm。
-模式切换与最终 CTP API 发送共用同一屏障，因此切换返回后不会再漏出被禁止的 armed 报单。
-`resume()` 恢复 `NORMAL`。复杂 insert、对冲设置、套利/套保确认无法进入普通预约账本，只要配置任一
-本地风控也会 fail-closed。生成器要求未来新增的每个非查询 SDK 请求先完成分类；未审核方法会让
-代码生成失败，而不是默认无守卫放行。
+银期转账，但保留撤单与单腿普通平仓；`haltAll()` 还会拦截平仓报单，直到 `resume()`。
+模式切换与每笔报单共用最终 CTP API 发送屏障，因此调用返回后不会再发出被禁止的报单。
+`resume()` 恢复 `NORMAL`。
 
-这种隔离在实例生命周期内是单向且粘滞的：一旦 CTP 在纯 binding 模式接受过任何无法建模的增险请求，
-之后再启用任一本地风控，普通开仓也会 fail-closed。`syncOrders()` 只覆盖普通单腿报单，不能证明
-quote/exec/comb/parked 风险已经消失。同账户其他终端的高级变更或银期转账实时回报一旦被本实例观察到，
-也会设置同一个粘滞的 fail-closed 标记；不能因为请求并非由本进程发起就把它误当成普通账本状态。
-一个 Trader 实例应在整个生命周期内固定使用一种 capability 模式，不要在放行高级请求后再切换到
-本地风控交易。
+复杂 insert、改单、对冲设置、套利/套保确认无法用逐笔规则判断，因此只在 `NORMAL`、会话已确认、且未配置
+任何本地风控（限制或限频器）时转发；否则以 `-10006` 拒绝。生成器要求未来新增的每个非查询 SDK 请求先
+完成分类；未审核方法会让代码生成失败，而不是默认无守卫放行。
 
-银期转账会改变可用担保资金，却不在本地仓位/保证金账本中建模。因此即使处于 `NORMAL`，只要启用了
-任一本地风控也会拒绝；仅在所有本地风控关闭的协议 binding 模式下放行。调用方仍须自行承担鉴权与
-转账授权。
+这类请求逐个判断，不留下任何状态。高级请求——以及其他终端的报单——带来的敞口，原生闸门不跟踪；
+核算这部分敞口是你交易层的事。
+
+银期转账同样适用此规则。它会改变可用担保资金，因此只在 `NORMAL`、会话已确认、且所有本地风控关闭时
+放行。调用方仍须自行承担鉴权与转账授权。
 
 ```ts
 // 停止增险，但保留平仓和撤单
@@ -654,174 +625,61 @@ td.resume();
 td.on("rtn-trade", () => { if (computePnl() < -100000) td.reduceOnly(); });
 ```
 
-#### `td.setInstrumentPositionLimit(instrumentId, limit)` / `td.setInstrumentPositionLimits(limits)` → `this`
-
-按合约限制开仓持仓（手数），在每笔开仓单上执行。`limit` 是 [`InstrumentPositionLimit`](#instrumentpositionlimit)：一个数字同时限制
-两边；`{ long, short }` 分别限制各边。在 `{ long, short }` 内，**省略某一边会让该边的当前上限保持
-不变**（传 `0` 清除；负数会被拒绝）。多空独立跟踪。校验按 committed = 已持仓 + 在途（挂单）量。
-
-```ts
-td.setInstrumentPositionLimit("rb2510", 100);                  // 多 ≤ 100 且空 ≤ 100
-td.setInstrumentPositionLimit("au2508", { long: 50, short: 10 }); // 不对称
-
-// 只抬高多头上限，空头保持原样
-td.setInstrumentPositionLimit("au2508", { long: 80 });
-// 清除空头上限
-td.setInstrumentPositionLimit("au2508", { short: 0 });
-
-// 批量
-td.setInstrumentPositionLimits({ rb2510: 100, ru2510: { long: 100, short: 20 }, au2508: 10 });
-```
-
-#### `td.setInstrumentMarginLimit(instrumentId, limit)` / `td.setInstrumentMarginLimits(limits)` → `this`
-
-限制单个合约的开仓持仓**保证金**（价 × 量 × 乘数 × 按金额 + 量 × 按手，多空相加）。按合约计，
-与账户级 `setRiskLimits({ maxAccountMargin })` 相互独立；两者同时生效。传
-`limit = 0` 移除，负数会被拒绝。启用金额上限前必须查询到有效乘数和绝对保证金表；缺失元数据会拒绝开仓。
-计算同时包含按金额与按手两部分；`IsRelative` 表与 `syncMarginRates()` 获取的交易所基础表相加，
-任一侧缺失则 fail-closed。
-
-该公式只对 CTP 期货/TAS 产品类启用。期权、组合与现货需要产品专用保证金模型，在金额上限开启时
-会 fail-closed。
-
-`maxNotional` 使用同一 Futures/TAS allowlist。期权权利金或组合价格不会冒充期货名义价值；
-产品类别未知/不支持时，启用的名义价值闸会 fail-closed。
-
-名义价值与工作单保证金统一按 `max(委托价, 新鲜参考价)` 估值，避免卖开低限价低估敞口。必须通过
-`trackMarketData()` 接入行情；参考价缺失或超过 `maxReferenceAgeMs` 时，所有已启用的金额闸都会
-fail-closed。每次金额准入前还会按当前新鲜参考价重估既有工作单。
-
-```ts
-td.setInstrumentMarginLimit("au2508", 5_000_000); // 黄金保证金 ≤ 5M
-td.setInstrumentMarginLimits({ ag2508: 2_000_000, au2508: 5_000_000 });
-td.setInstrumentMarginLimit("au2508", 0);         // 移除上限
-```
-
 #### `td.trackMarketData(md)` → `this`
 
-提供价格偏离、名义价值与工作单保证金校验所使用的实时参考价。把这路 `MarketData` 的 C++ 快照缓存直接接入本
-Trader 的风控引擎，使偏离参考价**在 C++、于报单发送路径上**读取——无 JS 往返，且覆盖在 C++ 里
-触发、JS 不在回路中的预埋单。未接入参考价或行情超过 `maxReferenceAgeMs`（默认 3000 ms）时，
-已启用的偏离或金额校验都会 fail-closed。
+提供价格偏离与名义价值校验所使用的实时参考价。把这路 `MarketData` 的 C++ 快照缓存直接接入本
+Trader 的风控引擎，使参考价**在 C++、于报单发送路径上**读取——无 JS 往返。未接入参考价或行情超过
+`maxReferenceAgeMs`（默认 3000 ms）时，已启用的偏离或名义价值校验对开仓报单 fail-closed。
 
 ```ts
 td.setRiskLimits({ maxPriceDeviation: 0.02 });
 
-// 从行情实时取参考价（每笔报单都在 C++ 读取，含预埋单）
+// 从行情实时取参考价（每笔报单都在 C++ 读取）
 td.trackMarketData(md);
 ```
 
-> 合约乘数（用于名义价值 / 保证金计算）和按合约的保证金率（用于 `maxAccountMargin` 上限）**不**从 JS
-> 喂入：C++ 风控引擎直接从 CTP 的 `OnRspQryInstrument` / `OnRspQryInstrumentMarginRate` 回调里
-> 取。所以任何 `reqQryInstrument` 都会保持乘数最新（见
-> [`syncMultipliers`](#tdsyncmultipliersinstrumentids--promisenumber)），而对你交易的合约查询
-> 应优先用 `syncMarginRates()` 覆盖实际交易的合约和套保标志：它同时查询投资者/交易所表，使用
-> 按金额和按手字段，并正确合并 `IsRelative`。缺失元数据不会被猜测。
+> 合约乘数与产品类别（用于 `maxNotional`）**不**从 JS 喂入：C++ 风控引擎直接从 CTP 的
+> `OnRspQryInstrument` 回调里取，所以任何 `reqQryInstrument` 都会保持它们最新（见
+> [`syncMultipliers`](#tdsyncmultipliersinstrumentids--promisenumber)）。原生闸门完全不使用保证金率；
+> [`syncMarginRates()`](#tdsyncmarginratesinstrumentids-hedgeflag--promisenumber) 与 `readMarginRates()`
+> 只为你自己的计算解析它们。缺失元数据不会被猜测。
 
-### 持仓保证金跟踪
+#### 账户事实与账户级上限
 
-#### `td.seedPositions(positions)` → `this`
+原生闸门不维护持仓、挂单或资金账本，也没有账户级上限。CTP 的持仓快照与实时报单/成交流之间没有共同
+序号，绑定内部的账本只能重复你自己的账本——还可能与之不一致。请把账户事实放在你的交易层，并在调用
+`reqOrderInsert()` 之前于该层判断账户级限制（账户保证金、单合约保证金、持仓手数）：
 
-用一份**完整**的手工对账快照原子替换已持仓。每行是
-`{ instrumentId, side, hedgeFlag, volume, margin }`，其中 `margin` 是实际占用资金
-（`InvestorPosition.UseMargin`）。空数组代表权威空仓。已删除的单项 `seedPosition()` 不保留：
-多次增量 JS 调用之间会把半成品账本暴露给原生 arm 线程。
-
-```ts
-td.seedPositions([
-  { instrumentId: "rb2510", side: "long", hedgeFlag: "1", volume: 3, margin: 30_000 },
-  { instrumentId: "au2508", side: "short", hedgeFlag: "1", volume: 2, margin: 112_000 },
-]);
-```
-
-#### `td.seedFromPositions(positions)` → `this`
-
-从完整的 `reqQryInvestorPosition` 行集合原子替换真实开仓**保证金**（取每行的 `UseMargin`），并按
-每行受支持的 `HedgeFlag` 保留独立成本桶，适用于**净持仓为分边模式（gross）**的账户
-（`posiDirection` `"2"` = 多，`"3"` = 空）。净持仓、未知方向或未知投保标志会被拒绝，因为猜测会
-破坏按边手数或保证金账本；请显式转换这类行，再一次提交完整的 `seedPositions()` 快照。
+- **快照**：每次 `session()` 之后（首次连接和每次重连）查询 `reqQryInvestorPosition`、`reqQryOrder`
+  和 `reqQryTradingAccount`。
+- **保持最新**：用 `rtn-order` / `rtn-trade`。CTP 也会投递该投资者其他会话的回报，所以同账户另一终端
+  下的单也会出现在这里。快照与实时流之间的对账由你的账本负责。
+- **保证金估算**：对即将发出的报单，乘数来自 `reqQryInstrument`，费率来自
+  `syncMarginRates()` / `readMarginRates()`。
 
 ```ts
-const rows = await td.reqQryInvestorPosition({ brokerId: "9999", investorId: "id" });
-td.seedFromPositions(rows); // 完整已持仓快照；工作单预约保持不变
-```
-
-#### `td.accountMargin` → `number`（只读）
-
-风控引擎当前跟踪的已持仓保证金；它有意不包含工作单预约，而 `maxAccountMargin` 的准入判断使用
-**已持仓 + 已预约**。该属性仅用于 best-effort 可观测：元数据缺失或刷新期间它未必等于精确准入值；
-金额闸启用时仍会 fail-closed，直到权威持仓同步完成。
-
-```ts
-console.log("账户保证金", td.accountMargin);
-td.on("rtn-trade", () => console.log("当前保证金", td.accountMargin));
-```
-
-#### `td.resetPositions()` → `this`
-
-只清空已持仓保证金，工作单预约会保留。reset 不能证明账户确实为空，因此所有开仓会继续 fail-closed，
-直到 `seedFromPositions()` 或 `syncPositions()` 完成一次权威、带版本校验的原子替换。
-
-```ts
-td.resetPositions();              // 清空已持仓、保留预约；阻止开仓
-td.seedFromPositions(freshRows);  // 原子提交完整快照；恢复账本
-```
-
-### 延迟敏感的预埋触发器
-
-#### `td.arm(md, spec)` → `ArmHandle`
-
-预埋一个完全在 C++、于行情回调线程上判定并触发的触发器——当 `md` 看到条件时，报单通过本 Trader
-的风控网关发出，**无 JS 往返**。成功提交后立即从逐 tick 扫描中删除；reduce-only、限频、元数据
-或同步发送拒绝会让它保留，并按 100ms 起步、5 秒封顶的指数退避重试。`haltAll()` 是硬停机例外：
-它会关闭最终发送屏障并清空
-全部已有 arm，之后 `resume()` 不会触发历史委托。回执通过普通事件到达。
-每次 front 连接/断开事件以及 Trader 登录/注销请求也会清空所有 arm：
-授权不会跨越认证会话边界。只有在 `session()` 完成新会话对账后才应重新预埋。
-
-传入的 `md` 还会自动成为本 Trader 的新鲜参考价来源，供偏离、名义价值与工作单保证金校验使用。
-
-`spec` 是 [`ArmSpec`](#armspec)：`{ instrumentId, side, triggerPrice, order }`。**buy** 在
-`ask ≤ triggerPrice` 时触发；**sell** 在 `bid ≥ triggerPrice` 时触发。`order` 是完整的
-`Partial<InputOrder>`，会被预先校验（必须有 `instrumentId`、`direction`、`combOffsetFlag` 和
-`volumeTotalOriginal > 0`）。
-
-返回一个 [`ArmHandle`](#armhandle)——调用 `handle.disarm()` 移除。
-
-```ts
-import { Direction, OffsetFlag } from "@hitrading/ctp-node";
-
-// 止损：bid 一触及 3450 就卖出 rb2510
-const stop = td.arm(md, {
-  instrumentId: "rb2510",
-  side: "sell",
-  triggerPrice: 3450,
-  order: {
-    instrumentId: "rb2510", direction: Direction.Sell,
-    combOffsetFlag: OffsetFlag.CloseToday, limitPrice: 3445, volumeTotalOriginal: 1,
-  },
+const acct = { brokerId: "9999", investorId: "id" };
+td.on("front-connected", async () => {
+  await td.session({ brokerId: acct.brokerId, userId: acct.investorId, password: "pw",
+    sync: { marginRates: { instrumentIds: ["rb2510"], hedgeFlag: "1" } } });
+  book.reset(
+    await td.reqQryInvestorPosition(acct),
+    await td.reqQryOrder(acct),
+    (await td.reqQryTradingAccount(acct))[0],
+  );
 });
+td.on("rtn-order", (o) => book.onOrder(o));
+td.on("rtn-trade", (t) => book.onTrade(t));
 
-// 突破入场：ask 触及 3600 时买入
-const entry = td.arm(md, {
-  instrumentId: "rb2510", side: "buy", triggerPrice: 3600,
-  order: { instrumentId: "rb2510", direction: "0", combOffsetFlag: "0", limitPrice: 3605, volumeTotalOriginal: 2 },
-});
-
-// 撤掉一个尚未触发的触发器
-stop.disarm();
+// 先做你自己的账户级检查，再交给原生逐笔闸门
+const [rb] = td.readMarginRates(["rb2510"], "1");
+const add = 3500 * 1 * 10 * rb.longMarginRatioByMoney + 1 * rb.longMarginRatioByVolume;
+if (book.marginInUse() + add <= MY_ACCOUNT_MARGIN_CAP && book.longLots("rb2510") + 1 <= MY_LOT_CAP) {
+  await td.reqOrderInsert({ instrumentId: "rb2510", direction: "0", combOffsetFlag: "0", limitPrice: 3500, volumeTotalOriginal: 1 });
+}
 ```
 
-#### `td.armStats` → `{ fired: number; blocked: number }`（只读）
-
-预埋触发器的可观测性（它们在 C++ 里触发，JS 不在回路中）：有多少触发并发出了（`fired`）vs 被
-风控网关/发送拒绝了（`blocked`）。在你预期会触发的触发之后轮询它——被拦截的预埋单否则不可见。
-
-```ts
-const { fired, blocked } = td.armStats;
-console.log(`预埋：${fired} 已发，${blocked} 被拒`);
-if (blocked > 0) console.warn("有一笔预埋单被风控拒绝");
-```
+`book` 代表你自己的账本；本绑定不提供它。
 
 ### `td.apiVersion` / `td.tradingDay` → `string`（只读）
 
@@ -963,82 +821,36 @@ const [info] = await td.reqQrySettlementInfo({ brokerId: "9999", investorId: "id
 ### `RiskLimits`
 
 [`setRiskLimits`](#tdsetrisklimitsconfig--this) 的盘前风控限制。所有字段可选；控制字段**省略或 `0` =
-关闭**。`maxReferenceAgeMs` 必须为正数，省略时为 3000 ms；`NaN`/`Infinity` 抛错。
+关闭**。`maxReferenceAgeMs` 必须为正数，省略时为 3000 ms；`NaN`/`Infinity` 抛错。每条规则只判断一笔
+报单，没有账户级字段。
 
 | 字段 | 类型 | 含义 |
 |---|---|---|
-| `maxOrderVolume` | `number` | 单笔最大手数。 |
-| `maxPriceDeviation` | `number` | 最大 `\|价 − 参考价\| / 参考价` 比例；参考价缺失或过期时 fail-closed。 |
-| `maxReferenceAgeMs` | `number` | 偏离与金额估值允许的最大行情年龄；默认 3000 ms。 |
-| `maxNotional` | `number` | 单笔最大名义价值（`max(委托价, 新鲜参考价) × 量 × 乘数`）；参考价缺失/过期时 fail-closed。 |
+| `maxOrderVolume` | `number` | 单笔开仓最大手数。 |
+| `maxPriceDeviation` | `number` | 开仓报单的最大 `\|价 − 参考价\| / 参考价` 比例；参考价缺失或过期时 fail-closed。 |
+| `maxReferenceAgeMs` | `number` | 偏离与名义价值校验允许的最大行情年龄；默认 3000 ms。 |
+| `maxNotional` | `number` | 期货/TAS 单笔开仓最大名义价值（`max(委托价, 新鲜参考价) × 量 × 乘数`）；参考价缺失/过期、乘数缺失或其他产品类别时 fail-closed。 |
 | `maxOrdersPerSec` | `number` | 每秒最大开仓报单发送数（令牌桶）。 |
 | `orderBurst` | `number` | 令牌桶容量。默认：`maxOrdersPerSec`。 |
 | `maxCloseOrdersPerSec` | `number` | 独立平仓发送速率；默认关闭。 |
 | `closeOrderBurst` | `number` | 平仓令牌桶容量；默认 `maxCloseOrdersPerSec`。 |
-| `maxAccountMargin` | `number` | 账户已持仓 + 工作单预约保证金上限。计算按金额和按手；相对投资者表与交易所基础表相加。新鲜参考价、乘数或任一所需表缺失时 fail-closed。 |
 
 ```ts
 const conservative: RiskLimits = { maxOrderVolume: 5, maxOrdersPerSec: 10, maxNotional: 2_000_000 };
 td.setRiskLimits(conservative);
 ```
 
-### `InstrumentPositionLimit`
-
-`number | { long?: number; short?: number }` ——
-[`setInstrumentPositionLimit`](#tdsetinstrumentpositionlimitinstrumentid-limit--tdsetinstrumentpositionlimitslimits--this) 的上限参数。
-一个数字同时限制两边；`{ long, short }` 分别限制（省略某边 = 不变，`0` = 清除，负数拒绝）。
-
-```ts
-const a: InstrumentPositionLimit = 100;                    // 两边都 ≤ 100
-const b: InstrumentPositionLimit = { long: 50, short: 5 }; // 多 ≤ 50，空 ≤ 5
-```
-
 ### `SessionOptions`
 
-[`session`](#tdsessionopts--promise-identity-multipliers-marginrates-positions-orders-) 的选项。字段见那里的表格。
+[`session`](#tdsessionopts--promise-identity-multipliers-marginrates-) 的选项。字段见那里的表格。
 
 ```ts
 const opts: SessionOptions = {
   brokerId: "9999", userId: "id", password: "pw",
   appId: "simnow_client_test", authCode: "0000000000000000",
   confirmSettlement: true,
-  sync: { multipliers: ["rb2510"], positions: true, orders: true },
+  sync: { multipliers: ["rb2510"], marginRates: { instrumentIds: ["rb2510"], hedgeFlag: "1" } },
 };
-```
-
-### `ArmSpec`
-
-```ts
-interface ArmSpec {
-  instrumentId: string;          // 触发器监视的合约
-  side: "buy" | "sell";          // buy: ask ≤ trigger 时触发；sell: bid ≥ trigger 时触发
-  triggerPrice: number;          // 必须 > 0
-  order: Partial<InputOrder>;    // 触发时发出的报单（需 instrumentId、direction、
-                                 // combOffsetFlag、volumeTotalOriginal > 0）
-}
-```
-
-```ts
-const spec: ArmSpec = {
-  instrumentId: "rb2510", side: "sell", triggerPrice: 3450,
-  order: { instrumentId: "rb2510", direction: "1", combOffsetFlag: "3", limitPrice: 3445, volumeTotalOriginal: 1 },
-};
-const handle = td.arm(md, spec);
-```
-
-### `ArmHandle`
-
-```ts
-interface ArmHandle {
-  readonly id: number;
-  disarm(): boolean; // 移除触发器；若已消失/已触发则返回 false
-}
-```
-
-```ts
-const handle = td.arm(md, spec);
-console.log("预埋 id", handle.id);
-if (!handle.disarm()) console.log("它已经触发过了");
 ```
 
 ### `CallbackOptions`
@@ -1139,21 +951,18 @@ function buildOrder(): Partial<InputOrder> {
 
 | 控制 | 设置方式 | 范围 | 关闭条件 |
 |---|---|---|---|
-| 风控模式 | `reduceOnly()` / `haltAll()` / `resume()` | 开仓或全部报单；`haltAll()` 同时清空 arm | `resume()` |
-| 单笔最大手数 | `setRiskLimits({ maxOrderVolume })` | 每笔 | `0` / 省略 |
-| 最大价格偏离 | `setRiskLimits({ maxPriceDeviation })` + 参考价 | 每笔 | `0` / 省略（无参考价会拦截） |
-| 最大名义价值 | `setRiskLimits({ maxNotional })` | 每笔 | `0` / 省略 |
+| 风控模式 | `reduceOnly()` / `haltAll()` / `resume()` | 开仓或全部报单（撤单始终放行） | `resume()` |
+| 单笔最大手数 | `setRiskLimits({ maxOrderVolume })` | 每笔开仓 | `0` / 省略 |
+| 最大价格偏离 | `setRiskLimits({ maxPriceDeviation })` + 参考价 | 每笔开仓 | `0` / 省略（无参考价会拦截） |
+| 最大名义价值 | `setRiskLimits({ maxNotional })` + 参考价 + 乘数 | 每笔开仓 | `0` / 省略 |
 | 开仓限频 | `setRiskLimits({ maxOrdersPerSec, orderBurst })` | 每秒 | `0` / 省略 |
 | 平仓限频 | `setRiskLimits({ maxCloseOrdersPerSec, closeOrderBurst })` | 每秒 | `0` / 省略 |
-| 最大持仓手数 | `setInstrumentPositionLimit(id, …)` | 每合约、每边 | `0` |
-| 最大持仓保证金（按合约） | `setInstrumentMarginLimit(id, …)` | 每合约 | `0` |
-| 最大持仓保证金（全账户） | `setRiskLimits({ maxAccountMargin })` | 全账户 | `0` / 省略 |
+| 账户保证金、单合约保证金、持仓手数 | 你自己的交易层 | 账户 / 合约 | — |
 
-持仓手数和持仓保证金上限都按 **committed = 已持仓（已成）+ 在途（挂单）量** 计算，因此一连串
-开仓不会在成交回报到达前溜过上限。用 `syncPositions()` / `seedPositions()` 喂入已持仓，用
-`syncOrders()` 喂入挂单（尤其是重连后）。启用金额上限前先查询乘数及投资者/交易所保证金表；
-缺失元数据会拦截受限开仓。所有上限都
-在 C++ 发送路径上执行；突破会让 `reqOrderInsert()` reject，原因在消息里。
+原生控制都是无状态的：每条只依据当前这笔报单本身、最新参考价（`trackMarketData`）和静态合约元数据
+（`reqQryInstrument`）判断，因此都不需要持仓或挂单快照，重连后也不会改变。它们全部在 C++ 发送路径上
+执行；突破会让 `reqOrderInsert()` reject，原因在消息里。依赖账户持仓或挂单的限制在你自己的交易层判断——
+见[账户事实与账户级上限](#账户事实与账户级上限)。
 
 ---
 
@@ -1180,10 +989,10 @@ const SYMBOL = "rb2510";
 const md = new MarketData("./flow/md/", "tcp://182.254.243.31:30012");
 const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
-// 1) 在任何报单能发出之前先配置风控（在 C++ 中执行）。
-td.setRiskLimits({ maxOrderVolume: 5, maxNotional: 2_000_000, maxOrdersPerSec: 10, maxPriceDeviation: 0.02, maxAccountMargin: 5_000_000 });
-td.setInstrumentPositionLimit(SYMBOL, { long: 10, short: 10 });
-td.trackMarketData(md);              // 偏离与金额闸共用的新鲜参考价
+// 1) 在任何报单能发出之前先配置风控（逐笔闸门，在 C++ 中执行）。
+td.setRiskLimits({ maxOrderVolume: 5, maxNotional: 2_000_000, maxOrdersPerSec: 10, maxPriceDeviation: 0.02 });
+td.trackMarketData(md);              // 偏离与名义价值闸共用的新鲜参考价
+const MAX_NET_LOTS = 10;             // 账户级上限：在这里、在你自己的交易层判断
 
 // 2) 绝不让一个有 bug 的处理函数拖垮数据面——记录处理函数抛出的异常。
 md.on("error", (e) => console.error("[md handler]", e));
@@ -1199,7 +1008,8 @@ md.on("front-connected", async () => {
   md.subscribe([SYMBOL]);
 });
 
-// 4) 持仓由「成交」推导，绝不凭发送臆测。
+// 4) 持仓由「成交」推导，绝不凭发送臆测。（真实账本还应在每次 session() 之后
+//    从 reqQryInvestorPosition 起步；见重连示例。）
 let position = 0; // 净手数（+多 / -空）
 td.on("rtn-trade", (t: Trade) => {
   position += t.direction === Direction.Buy ? t.volume : -t.volume;
@@ -1209,7 +1019,8 @@ td.on("rtn-trade", (t: Trade) => {
 // 5) 策略：把每个 tick 转成目标，并交易差额。
 md.on("rtn-depth-market-data", async (tick: DepthMarketData) => {
   if (tick.instrumentId !== SYMBOL) return;
-  const want = signal(tick);         // 你的逻辑：目标净手数，如 -1 / 0 / +1
+  // 你的逻辑：目标净手数，并夹在你自己的持仓上限内
+  const want = Math.max(-MAX_NET_LOTS, Math.min(MAX_NET_LOTS, signal(tick)));
   const delta = want - position;
   if (delta === 0) return;
   const buy = delta > 0;
@@ -1237,11 +1048,13 @@ CTP 会自行重连；你在每次 `front-connected` **原地**重新跑握手�
 （厂商 DLL 会死锁；见 [native-hooks.zh-CN.md](native-hooks.zh-CN.md#进程生命周期-一次创建并复用)）。
 
 ```ts
+const acct = { brokerId: CREDS.brokerId, investorId: CREDS.userId };
 td.on("front-connected", async () => {
-  // session() 会重新认证、重新登录、重新确认，并且关键地重新同步乘数/持仓/报单——使风控引擎的
-  // 持仓上限重建到包含断线前就在挂着的报单（以及同账户另一终端下的）。然后重新预埋你需要的触发器。
+  // session() 会重新认证、重新登录、重新确认结算单、重新同步乘数，并向原生报单闸门重新确认账户
+  // （确认前报单会被拒）。闸门本身没有要重建的东西。
   await td.session({ ...CREDS });
-  rearmTriggers();
+  // 但断线期间你的账本可能漏掉了报单/成交回报：用新快照重建，此后继续应用 rtn-order / rtn-trade。
+  book.reset(await td.reqQryInvestorPosition(acct), await td.reqQryOrder(acct));
 });
 
 td.on("front-disconnected", (reason) => {
@@ -1249,20 +1062,10 @@ td.on("front-disconnected", (reason) => {
   // 在途请求 Promise 已经 reject；若你的策略需要已确认的会话，
   // 就暂停发新信号，直到下一次 front-connected。
 });
-
-function rearmTriggers() { /* 在这里重新创建任何 td.arm(...) 触发器 */ }
 ```
 
-如果你倾向于手写而非用 `session()`，关键是**重连后重新同步报单**，以便重建在途预约：
-
-```ts
-td.on("front-connected", async () => {
-  await td.reqUserLogin({ ...CREDS });
-  await td.syncMultipliers();   // 在 syncOrders 之前，使预约成本用对乘数
-  await td.syncOrders();        // 重建预约，同时把持仓侧标为不确定
-  await td.syncPositions();     // 最后提交已持仓快照并保留预约
-});
-```
+CTP 的持仓/委托快照与实时回报流之间没有共同序号，二者的对账属于你的账本（本绑定有意不保留自己的
+副本）。这里不要用裸 `reqUserLogin()` 代替 `session()`：只有 `session()` 会为报单确认账户。
 
 ### 组合与多腿下单
 
@@ -1276,12 +1079,9 @@ await td.reqOrderInsert({ instrumentId: "rb2510", direction: Direction.Sell, com
 await td.reqOrderInsert({ instrumentId: "rb2510", direction: Direction.Sell, combOffsetFlag: OffsetFlag.CloseYesterday, limitPrice: px, volumeTotalOriginal: 3 });
 ```
 
-**多腿开平标志明确不支持。** 本地账本是单合约、单方向模型，无法证明 `"00"`、`"30"`、`"03"`
-等值的逐腿持仓与保证金正确性。因此 `reqOrderInsert()` 和 `arm()` 都要求恰好一个开平字符，多腿模板会
-在到达 CTP 前被拒绝。需要组合合约时，应在具备逐腿账本的更高层网关中实现。
-
-实时回报与 `syncOrders()` 也会识别由其他终端提交的不支持工作单；只要仍有此类订单，所有开仓
-请求就会 fail-closed，而不会猜测逐腿风险。
+**多腿开平标志明确不支持。** 原生闸门按“一个合约、一个限价”判断，无法判断 `"00"`、`"30"`、`"03"`
+等值的逐腿价格与数量。因此 `reqOrderInsert()` 要求恰好一个开平字符，多腿模板会在到达 CTP 前被拒绝。
+需要组合合约时，应在具备逐腿核算的更高层网关中实现。
 
 **建立/拆解组合持仓**（在交易所支持时）走 `reqCombActionInsert`，用 `InputCombAction`：
 

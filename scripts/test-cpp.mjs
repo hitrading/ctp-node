@@ -1,6 +1,6 @@
 /*
  * test-cpp.mjs - build + run the standalone C++ unit tests for the pure-logic
- * native classes (RiskEngine, ArmRegistry). Links the .cc sources DIRECTLY: no
+ * native classes (RiskEngine). Links the .cc sources DIRECTLY: no
  * N-API, no addon, no test-only hooks in the shipped library.
  *
  *   npm run test:cpp              # build + run (correctness gate)
@@ -20,10 +20,7 @@ const exe = process.platform === "win32" ? ".exe" : "";
 mkdirSync("build/cpptest", { recursive: true });
 
 const suites = [
-  { name: "test_report_identity", src: "src/native/risk.cc", test: "test/cpp/test_report_identity.cpp" },
   { name: "test_risk", src: "src/native/risk.cc", test: "test/cpp/test_risk.cpp" },
-  { name: "test_product_margins", src: "src/native/risk.cc", test: "test/cpp/test_product_margins.cpp" },
-  { name: "test_arm", src: "src/native/arm.cc", test: "test/cpp/test_arm.cpp" },
   { name: "test_order_capability", src: null, test: "test/cpp/test_order_capability.cpp" },
 ];
 

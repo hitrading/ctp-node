@@ -7,7 +7,6 @@
 
 import { native } from "./native-binding.js";
 import { CtpClient, type CallbackOptions } from "./client.js";
-import { Trader } from "./trader.js";
 import type {
   DepthMarketData,
   ForQuoteRsp,
@@ -244,22 +243,9 @@ export class MarketData extends CtpClient {
     );
   }
 
-  /** Route this market data's ticks to a Trader's armed triggers (see Trader.arm).
-   *  A MarketData feeds exactly one live Trader's registry. Native ownership
-   *  rejects replacement while that Trader is live, but permits replacing a
-   *  registry whose Trader has already closed. */
-  attachArm(trader: Trader): void {
-    if (!(trader instanceof Trader))
-      throw new TypeError("attachArm requires a Trader from this package instance");
-    // Resolve and attach first. Native shared ownership is authoritative and
-    // avoids retaining a closed Trader JS object for the MarketData lifetime.
-    const registry = trader._armRegistry();
-    this.native._attachArm(registry);
-  }
-
   /** @internal test-only: inject a synthetic depth tick into the ring. Optional
    *  bid/ask override the defaults (3499/3501) so tests can drive edge prices
-   *  (e.g. a DBL_MAX no-bid sentinel) through the real arm/onTick path. */
+   *  (e.g. a DBL_MAX no-bid sentinel) through the real SPI path. */
   _injectTestTick(bid?: number, ask?: number): void {
     (this.native as { _injectTestTick(b?: number, a?: number): void })._injectTestTick(bid, ask);
   }
