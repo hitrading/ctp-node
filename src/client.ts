@@ -534,20 +534,19 @@ export abstract class CtpClient extends EventEmitter {
   }
 
   /** Message for a non-zero send code. Risk sentinels get a specific message;
-   *  the generic pre-trade-risk block also appends the C++ reason (e.g. which
-   *  limit) so logs say *why*. Returns undefined for non-risk codes. */
+   *  the pre-trade-risk block and the unsupported-request gate also append the
+   *  C++ reason (which limit, mode or session state) so logs say *why*. Returns
+   *  undefined for non-risk codes. */
   private riskRejectMessage(rc: number): string | undefined {
     switch (rc) {
-      case -10001: {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        const reason =
-          typeof this.native.lastRiskReason === "function" ? this.native.lastRiskReason() : "";
-        return reason ? `blocked by pre-trade risk: ${reason}` : "blocked by pre-trade risk";
-      }
+      case -10001:
+        return this.withRiskReason("blocked by pre-trade risk");
       case -10002:
         return "rate limited (order rate exceeded)";
       case -10006:
-        return "request is unavailable in the current risk mode or cannot be fully covered by configured local risk controls";
+        return this.withRiskReason(
+          "request is unavailable in the current risk mode or cannot be fully covered by configured local risk controls"
+        );
       case -10008:
         return "invalid order direction/hedge flag or unsupported combOffsetFlag (single-leg only)";
       case -10009:
@@ -555,6 +554,15 @@ export abstract class CtpClient extends EventEmitter {
       default:
         return undefined;
     }
+  }
+
+  /** Append the native reason of the rejection just returned, when the native
+   *  client records one (only the Trader does). */
+  private withRiskReason(message: string): string {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const reason =
+      typeof this.native.lastRiskReason === "function" ? this.native.lastRiskReason() : "";
+    return reason ? `${message}: ${reason}` : message;
   }
 
   /**

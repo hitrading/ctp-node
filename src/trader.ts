@@ -716,8 +716,9 @@ export class Trader extends TraderBase {
     }
     for (const id of instrumentIds) this.resolvedMarginRates.delete(`${id}|${hedgeFlag}`);
     const completed: CtpResolvedMarginRate[] = [];
-    // A fresh catalog supplies authoritative ProductID membership to JS and C++.
-    // It is one request, independent of the number of traded months.
+    // A fresh catalog supplies the authoritative ProductID membership used to
+    // group the rate queries below (the same reply also refreshes the native
+    // multipliers). It is one request, independent of the number of traded months.
     const catalog = await this.queryWithRetry(() => this.reqQryInstrument({}), contextToken) as Instrument[];
     const productByInstrument = new Map(catalog.map(row => [row.instrumentId, row.productId]));
     const groups = groupCtpInstrumentsByProduct(instrumentIds, catalog);
@@ -744,8 +745,8 @@ export class Trader extends TraderBase {
           (row) => row.hedgeFlag === hedgeFlag && (row.instrumentId === productId ||
             productByInstrument.get(row.instrumentId) === productId)
         ), contextToken);
-      // The native map is keyed by instrument+hedge and processes callbacks in
-      // order, so its final state is the final row, not "any usable row".
+      // Keyed by instrument: when CTP returns several rows for one instrument,
+      // the last row decides its schedule, not "any usable row".
       const rates = new Map(investorRows.map(row => [row.instrumentId, row]));
       for (const instrumentId of members) {
       const investor = selectCtpProductRate(rates, instrumentId, productId);

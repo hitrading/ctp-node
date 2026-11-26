@@ -20,7 +20,9 @@ Complete usage documentation for every public TypeScript/JavaScript interface in
 - [Recipes](#recipes) — strategy skeleton · reconnect handling · combination orders
 
 Upgrading from 4.x? See [MIGRATION.md](MIGRATION.md) for the removed ledger,
-caps and armed orders.
+caps and armed orders (`arm()`, local market-data-triggered orders). CTP's own
+parked-order requests (`reqParkedOrderInsert` etc.) remain and are handled as
+unsupported requests (see [Risk configuration](#risk-configuration)).
 
 ```ts
 import {

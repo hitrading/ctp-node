@@ -343,14 +343,25 @@ bool RiskEngine::localControlsEnabled() const {
 }
 
 bool RiskEngine::allowUnsupportedRiskRequest() const {
-  if (mode_.load(std::memory_order_acquire) != RiskMode::Normal)
+  // Each refusal records its cause (lastBlockReason) so the -10006 rejection
+  // can say which condition closed the path.
+  if (mode_.load(std::memory_order_acquire) != RiskMode::Normal) {
+    block("unsupported requests blocked outside NORMAL mode");
     return false;
+  }
   {
     std::lock_guard<std::mutex> lk(stateMutex_);
-    if (sessionIdentityRequired_ && !sessionIdentityKnown_)
+    if (sessionIdentityRequired_ && !sessionIdentityKnown_) {
+      block("session account not confirmed");
       return false;
+    }
   }
-  return !localControlsEnabled();
+  if (localControlsEnabled()) {
+    block("unsupported requests blocked while local risk controls are configured");
+    return false;
+  }
+  lastReason_ = nullptr;
+  return true;
 }
 
 RiskVerdict RiskEngine::block(const char *reason) const {

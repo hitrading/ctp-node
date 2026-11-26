@@ -16,6 +16,11 @@ let pass = 0, fail = 0;
 const ok = (c, m) => { c ? (pass++, console.log("  PASS:", m)) : (fail++, console.log("  FAIL:", m)); };
 const throws = (fn, m) => { try { fn(); ok(false, m + " (did not throw)"); } catch { ok(true, m); } };
 const rejects = async (p, m) => { try { await p; ok(false, m + " (did not reject)"); } catch { ok(true, m); } };
+// With no front connected the vendor API refuses every send with -1, so exactly
+// this rejection proves the request passed every native gate. Fire-and-forget
+// inserts/actions report "order", response-bearing requests "request".
+const refusedByOfflineVendor = (e, kind) =>
+  e?.ctpReturnCode === -1 && e.message === `${kind} rejected by CTP API (code -1)`;
 
 const td = new Trader("./flow-tu/", "tcp://127.0.0.1:1");
 ok(td.queryRetryDelayMs === 1100, "sync helpers pause a full second between attempts by default");
@@ -389,8 +394,8 @@ td.trackMarketData(md);
     !("marginRejection" in missing),
     "maxNotional without a synchronized multiplier fails closed, naming the missing multiplier");
   const closing = await submit("1", "1");
-  ok(!(closing?.ctpReturnCode <= -10001 && closing?.ctpReturnCode >= -10009),
-    "a risk-reducing close still reaches the vendor API while the multiplier is missing");
+  ok(refusedByOfflineVendor(closing, "order"),
+    `a risk-reducing close passes every native gate while the multiplier is missing (${closing?.message ?? "sent"})`);
   tdTrack.close(); mdTrack.close();
 }
 
@@ -649,7 +654,7 @@ td.investor = "u";
     { instrumentId: 'hc2610', productId: 'hc', volumeMultiple: 10 }, { instrumentId: 'rb2510', productId: 'rb', volumeMultiple: 10 }];
   await td.syncMarginRates(['rb2510']);
   ok(td.readMarginRates(['hc2610'], '1')[0].longMarginRatioByMoney === .1,
-    'final catalog membership matches native metadata and preserves unrelated product snapshots');
+    'the last catalog row decides product membership and unrelated product snapshots are preserved');
   td.reqQryInstrument = oldCatalog; td.reqQryInstrumentMarginRate = oldMargins;
 }
 ok((await td.syncMarginRates(["rb2510"])) === 1,
@@ -679,7 +684,7 @@ td.reqQryInstrumentMarginRate = async () => [{
   shortMarginRatioByMoney: 0.1, shortMarginRatioByVolume: 0,
 }];
 ok((await td.syncMarginRates(["rb2510"])) === 0,
-  "syncMarginRates reports the final native schedule state, not an earlier usable row");
+  "syncMarginRates judges the last row of a duplicated instrument, not an earlier usable row");
 td.reqQryInstrumentMarginRate = async () => [{
   instrumentId: "rb2510", hedgeFlag: "1", isRelative: 0,
   longMarginRatioByMoney: 0, longMarginRatioByVolume: 0,
@@ -748,40 +753,36 @@ const confirmedBroker = td.broker, confirmedInvestor = td.investor;
 td.broker = undefined; td.investor = undefined;
 await rejects(td.syncMarginRates(["rb2510"]), "syncMarginRates fails closed without a confirmed login");
 td.broker = confirmedBroker; td.investor = confirmedInvestor;
+// Unsupported-request gate. The handshake tests above revoked the native
+// session; confirm it again so the configured rule or the risk mode is the only
+// reason a request can be refused, and assert that exact reason.
+td.native._injectTestLogin(1, 7, "9999", "u");
 td.setRiskLimits({ maxOrderVolume: 1 });
-let modifyBlocked = false;
-await td.reqOrderAction({ actionFlag: "3" }).catch((e) => {
-  modifyBlocked = e?.ctpReturnCode === -10006 ||
-    /cannot be fully covered|unavailable in the current risk mode/i.test(String(e));
-});
-ok(modifyBlocked, "order modification (ActionFlag 3) is routed through the fail-closed unsupported-risk gate (-10006)");
-let deleteBlockedByRisk = false;
-await td.reqOrderAction({ actionFlag: "0" }).catch((e) => {
-  // The real unsupported-risk rejection is CTP code -10006 (client.ts
-  // riskRejectMessage). Match its actual message / code so a regression that
-  // wrongly routed a Delete (ActionFlag "0") through the risk gate is caught —
-  // the old /unsupported risk path/ text exists nowhere and never matched.
-  deleteBlockedByRisk =
-    e?.ctpReturnCode === -10006 ||
-    /cannot be fully covered|unavailable in the current risk mode/i.test(String(e));
-});
-ok(!deleteBlockedByRisk, "order deletion (ActionFlag \"0\") is not gated by the unsupported-risk path");
+const outcomeOf = (promise) => promise.then(() => null, (e) => e);
+const refusedAsUnsupported = (e, reason) => e?.ctpReturnCode === -10006 && e.message ===
+  `request is unavailable in the current risk mode or cannot be fully covered by configured local risk controls: ${reason}`;
+const localRulesConfigured = "unsupported requests blocked while local risk controls are configured";
+const modification = await outcomeOf(td.reqOrderAction({ actionFlag: "3" }));
+ok(refusedAsUnsupported(modification, localRulesConfigured),
+  `order modification (ActionFlag 3) is refused by the unsupported-request gate while a local rule is configured (${modification?.message})`);
+const deletion = await outcomeOf(td.reqOrderAction({ actionFlag: "0" }));
+ok(refusedByOfflineVendor(deletion, "order"),
+  `order deletion (ActionFlag "0") bypasses the unsupported-request gate and reaches the vendor API (${deletion?.message})`);
 await rejects(td.reqOrderAction({ actionFlag: "0", actionFlg: "0" }),
   "generated Trader requests reject unknown fields");
 await rejects(td.reqOrderAction({ actionFlag: null }),
   "generated Trader requests reject null fields instead of silently omitting them");
-let normalTransferBlocked = false;
-await td.reqFromBankToFutureByFuture({}).catch((e) => {
-  normalTransferBlocked = e?.ctpReturnCode === -10006 ||
-    /cannot be fully covered|unavailable in the current risk mode/i.test(String(e));
-});
-ok(normalTransferBlocked, "a bank-to-futures transfer is routed through the fail-closed unsupported-risk gate (-10006)");
+const normalTransfer = await outcomeOf(td.reqFromBankToFutureByFuture({}));
+ok(refusedAsUnsupported(normalTransfer, localRulesConfigured),
+  `a bank-to-futures transfer is refused by the unsupported-request gate while a local rule is configured (${normalTransfer?.message})`);
+td.setRiskLimits({});
+const unrestrictedTransfer = await outcomeOf(td.reqFromBankToFutureByFuture({}));
+ok(refusedByOfflineVendor(unrestrictedTransfer, "request"),
+  `with no local rule a confirmed session forwards the transfer to the vendor API (${unrestrictedTransfer?.message})`);
 td.reduceOnly();
-let transferBlocked = false;
-await td.reqFromBankToFutureByFuture({}).catch((e) => {
-  transferBlocked = /unsupported|risk/i.test(String(e));
-});
-ok(transferBlocked, "bank-to-futures transfer is explicitly blocked outside NORMAL mode");
+const reducedTransfer = await outcomeOf(td.reqFromBankToFutureByFuture({}));
+ok(refusedAsUnsupported(reducedTransfer, "opening orders blocked in reduce-only mode"),
+  `REDUCE_ONLY refuses a bank-to-futures transfer as a risk-increasing request (${reducedTransfer?.message})`);
 td.resume();
 
 // A counter that is not ready is asked again after a pause that faster query
@@ -832,7 +833,7 @@ td.reqQryInstrument = async () => [
   { instrumentId: "rb2510", productId: "rb", volumeMultiple: Number.MAX_VALUE },
 ];
 ok((await td.syncMultipliers(["rb2510"])) === 0,
-  "syncMultipliers reports the final native multiplier state for duplicate rows");
+  "syncMultipliers judges only the last row of a duplicated instrument");
 td.reqQryInstrument = async () => [];
 await rejects(td.syncMultipliers(["rb2510"]), "syncMultipliers rejects when required instrument data stays empty");
 td.reqQryInstrument = async () => { throw new Error("flow control"); };

@@ -246,7 +246,7 @@ methods like `reqOrderInsert` a non-zero one rejects the Promise):
 | `-3` | per-second send rate exceeded (CTP flow control) |
 | `-10001` | blocked by this binding's stateless pre-trade risk gate (the rejection message carries the specific cause, e.g. a limit, a missing/stale reference or multiplier, the risk mode, or an unconfirmed session account) |
 | `-10002` | blocked by the configured open or close rate limiter |
-| `-10006` | request the per-order rules cannot judge (advanced insert, order modify, bank/futures transfer): refused outside `NORMAL`, without a confirmed session, or while any local risk control is configured |
+| `-10006` | request the per-order rules cannot judge (advanced insert, order modify, bank/futures transfer): refused outside `NORMAL`, without a confirmed session, or while any local risk control is configured (the rejection message names which) |
 | `-10008` | invalid order fields: direction/hedge flag, or an unsupported (multi-leg) `combOffsetFlag` |
 | `-10009` | market-data login/logout refused: a session transition is already in flight or ambiguous (await it, or reconnect after a timeout) |
 

@@ -17,7 +17,8 @@
 - [风控一览](#风控一览)
 - [实战示例](#实战示例) — 策略骨架 · 重连处理 · 组合下单
 
-从 4.x 升级？已删除的账本、上限与预埋单见 [MIGRATION.md](MIGRATION.md)。
+从 4.x 升级？已删除的账本、上限与预授权单（arm，本地行情触发单）见 [MIGRATION.md](MIGRATION.md)。
+CTP 自身的预埋单接口（`reqParkedOrderInsert` 等）仍保留，按不支持的请求处理（见[风控配置](#风控配置)）。
 
 ```ts
 import {

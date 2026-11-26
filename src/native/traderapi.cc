@@ -252,6 +252,11 @@ Trader::Trader(const Napi::CallbackInfo &info)
   spi_ = new TraderSpi(ch_);
   // Session transitions and instrument metadata feed the order-path checks.
   spi_->setRisk(&risk_);
+  // A real Trader is bound to a front from birth: until a login and session()
+  // confirm an account, it is in the same state as after a front disconnect.
+  // Without this, requests the stateless rules cannot judge would pass before
+  // the first connection whenever no local rule is configured.
+  risk_.invalidateSession();
 }
 
 Trader::~Trader() { doClose(); }

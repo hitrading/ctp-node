@@ -20,7 +20,7 @@ const native = require(found);
 console.log("loaded:", found);
 console.log("MarketData API version:", native.mdApiVersion());
 console.log("Trader API version:    ", native.traderApiVersion());
-console.log("\nnative hook self-test (risk / rate-limit / arm):");
+console.log("\nnative hook self-test (risk / rate-limit):");
 console.log(JSON.stringify(native.__riskSelfTest(), null, 2));
 console.log("\nring self-test (SPSC claim/release/drop):");
 console.log(JSON.stringify(native.__ringSelfTest(), null, 2));

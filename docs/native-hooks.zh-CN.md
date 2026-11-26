@@ -84,7 +84,7 @@
   溢出）以及流式事件（`front-connected`、带原因的 `front-disconnected`、带 `errorId`/`errorMsg` 的
   `rsp-*`）都暴露给 JS。
 - **原因被上抛而非吞掉。** 盘前风控拒单会把具体原因带回 JS（如 `blocked by pre-trade risk:
-  order volume exceeds maxOrderVolume`；限频与不受支持请求闸门有各自的消息），使日志能说清*为什么*。
+  order volume exceeds maxOrderVolume`；不受支持请求闸门同样会指明是风控模式、会话未确认还是配置了本地风控，限频有自己的消息），使日志能说清*为什么*。
   在热路径上零成本——它只在（罕见的）拒单时设置。
 - **真正的日志在 JS 里做**，离开回调线程，从那些事件出发——任何异步日志库（pino/winston）都行。
   若将来确需 C++ 端审计日志，加一个可选的异步/延迟日志器（无锁队列 + 后台线程，类似

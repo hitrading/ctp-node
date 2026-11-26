@@ -157,6 +157,7 @@ public:
   // Requests outside the ordinary InputOrder path (complex inserts,
   // hedge/offset confirmations, etc.) cannot be judged by these rules. They
   // pass only in Normal mode, for a known session, with no local rule enabled.
+  // A refusal records its cause in lastBlockReason(); a pass clears it.
   bool allowUnsupportedRiskRequest() const;
 
 private:
@@ -196,6 +197,8 @@ private:
   std::string myBrokerId_, myInvestorId_;
   // Standalone RiskEngine unit users can seed a session directly. Once a real
   // front lifecycle is observed, however, a fresh login identity is mandatory.
+  // The N-API Trader requires it from construction (invalidateSession() in its
+  // constructor), so nothing passes before the first confirmed session.
   bool sessionIdentityRequired_ = false;
   bool sessionIdentityKnown_ = false;
   int pendingSessionRequestId_ = 0;

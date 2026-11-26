@@ -129,8 +129,9 @@ way low-latency systems do it:
   with `errorId`/`errorMsg`) are surfaced to JS.
 - **Reasons surfaced, not swallowed.** A pre-trade-risk rejection carries the
   specific cause back to JS (e.g. `blocked by pre-trade risk: order volume
-  exceeds maxOrderVolume`; the rate limiter and unsupported-request gate have
-  their own messages), so logs say *why*. Costs nothing on the hot path — it's
+  exceeds maxOrderVolume`; the unsupported-request gate likewise names the mode,
+  the unconfirmed session or the configured local controls, and the rate limiter
+  has its own message), so logs say *why*. Costs nothing on the hot path — it's
   set only on the (rare) reject.
 - **Do the actual logging in JS**, off the callback thread, from those events —
   any async logger (pino/winston) is fine there. If C++-side audit logging is

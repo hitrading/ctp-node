@@ -103,6 +103,22 @@ static const char *const kAccountMismatch =
 static const char *const kHalted = "all order inserts halted";
 static const char *const kReduceOnly =
     "opening orders blocked in reduce-only mode";
+static const char *const kUnsupportedMode =
+    "unsupported requests blocked outside NORMAL mode";
+static const char *const kSessionUnconfirmed = "session account not confirmed";
+static const char *const kUnsupportedControls =
+    "unsupported requests blocked while local risk controls are configured";
+
+// An unsupported request refused for exactly this reason.
+static bool unsupportedRefused(const RiskEngine &r, const char *reason) {
+  return !r.allowUnsupportedRiskRequest() &&
+         sameReason(r.lastBlockReason(), reason);
+}
+
+// An admitted unsupported request clears the diagnostic slot.
+static bool unsupportedAdmitted(const RiskEngine &r) {
+  return r.allowUnsupportedRiskRequest() && r.lastBlockReason() == nullptr;
+}
 
 static void testRateLimiter() {
   {
@@ -858,24 +874,24 @@ static void testAccountScope() {
 
 static void testUnsupportedRequests() {
   RiskEngine r;
-  CHECK(r.allowUnsupportedRiskRequest(),
+  CHECK(unsupportedAdmitted(r),
         "a standalone engine with no front lifecycle and no rule admits unsupported requests");
   r.reduceOnly();
-  const bool reduced = !r.allowUnsupportedRiskRequest();
+  const bool reduced = unsupportedRefused(r, kUnsupportedMode);
   r.haltAll();
-  const bool halted = !r.allowUnsupportedRiskRequest();
+  const bool halted = unsupportedRefused(r, kUnsupportedMode);
   r.resume();
-  CHECK(reduced && halted && r.allowUnsupportedRiskRequest(),
-        "unsupported requests pass only in NORMAL mode");
+  CHECK(reduced && halted && unsupportedAdmitted(r),
+        "unsupported requests pass only in NORMAL mode, naming the mode otherwise");
   r.invalidateSession();
-  CHECK(!r.allowUnsupportedRiskRequest(),
-        "an unknown session identity refuses unsupported requests");
+  CHECK(unsupportedRefused(r, kSessionUnconfirmed),
+        "an unknown session identity refuses unsupported requests, naming the session");
   r.beginSessionTransition(120, true, "9999", "op");
   r.acceptLoginSession(120, 1, 7, "9999", "op");
-  CHECK(!r.allowUnsupportedRiskRequest(),
+  CHECK(unsupportedRefused(r, kSessionUnconfirmed),
         "a login without account confirmation still refuses unsupported requests");
   r.confirmSessionAccount(1, 7, "9999", "inv");
-  CHECK(r.allowUnsupportedRiskRequest(),
+  CHECK(unsupportedAdmitted(r),
         "a confirmed session with no local rule admits unsupported requests");
   struct Rule {
     void (*apply)(RiskLimits &);
@@ -899,7 +915,7 @@ static void testUnsupportedRequests() {
     RiskLimits c;
     rule.apply(c);
     r.configure(c);
-    CHECK(!r.allowUnsupportedRiskRequest(), rule.label);
+    CHECK(unsupportedRefused(r, kUnsupportedControls), rule.label);
     r.configure(RiskLimits{});
   }
   RiskLimits inert;
@@ -907,7 +923,7 @@ static void testUnsupportedRequests() {
   inert.closeOrderBurst = 5;
   inert.maxReferenceAgeMs = 500;
   r.configure(inert);
-  CHECK(r.allowUnsupportedRiskRequest(),
+  CHECK(unsupportedAdmitted(r),
         "bursts without rates and a reference window alone enable no local rule");
 }
 
