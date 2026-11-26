@@ -9,7 +9,6 @@
 #define CTP_NATIVE_MDSPI_H
 
 #include "ThostFtdcMdApi.h"
-#include "arm.h"
 #include "channel.h"
 #include "snapshot.h"
 #include <atomic>
@@ -44,11 +43,6 @@ public:
   explicit MdSpi(EventChannel *channel) : ch_(channel) {}
   ~MdSpi() {}
 
-  // Feed depth ticks to a Trader's arm registry (or nullptr to detach).
-  void setArmRegistry(std::shared_ptr<ArmRegistry> r) {
-    std::lock_guard<std::mutex> lk(armRegistryMutex_);
-    armReg_ = std::move(r);
-  }
   // Latest-tick cache (LVC) updated on every depth tick (or nullptr to detach).
   void setSnapshotCache(SnapshotCache *c) { snap_.store(c, std::memory_order_release); }
   // Session-transition state is native because SimNow may echo requestId=0.
@@ -104,13 +98,8 @@ private:
   void invalidateSessionLocked(); // sessionMutex_ held
   bool responseMatchesLocked(SessionState pendingState, int requestId) const;
   EventChannel *ch_;
-  // Copy shared ownership before evaluating a tick. This makes replacing or
-  // detaching a registry safe even when a callback already started.
-  std::mutex armRegistryMutex_;
-  std::shared_ptr<ArmRegistry> armReg_;
   std::atomic<SnapshotCache *> snap_{nullptr};
-  // Linearizes login/disconnect/logout against tick-to-arm evaluation. Once an
-  // invalidation callback returns, no earlier accepted tick can still fire.
+  // Linearizes login/disconnect/logout against the reference-cache update.
   std::mutex sessionMutex_;
   // Protected by sessionMutex_.
   SessionState sessionState_ = SessionState::Inactive;

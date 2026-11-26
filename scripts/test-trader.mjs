@@ -12,8 +12,8 @@ const td = new Trader("./flow-td/", "tcp://127.0.0.1:1");
 // same post-correlation hook CtpClient uses, then establish the confirmed NATIVE
 // session with the gated test hook, which drives the same beginSessionTransition
 // -> acceptLoginSession -> confirmSessionAccount handshake the live SPI login +
-// session() would. Position/order LEDGERS deliberately stay unsynchronized, so
-// the opening fail-closed case below is still real.
+// session() would. The native gate keeps no position/order ledger, so nothing
+// else has to be synchronized before an order reaches the vendor API.
 td.onRequestResolved("rsp-user-login", {
   brokerId: "9999", userId: "test", frontId: 1, sessionId: 1, maxOrderRef: "0",
 }, {});
@@ -61,7 +61,7 @@ try {
 }
 td.resume();
 
-// Complex/parked inserts cannot use the normal order reservation ledger. With
+// Complex/parked inserts cannot be judged by the ordinary per-order rules. With
 // any local risk configured they must fail closed rather than bypass it.
 try {
   await td.reqParkedOrderInsert({});
@@ -87,14 +87,18 @@ for (const [name, send] of [
   }
 }
 
-// 3) A newly created Trader has no authoritative position/order snapshots yet.
-//    Even with scalar checks satisfied, opening must remain fail-closed.
+// 3) The gate is stateless: an opening order inside every configured rule passes
+//    the native checks with no position/order snapshot and reaches the vendor
+//    API. Offline that call fails with the vendor's own send code, never with a
+//    native risk sentinel (-10001..-10009).
 const r = td
   .reqOrderInsert({ instrumentId: "rb2510", direction: "0", combOffsetFlag: "0", limitPrice: 3500, volumeTotalOriginal: 1 })
-    .then(() => "resolved")
-  .catch((e) => `rejected: ${e.message}`);
-const outcome = await Promise.race([r, new Promise((res) => setTimeout(() => res("pending"), 250))]);
-check(/metadata unavailable/i.test(String(outcome)), `unsynchronized opening stayed fail-closed (outcome: ${outcome})`);
+  .then(() => ({ outcome: "resolved" }))
+  .catch((e) => ({ outcome: `rejected: ${e.message}`, code: e.ctpReturnCode }));
+const sent = await Promise.race([r, new Promise((res) => setTimeout(() => res({ outcome: "pending" }), 250))]);
+check(sent.outcome !== "pending" && !(sent.code <= -10001 && sent.code >= -10009) &&
+  !/pre-trade risk|metadata unavailable/i.test(sent.outcome),
+  `in-limit opening passed the native gate without any ledger sync (outcome: ${sent.outcome})`);
 
 console.log(`TRADER TEST: ${pass} pass, ${fail} fail`);
 td.close();

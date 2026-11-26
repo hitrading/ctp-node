@@ -256,8 +256,7 @@ void MdSpi::OnRspUnSubForQuoteRsp(CThostFtdcSpecificInstrumentField *p,
 }
 
 void MdSpi::OnRtnDepthMarketData(CThostFtdcDepthMarketDataField *p) {
-  // Update the latest-tick cache, evaluate armed triggers (lowest tick-to-order
-  // latency), then publish to the ring.
+  // Update the latest-tick cache, then publish to the ring.
   if (p) {
     // The callback buffer belongs to the vendor API. Fill missing TradingDay on
     // our own copy rather than mutating memory the provider may reuse.
@@ -268,9 +267,9 @@ void MdSpi::OnRtnDepthMarketData(CThostFtdcDepthMarketDataField *p) {
                              !instrumentId.empty() &&
                              boundedCtpField(tick.TradingDay, tickTradingDay);
     {
-      // Linearize the complete cache-update -> arm-evaluation operation against
-      // lifecycle invalidation. SnapshotCache's own mutex is released before
-      // onTick because armed risk checks may read the same snapshot source.
+      // Linearize the cache update against lifecycle invalidation: a callback
+      // racing after disconnect/logout (or arriving before login) remains
+      // visible as a protocol event but never refreshes the reference cache.
       std::lock_guard<std::mutex> sessionLock(sessionMutex_);
       if (fieldsValid && tickTradingDay.empty()) {
         if (!tradingDay_.empty())
@@ -278,21 +277,8 @@ void MdSpi::OnRtnDepthMarketData(CThostFtdcDepthMarketDataField *p) {
                         tradingDay_.c_str());
       }
       SnapshotCache *sc = snap_.load(std::memory_order_acquire);
-      const bool accepted = fieldsValid &&
-                            subscriptionAllowsLocked(instrumentId) && sc &&
-                            sc->update(instrumentId, tick);
-      // The cache's authenticated epoch is also the mandate clock. A callback
-      // racing after disconnect/logout (or arriving before login) remains
-      // visible as a protocol event, but must never fire an armed order.
-      if (accepted) {
-        std::shared_ptr<ArmRegistry> ar;
-        {
-          std::lock_guard<std::mutex> lk(armRegistryMutex_);
-          ar = armReg_;
-        }
-        if (ar)
-          ar->onTick(instrumentId.c_str(), tick.BidPrice1, tick.AskPrice1);
-      }
+      if (fieldsValid && subscriptionAllowsLocked(instrumentId) && sc)
+        sc->update(instrumentId, tick);
     }
     ch_->push(MD_RTN_DEPTH_MARKET_DATA, 0, -1, 0, "", SID_DepthMarketData,
               &tick, (int)sizeof(tick), true);

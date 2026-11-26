@@ -1,6 +1,6 @@
 /*
- * Verifies the exact ordinary-order policies admitted by both the native
- * pre-trade gate and the reservation ledger contract.
+ * Verifies the exact ordinary-order policies admitted by the native pre-trade
+ * gate: single-instrument GFD, FAK and FOK limit orders only.
  */
 #include "order_capability.h"
 

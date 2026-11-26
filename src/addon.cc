@@ -16,7 +16,6 @@
 #include "ThostFtdcMdApi.h"
 #include "ThostFtdcTraderApi.h"
 #include "generated/layout.gen.h"
-#include "native/arm.h"
 #include "native/channel.h"
 #include "native/gbk.h"
 #include "native/mdapi.h"
@@ -94,18 +93,6 @@ Napi::Value RiskSelfTest(const Napi::CallbackInfo &info) {
   rlo.Set("second", rl.tryAcquire());
   rlo.Set("thirdBlocked", !rl.tryAcquire());
   out.Set("rateLimiter", rlo);
-
-  ctp::ArmRegistry reg;
-  ctp::ArmSpec spec;
-  spec.instrumentId = "rb2510";
-  spec.side = '0';
-  spec.triggerPrice = 3500.0;
-  uint64_t id = reg.arm(spec);
-  reg.onTick("rb2510", 3499.0, 3500.0); // no sink -> no fire, just registry
-  Napi::Object armo = Napi::Object::New(env);
-  armo.Set("armedCount", static_cast<double>(reg.size()));
-  armo.Set("disarmed", reg.disarm(id));
-  out.Set("arm", armo);
 
   return out;
 }

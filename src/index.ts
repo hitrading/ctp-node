@@ -7,14 +7,10 @@ export type { MdLoginReq } from "./market-data.js";
 export { Trader, TraderEvent } from "./trader.js";
 export type {
   RiskLimits,
-  InstrumentPositionLimit,
-  PositionSeed,
   MarginRateSyncOptions,
   TraderSessionIdentity,
   TraderSessionResult,
   SessionOptions,
-  ArmSpec,
-  ArmHandle,
 } from "./trader.js";
 export { CtpClient } from "./client.js";
 export { groupCtpInstrumentsByProduct, selectCtpProductRate } from "./product-rates.js";

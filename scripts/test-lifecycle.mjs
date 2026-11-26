@@ -104,8 +104,10 @@ for (const [label, Ctor, flow] of [
   td.close();
   let crashed = false;
   try {
-    void td.accountMargin;
-    td.resetPositions();
+    td.setRiskLimits({ maxOrderVolume: 1 });
+    td.haltAll();
+    td.resume();
+    void td.frontInfo;
     void td.tradingDay;
     let rejected = false;
     try {

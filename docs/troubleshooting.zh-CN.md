@@ -46,7 +46,8 @@
 | `reqAuthenticate` 失败 | appId / authCode 错误（终端认证） | SimNow：`appId: "simnow_client_test"`、`authCode: "0000000000000000"`。实盘用券商下发的值。 |
 | "CTP:还没有初始化" | 在 `front-connected` 之前就发了请求 | 在 `front-connected` 处理函数里做登录/查询。 |
 | 实盘登录后报单立刻被拒 | 未确认结算单 | 调 `reqSettlementInfoConfirm(...)`（或直接用 `session()`，它会做）。 |
-| 登录后第一笔查询为空/被拒 | 柜台尚未就绪 | 用 `sync*` 辅助方法（按柜台应答重试，空快照以资金核对）。 |
+| 所有报单都以 `blocked by pre-trade risk: order account does not match confirmed session` 被拒 | 还没有 `session()` 确认交易账户（手写 `reqUserLogin`，或重连尚未完成） | 每次 `front-connected` 都用 `session()` 登录；只有它会向原生报单闸门确认账户。 |
+| 登录后第一笔查询为空/被拒 | 柜台尚未就绪 | 用 `sync*` 辅助方法（按柜台应答重试瞬时错误和必须存在却暂为空的数据）；原始查询会限频但不自动重试。 |
 
 `session()` 会按正确顺序、带正确重试地完成 认证 → 登录 → 确认 → 同步——除非你要精细控制，否则优先
 用它而非手写。
@@ -65,9 +66,11 @@ td.on("front-connected", () => td.session({
 CTP 按前置下发的速率对**每个会话的查询**限频，且没有“账户数据已就绪”的通知：柜台未就绪时要么明说
 （错误 90“查询未就绪”、154“查询核心忙”），要么返回成功但为空的应答。
 
-- 使用 `syncMultipliers()` / `syncOrders()` / `syncPositions()`——遇到 `-2`/`-3`、90、154，以及必须存在但
-  冷启动时暂为空的数据会再问一次。空的持仓或委托快照只有在资金账户也显示没有占用、没有冻结时才采信，
-  不会把尚未载入账户的柜台当成空仓。原始查询可用 `isTransientQueryFailure(error)` 作同样判断。
+- 使用 `syncMultipliers()` / `syncMarginRates()`——遇到 `-2`/`-3`、90、154，以及必须存在但冷启动时暂为空的
+  数据会再问一次。你自己的原始快照可用 `isTransientQueryFailure(error)` 判断哪些错误值得再问。
+- `reqQryInvestorPosition` / `reqQryOrder` 成功但返回**空**，可能是空仓，也可能是柜台尚未载入账户；CTP
+  不会说明是哪种。若这对你的账本很重要，先核对资金（`reqQryTradingAccount` 的 `currMargin`、
+  `frozenMargin`），再把账户当成空仓。
 - 原始 `reqQry*` / `reqQuery*` **不需要**调用方再写 `setTimeout(1000)`。同一个客户端内的所有查询
   在调用时即快照参数，并进入一个 FIFO 调度器：最多一个查询在途，间隔按登录后前置下发的流控（`td.frontInfo`）计算，尚未取得时至少间隔 1100 ms；
   断线、登录或登出会拒绝旧会话中尚未发送的查询。
@@ -97,8 +100,9 @@ CTP 按前置下发的速率对**每个会话的查询**限频，且没有“账
 | `CTP:撤单找不到对应报单` | 撤一笔已经没了的单 | 该单已成交/已撤；忽略即可。 |
 
 如果是你自己的盘前风控拦的，**被 reject 的 Promise** 消息会说明
-（`blocked by pre-trade risk: ...`、`rate limited`、`position ... limit`）——那是你的
-`setRiskLimits`/`setInstrumentPositionLimit`/风控模式，不是交易所。
+（`blocked by pre-trade risk: ...`、`rate limited ...`、`request is unavailable in the current risk mode ...`），
+`err.ctpReturnCode` 带返回码——那是你的 `setRiskLimits` / 风控模式 / 会话状态，不是交易所。账户级限制
+（保证金、持仓手数）本绑定不检查；需要的话放在你自己的交易层。
 
 ---
 
@@ -107,10 +111,9 @@ CTP 按前置下发的速率对**每个会话的查询**限频，且没有“账
 **跌停**时没有买盘，**涨停**时没有卖盘。CTP 用哨兵值 `DBL_MAX`（`Number.MAX_VALUE`，约 1.8e308）
 填充空的那一边，**而非** 0。
 
-- **预埋触发器**已对此防护：卖单在 `bid ≥ trigger` 时触发，绑定会忽略 `DBL_MAX` 的 bid，因此不会
-  在跌停时触发恐慌性卖出（买单对 `DBL_MAX` 的 ask 同理）。
-- **你自己的逻辑也必须防护**——使用 `tick.bidPrice1` / `lastPrice` 前，检查
-  `px > 0 && px < 1e300`。风控引擎的参考价、成本、名义价值路径已经拒绝该哨兵值。
+- **你自己的逻辑必须防护**——使用 `tick.bidPrice1` / `lastPrice` 前（例如在价格触发判断里），检查
+  `px > 0 && px < 1e300`，否则跌停时 `DBL_MAX` 的 bid 可能被当成触发。风控引擎的参考价与名义价值路径
+  已经拒绝该哨兵值。
 - **跌停时撤单可用**——`reqOrderAction` 不受价格限制，`reduceOnly()` 与 `haltAll()` 都故意保持撤单
   开放，因此限制新报单时你仍能撤回挂单。
 
@@ -202,15 +205,14 @@ Promise reject）：
 | `-1` | 网络发送失败（未连接，或 CTP 拒绝发送） |
 | `-2` | 在途未处理请求过多 |
 | `-3` | 每秒发送速率超限（CTP 限流） |
-| `-10001` | 被本绑定的盘前风控拦截（拒单消息含具体原因） |
+| `-10001` | 被本绑定的无状态盘前风控闸门拦截（拒单消息含具体原因，如某项限制、参考价或乘数缺失/过期、风控模式、会话账户未确认） |
 | `-10002` | 被已配置的开仓或平仓限频器拦截 |
-| `-10003` | 被持仓**保证金**上限拦截（账户级 `maxAccountMargin`，或按合约的 `setInstrumentMarginLimit`；公式含按金额与按手部分） |
-| `-10004` | 被持仓**手数**上限拦截（`setInstrumentPositionLimit`） |
-| `-10005` | 同一 front/session 内的重复 `OrderRef` |
-| `-10006` | 复杂报单无法穿过已配置的本地风控，已 fail-closed |
-| `-10007` | 缺少必要的价格/乘数/保证金元数据，或为相对值 |
-| `-10008` | 无效的报单方向或开平标志 |
+| `-10006` | 逐笔规则无法判断的请求（高级报单、改单、银期转账）：不在 `NORMAL`、会话未确认或配置了任一本地风控时拒绝 |
+| `-10008` | 报单字段无效：方向/投保标志，或不支持的（多腿）`combOffsetFlag` |
 | `-10009` | 行情登录/登出被拒：会话切换正在进行或状态不明（请等待其完成，或超时后重连） |
+
+`-10003`、`-10004`、`-10005`、`-10007` 已在 5.0 随原生账本及其上限一起退役；见
+[MIGRATION.md](MIGRATION.md#retired-return-codes)。
 
 **交易所/券商错误**以 `rspInfo`（`{ errorId, errorMsg }`）出现在相应事件上，被 reject 的请求
 Promise 上则是 `err.errorId` / `err.errorMsg`。`errorId 0` = 成功；非零带一个中文 `errorMsg`

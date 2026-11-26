@@ -1,9 +1,13 @@
-// Comprehensive LIVE validation of every pre-trade risk control, on au2608 &
-// ag2608 (SHFE metals, night session to 02:30) with real fills. Gate-rejection
+// Comprehensive LIVE validation of every native pre-trade risk control, on au2608
+// & ag2608 (SHFE metals, night session to 02:30) with real fills. Gate-rejection
 // cases use non-marketable prices so that even a (hypothetical) gate miss would
 // only rest an order, never fill. Fill-based cases open real 1-lot positions and
 // are closed immediately. A finally{} flatten guarantees the account ends flat
 // with no working orders, whatever happens.
+//
+// The native gate is stateless (each rule judges one order against the latest
+// quote and static contract metadata), so positions are read back from CTP with
+// reqQryInvestorPosition rather than from a binding-side ledger.
 import { MarketData, Trader } from "../dist/index.js";
 import { mkdirSync } from "node:fs";
 import process from "node:process";
@@ -52,12 +56,15 @@ const send = (id, dir, off, price, vol, ref) =>
   td.reqOrderInsert({ ...orderBase, instrumentId: id, direction: dir, combOffsetFlag: off, limitPrice: price, volumeTotalOriginal: vol, ...(ref ? { orderRef: ref } : {}) })
     .then(() => "SENT").catch((e) => e.message);
 const openMkt = (id, vol) => send(id, "0", "0", mkBuy(id), vol);
-const margin = () => td.accountMargin;
+// Open positions straight from CTP (the account's own facts).
+const openPositions = async () =>
+  (await td.reqQryInvestorPosition({ brokerId: cfg.brokerId, investorId: cfg.userId })).filter((p) => p.position > 0);
+const heldLots = async (id) =>
+  (await openPositions()).filter((p) => p.instrumentId === id).reduce((sum, p) => sum + p.position, 0);
 
 function clearAll() {
-  td.setRiskLimits({}); // clears scalar caps including maxAccountMargin
+  td.setRiskLimits({}); // replaces the whole config: every limit disabled
   td.resume();
-  for (const id of [A, G]) { td.setInstrumentPositionLimit(id, 0); td.setInstrumentMarginLimit(id, 0); }
 }
 
 async function flatten(tag) {
@@ -73,7 +80,7 @@ async function flatten(tag) {
   // leftover position elsewhere has neither) — then close marketable, with the
   // right offset. An instrument with no live quote (off-session) is skipped with a
   // warning instead of crashing.
-  const pos = (await td.reqQryInvestorPosition({ brokerId: cfg.brokerId, investorId: cfg.userId })).filter((p) => p.position > 0);
+  const pos = await openPositions();
   for (const id of [...new Set(pos.map((p) => p.instrumentId))]) {
     if (!inst[id]) {
       const r = (await td.reqQryInstrument({ instrumentId: id }).catch(() => [])).find((x) => x.instrumentId === id);
@@ -104,15 +111,20 @@ async function flatten(tag) {
     }
   }
   await sleep(1500);
-  const left = (await td.reqQryInvestorPosition({ brokerId: cfg.brokerId, investorId: cfg.userId })).filter((p) => p.position > 0);
+  const left = await openPositions();
   log(`  [${tag ?? "flatten"}] ${left.length === 0 ? "account flat" : left.length + " position(s) left: " + left.map((p) => `${p.instrumentId}x${p.position}`).join(", ")}`);
 }
 
 td.on("front-connected", async () => {
   try {
-    await td.reqAuthenticate({ brokerId: cfg.brokerId, userId: cfg.userId, appId: cfg.appId, authCode: cfg.authCode }).catch(() => {});
-    await td.reqUserLogin({ brokerId: cfg.brokerId, userId: cfg.userId, password: cfg.password });
-    log("logged in");
+    // session() confirms the trading account to the native order gate; a raw
+    // reqUserLogin would leave every ordinary order insert refused.
+    await td.session({
+      brokerId: cfg.brokerId, userId: cfg.userId, password: cfg.password,
+      appId: cfg.appId, authCode: cfg.authCode,
+      sync: { multipliers: [A, G] },
+    });
+    log("session ok");
     await sleep(1500);
     for (const id of [A, G]) {
       const rows = await td.reqQryInstrument({ instrumentId: id });
@@ -120,14 +132,11 @@ td.on("front-connected", async () => {
       inst[id] = { mult: r.volumeMultiple, tick: r.priceTick };
       log(`${id}: mult=${r.volumeMultiple} tick=${r.priceTick} (auto-fed to risk engine)`);
     }
-    td.trackMarketData(md); // feed deviation reference
+    td.trackMarketData(md); // feed deviation / notional reference
     for (let i = 0; i < 30 && (!px[A] || !px[G]); i++) await sleep(300);
     log(`prices au=${px[A].last} ag=${px[G].last}`);
     await flatten("startup");
-    await td.syncMarginRates([A, G]);
-    await td.syncOrders();
-    await td.syncPositions();
-    check(Math.abs(margin()) < 1, `clean start: accountMargin=${margin().toFixed(0)}`);
+    check((await openPositions()).length === 0, "clean start: no open position (reqQryInvestorPosition)");
 
     // ===== PHASE 1: pre-send gate (non-marketable prices; no fills) =====
     log("== PHASE 1: pre-send gate ==");
@@ -146,7 +155,7 @@ td.on("front-connected", async () => {
 
     clearAll();
     td.reduceOnly();
-    check(/pre-trade risk/i.test(await send(A, "0", "0", restBuy(A), 1, "")), "kill-switch (halt): blocked");
+    check(/pre-trade risk/i.test(await send(A, "0", "0", restBuy(A), 1, "")), "kill-switch (reduce-only): open blocked");
     td.resume();
 
     clearAll();
@@ -157,83 +166,28 @@ td.on("front-connected", async () => {
     clearAll();
     await flatten("phase1"); // cancel any resting rate-test orders
 
-    // ===== PHASE 2: real open/close cycle, position-margin tracking =====
+    // ===== PHASE 2: real open/close cycle, positions read back from CTP =====
     log("== PHASE 2: open/close cycle ==");
     clearAll();
     check(/SENT/.test(await openMkt(A, 1)), "au open 1 submitted (resolves, no hang)");
     await sleep(2500);
-    const auCost = margin();
-    check(auCost > 0, `au accountMargin=${auCost.toFixed(0)} from the live CTP margin schedule`);
+    check((await heldLots(A)) >= 1, `au position after the fill: ${await heldLots(A)} lot(s) (reqQryInvestorPosition)`);
+    // reduce-only blocks opens but keeps closes available
+    td.reduceOnly();
+    check(/reduce-only|pre-trade risk/i.test(await openMkt(A, 1)), "reduce-only: further open blocked while holding");
+    check(/SENT/.test(await send(A, "1", "3", mkSell(A), 1, "")), "reduce-only: CLOSE passes (closes stay available)");
+    td.resume();
+    await sleep(2000);
     await flatten();
     await sleep(800);
-    check(Math.abs(margin()) < 1, `au closed: accountMargin=${margin().toFixed(0)}`);
+    check((await heldLots(A)) === 0, `au closed: ${await heldLots(A)} lot(s) left`);
 
     check(/SENT/.test(await openMkt(G, 1)), "ag open 1 submitted");
     await sleep(2500);
-    const agCost = margin();
-    check(agCost > 0, `ag accountMargin=${agCost.toFixed(0)} from the live CTP margin schedule`);
+    check((await heldLots(G)) >= 1, `ag position after the fill: ${await heldLots(G)} lot(s) (reqQryInvestorPosition)`);
     await flatten();
     await sleep(800);
-    check(Math.abs(margin()) < 1, `ag closed: accountMargin=${margin().toFixed(0)}`);
-
-    // ===== PHASE 3: per-side lot cap with real fills =====
-    log("== PHASE 3: lot cap ==");
-    clearAll();
-    td.setInstrumentPositionLimit(A, { long: 2 });
-    check(/SENT/.test(await openMkt(A, 1)), "lot cap: open 1/2 ok");
-    await sleep(2200);
-    check(/SENT/.test(await openMkt(A, 1)), "lot cap: open 2/2 ok");
-    await sleep(2200);
-    check(/position volume/i.test(await openMkt(A, 1)), "lot cap: open 3rd (held 2, cap 2) blocked");
-    // close is exempt from the cap even though it's full:
-    check(/SENT/.test(await send(A, "1", "3", mkSell(A), 1, "")), "lot cap: CLOSE passes despite full cap (close exempt)");
-    await flatten();
-    await sleep(800);
-    check(Math.abs(margin()) < 1, `lot cap: flat after, accountMargin=${margin().toFixed(0)}`);
-
-    // ===== PHASE 4: per-instrument margin cap with real position =====
-    log("== PHASE 4: per-instrument margin cap ==");
-    clearAll();
-    td.setInstrumentMarginLimit(A, auCost * 1.5); // ~1.5 observed lots
-    check(/SENT/.test(await openMkt(A, 1)), "instrument margin cap: open 1 (~1 lot) ok");
-    await sleep(2500);
-    check(/position margin/i.test(await openMkt(A, 1)), "instrument margin cap: open 2 (~2 lots > 1.5) blocked");
-    await flatten();
-    await sleep(800);
-
-    // ===== PHASE 5: account margin cap across au + ag =====
-    log("== PHASE 5: account margin cap ==");
-    clearAll();
-    td.setRiskLimits({ maxAccountMargin: auCost + agCost * 1.5 }); // ~ 1 au + 1.5 ag
-    check(/SENT/.test(await openMkt(A, 1)), "global cap: au ok");
-    await sleep(2500);
-    check(/SENT/.test(await openMkt(G, 1)), "global cap: + ag ok (still under)");
-    await sleep(2500);
-    check(/position margin/i.test(await openMkt(G, 1)), "account margin cap: + 2nd ag blocked (au+2ag over cap)");
-    await flatten();
-    await sleep(800);
-    check(Math.abs(margin()) < 1, `global cap: flat after, accountMargin=${margin().toFixed(0)}`);
-
-    // ===== PHASE 6: in-flight reservation (resting order) =====
-    log("== PHASE 6: in-flight reservation ==");
-    clearAll();
-    td.setInstrumentPositionLimit(A, { long: 1 });
-    check(/SENT/.test(await send(A, "0", "0", restBuy(A), 1, "")), "reservation: resting open 1 sent (reserves)");
-    await sleep(800);
-    check(/position volume/i.test(await openMkt(A, 1)), "reservation: 2nd open blocked while 1st in-flight (not yet filled)");
-    // cancel the resting order -> reservation released
-    const ords = await td.reqQryOrder({ brokerId: cfg.brokerId, investorId: cfg.userId });
-    for (const o of ords.filter((o) => o.orderStatus === "1" || o.orderStatus === "3")) {
-      await td.reqOrderAction({ brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: o.instrumentId, exchangeId: o.exchangeId, orderSysId: o.orderSysId, actionFlag: "0" });
-      await sleep(900);
-    }
-    await sleep(800);
-    check(/SENT/.test(await openMkt(A, 1)), "reservation: open passes after cancel (reservation released)");
-    await sleep(2500); // that one fills -> held 1
-    check(/position volume/i.test(await openMkt(A, 1)), "reservation: held 1 (=cap) -> next open blocked (reserve->held, no gap/double-count)");
-    await flatten();
-    await sleep(800);
-    check(Math.abs(margin()) < 1, `reservation: flat after, accountMargin=${margin().toFixed(0)}`);
+    check((await heldLots(G)) === 0, `ag closed: ${await heldLots(G)} lot(s) left`);
 
     log(`\nRESULT: ${pass} pass, ${fail} fail`);
   } catch (e) {

@@ -1,8 +1,9 @@
 // Definitive live open->close cycle. Verifies:
-//   - syncMultipliers reliably applies the multiplier (cold-start retry)
+//   - session() confirms the account and syncMultipliers applies the multiplier
+//     (cold-start retry)
 //   - reqOrderInsert RESOLVES on submit (no hang on a filled order)
-//   - accountMargin from pure onTrade == price*vol*multiplier (31800, not 3180)
-//   - accountMargin returns to 0 after the close; account ends flat
+//   - the fill shows up in the account's own position query (reqQryInvestorPosition)
+//   - the position is gone after the close; account ends flat
 // Listens for every order event so any rejection is visible.
 import { MarketData, Trader } from "../dist/index.js";
 import { mkdirSync } from "node:fs";
@@ -40,19 +41,26 @@ const order = (extra) => ({
 });
 
 const td = new Trader("./flow-td/", cfg.td);
+// The account's position in cfg.symbol, straight from CTP (the binding keeps no ledger).
+const held = async () =>
+  (await td.reqQryInvestorPosition({ brokerId: cfg.brokerId, investorId: cfg.userId }))
+    .filter((p) => p.instrumentId === cfg.symbol)
+    .reduce((sum, p) => sum + p.position, 0);
 td.on("rtn-order", (o) => log("  rtn-order", o.orderRef, "status=" + o.orderStatus, o.statusMsg));
 td.on("rtn-trade", (t) => log("  rtn-trade", t.instrumentId, "px=" + t.price, "vol=" + t.volume, "offset=" + t.offsetFlag));
 td.on("rsp-order-insert", (d, o) => log("  RSP-ORDER-INSERT err=", JSON.stringify(o.rspInfo)));
 td.on("err-rtn-order-insert", (d, o) => log("  ERR-RTN-ORDER-INSERT err=", JSON.stringify(o.rspInfo)));
 td.on("front-connected", async () => {
   try {
-    await td.reqAuthenticate({ brokerId: cfg.brokerId, userId: cfg.userId, appId: cfg.appId, authCode: cfg.authCode }).catch(() => {});
-    await td.reqUserLogin({ brokerId: cfg.brokerId, userId: cfg.userId, password: cfg.password });
-    log("logged in");
+    // session() is what confirms the trading account to the native order gate.
+    const s = await td.session({
+      brokerId: cfg.brokerId, userId: cfg.userId, password: cfg.password,
+      appId: cfg.appId, authCode: cfg.authCode,
+      sync: { multipliers: [cfg.symbol] },
+    });
+    log(`session ok; syncMultipliers applied: ${s.multipliers} contract(s)`);
     await sleep(1500);
-    log(`syncMultipliers applied: ${await td.syncMultipliers([cfg.symbol])} contract(s)`);
-    await td.syncOrders();
-    log(`syncPositions: ${await td.syncPositions()} open position(s); accountMargin=${td.accountMargin.toFixed(0)} (expect 0)`);
+    log(`start: ${cfg.symbol} position = ${await held()} lot(s) (expect 0)`);
 
     await sleep(1200);
     const buyPx = Math.round((last || 3200) + 80);
@@ -60,7 +68,7 @@ td.on("front-connected", async () => {
     await td.reqOrderInsert(order({ direction: "0", combOffsetFlag: "0", limitPrice: buyPx }));
     log("  -> open await RESOLVED (submitted, no hang)");
     await sleep(2500);
-    log(`accountMargin after open (pure onTrade) = ${td.accountMargin.toFixed(0)} (expect 31800 = 3180*1*10)`);
+    log(`position after open (reqQryInvestorPosition) = ${await held()} lot(s) (expect 1)`);
 
     await sleep(1000);
     const sellPx = Math.round((last || 3100) - 80);
@@ -68,10 +76,7 @@ td.on("front-connected", async () => {
     await td.reqOrderInsert(order({ direction: "1", combOffsetFlag: "3", limitPrice: sellPx }));
     log("  -> close await RESOLVED");
     await sleep(2500);
-    log(`accountMargin after close (onTrade release) = ${td.accountMargin.toFixed(0)} (expect 0)`);
-
-    await sleep(1200);
-    log(`syncPositions confirm: ${await td.syncPositions()} open position(s) -> account flat`);
+    log(`position after close (reqQryInvestorPosition) = ${await held()} lot(s) (expect 0) -> account flat`);
   } catch (e) {
     log("FAILED:", e.message, "errorId=", e.errorId);
   }

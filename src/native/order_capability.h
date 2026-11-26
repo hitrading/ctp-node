@@ -1,10 +1,10 @@
 /*
  * order_capability.h - the deliberately narrow ordinary-order capability.
  *
- * Local reservation/margin accounting models single-instrument GFD, FAK and
- * FOK limit orders in the confirmed InvestorID. Every other InputOrder mode is
- * rejected before it reaches CTP; accepting it as an "ordinary" order would
- * silently claim risk coverage for dimensions the ledger does not represent.
+ * The local gates judge one instrument at one limit price: single-instrument
+ * GFD, FAK and FOK limit orders in the confirmed InvestorID. Every other
+ * InputOrder mode is rejected before it reaches CTP; accepting it as an
+ * "ordinary" order would silently claim risk coverage the gates do not give.
  */
 #ifndef CTP_NATIVE_ORDER_CAPABILITY_H
 #define CTP_NATIVE_ORDER_CAPABILITY_H

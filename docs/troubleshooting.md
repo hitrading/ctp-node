@@ -49,6 +49,7 @@ silent even when subscribed.
 | `reqAuthenticate` fails | wrong appId / authCode (terminal authentication) | SimNow: `appId: "simnow_client_test"`, `authCode: "0000000000000000"`. Real accounts use the broker-issued values. |
 | "CTP:还没有初始化" | called a request before `front-connected` | do login/queries inside the `front-connected` handler. |
 | orders rejected right after login on a real account | settlement statement not confirmed | call `reqSettlementInfoConfirm(...)` (or just use `session()`, which does it). |
+| every order refused with `blocked by pre-trade risk: order account does not match confirmed session` | no `session()` has confirmed the trading account (hand-rolled `reqUserLogin`, or a reconnect still in progress) | log in with `session()` on every `front-connected`; only it confirms the account to the native order gate. |
 | first query after login is empty / rejected | account/front not ready yet | use the `sync*` helpers (they retry transient flow-control/empty readiness); raw queries are paced but not automatically retried. |
 
 `session()` does authenticate → login → confirm → sync in the right order with
@@ -69,11 +70,14 @@ CTP throttles **queries per session**, at the rate its front grants. CTP has no
 "account data ready" event: a counter that is not ready either says so (error 90
 "query not ready", 154 "query core busy") or returns a successful empty reply.
 
-- Use `syncMultipliers()` / `syncOrders()` / `syncPositions()` — they ask again on
-  `-2`/`-3`, 90 and 154 and on required empty cold-start data. An empty position
-  or order snapshot is accepted only when the account's funds agree that nothing
-  is held or frozen, so a counter that has not loaded the account is never taken
-  for a flat one. `isTransientQueryFailure(error)` tells the same for raw queries.
+- Use `syncMultipliers()` / `syncMarginRates()` — they ask again on `-2`/`-3`, 90
+  and 154 and on required empty cold-start data. For your own raw snapshots,
+  `isTransientQueryFailure(error)` tells which errors are worth asking again.
+- A successful **empty** `reqQryInvestorPosition` / `reqQryOrder` reply can mean a
+  flat account or a counter that has not loaded the account yet; CTP does not say
+  which. If it matters to your book, cross-check the funds
+  (`reqQryTradingAccount`: `currMargin`, `frozenMargin`) before treating the
+  account as flat.
 - Do **not** add `setTimeout(1000)` around raw `reqQry*` / `reqQuery*` calls.
   Every query on the same client is snapshotted at invocation and enters one
   FIFO scheduler: at most one is in flight, spaced by the limits the logged-in
@@ -109,8 +113,11 @@ changes arrive as `rtn-order`. Watch both.
 | `CTP:撤单找不到对应报单` | cancelling an order that's already gone | the order already filled/cancelled; ignore. |
 
 If your own pre-trade risk blocked it, the **rejected Promise** message says so
-(`blocked by pre-trade risk: ...`, `rate limited`, `position ... limit`) — that's
-your `setRiskLimits`/`setInstrumentPositionLimit`/risk mode, not the exchange.
+(`blocked by pre-trade risk: ...`, `rate limited ...`, `request is unavailable in
+the current risk mode ...`) and `err.ctpReturnCode` carries the code — that's your
+`setRiskLimits` / risk mode / session state, not the exchange. Account-level
+limits (margin, position lots) are not checked by the binding; if you need them,
+they live in your own trading layer.
 
 ---
 
@@ -119,12 +126,10 @@ your `setRiskLimits`/`setInstrumentPositionLimit`/risk mode, not the exchange.
 At **limit-down** there are no bids, and at **limit-up** no asks. CTP fills the
 empty side with the sentinel `DBL_MAX` (`Number.MAX_VALUE`, ~1.8e308), **not** 0.
 
-- **Armed triggers** already guard this: a sell arms on `bid ≥ trigger`, and the
-  binding ignores a `DBL_MAX` bid so it can't fire a panic sell at limit-down
-  (likewise buys vs a `DBL_MAX` ask).
-- **Your own logic must guard it too** — before using `tick.bidPrice1` /
-  `lastPrice`, check `px > 0 && px < 1e300`. The risk engine's reference-price,
-  cost, and notional paths already reject the sentinel.
+- **Your own logic must guard it** — before using `tick.bidPrice1` /
+  `lastPrice` (for example in a price trigger), check `px > 0 && px < 1e300`, or a
+  `DBL_MAX` bid at limit-down can look like a trigger hit. The risk engine's
+  reference-price and notional paths already reject the sentinel.
 - **Cancelling at limit-down works** — `reqOrderAction` isn't price-gated, and
   both `reduceOnly()` and `haltAll()` deliberately leave cancels open so you can
   always pull resting orders while new inserts are restricted.
@@ -239,15 +244,14 @@ methods like `reqOrderInsert` a non-zero one rejects the Promise):
 | `-1` | network send failed (not connected, or CTP refused the send) |
 | `-2` | too many unhandled requests in flight |
 | `-3` | per-second send rate exceeded (CTP flow control) |
-| `-10001` | blocked by this binding's pre-trade risk (the rejection message carries the specific cause) |
+| `-10001` | blocked by this binding's stateless pre-trade risk gate (the rejection message carries the specific cause, e.g. a limit, a missing/stale reference or multiplier, the risk mode, or an unconfirmed session account) |
 | `-10002` | blocked by the configured open or close rate limiter |
-| `-10003` | blocked by a margin cap (`maxAccountMargin` / `setInstrumentMarginLimit`; by-money + by-volume schedule) |
-| `-10004` | blocked by a position-**volume** cap (`setInstrumentPositionLimit`) |
-| `-10005` | duplicate `OrderRef` in this front/session |
-| `-10006` | complex insert cannot traverse configured local risk and failed closed |
-| `-10007` | required price/multiplier/margin metadata missing or relative |
-| `-10008` | invalid order direction or offset flag |
+| `-10006` | request the per-order rules cannot judge (advanced insert, order modify, bank/futures transfer): refused outside `NORMAL`, without a confirmed session, or while any local risk control is configured |
+| `-10008` | invalid order fields: direction/hedge flag, or an unsupported (multi-leg) `combOffsetFlag` |
 | `-10009` | market-data login/logout refused: a session transition is already in flight or ambiguous (await it, or reconnect after a timeout) |
+
+`-10003`, `-10004`, `-10005` and `-10007` were retired in 5.0 together with the
+native ledger and its caps; see [MIGRATION.md](MIGRATION.md#retired-return-codes).
 
 **Exchange/broker errors** arrive as `rspInfo` (`{ errorId, errorMsg }`) on the
 relevant event, and on a rejected request Promise as `err.errorId` /

@@ -24,16 +24,16 @@
 - **纯对象、地道的 TypeScript。** 每个 CTP 结构体都是生成的 `interface`，字段为 camelCase（`tick.lastPrice`、`tick.instrumentId`）；每个 CTP 枚举都是真正的 TS `enum`。无手写编解码。
 - **快。** 独立的 46 字段生成解码器约为 **800 万 tick/秒**。更重要的是，可复现的原生 SPI→JS 全路径探针在 18,111 个真实缓存 key 下以 50 万 tick/秒持续运行且 0 丢弃，并完整接住一次 18,111 条全合约回调洪峰；硬件、CPU/RSS 与边界见[性能与内存](docs/troubleshooting.zh-CN.md#性能与内存)。
 - **混合 API。** 流式推送用 `EventEmitter`（`rtn-depth-market-data`、`rtn-order` 等）+ 请求/响应用 `Promise`（登录、查询、报单），按 request id 关联并支持多行累积。
-- **盘前风控在 C++ 中。** 一键熔断、单笔最大手数、最大名义价值、价格偏离（防胖手指）、账户级与按合约的开仓持仓保证金上限、按合约的最大持仓（手数、分边）、以及令牌桶限频器，都在原生代码里、报单路径上执行——JS 的 GC 停顿打不垮它们。
+- **无状态的 C++ 盘前风控。** 一键熔断（只减仓 / 全部暂停）、单笔最大手数、最大名义价值、价格偏离（防胖手指）以及令牌桶限频器，都在原生代码里、报单路径上执行——JS 的 GC 停顿打不垮它们。每条规则只依据这一笔报单、最新行情和静态合约元数据判断；本绑定不维护持仓或委托账本，账户级上限（账户保证金、单合约保证金、持仓手数）由你自己的交易层负责。
 - **构造即稳定。** 无手写编解码、threadsafe-function 正确释放、`Init()` 延后以保证 `front-connected` 不丢失、编译器真值（`offsetof`）的二进制布局、GB18030 在 JS 解码（无 Windows 代码页 bug）。
 
 > 面向 CTP 实际支持的范畴（快照驱动、容忍毫秒级的策略：CTA、套利、做市）。真正的微秒级 HFT 在任何语言下都无法通过 CTP 实现。
 
-> **边界：** 本包是进程内协议 binding 与第二道本地风控，不负责 caller 鉴权、签名 mandate 或外部
-> 心跳看门狗。生产使用仍需有鉴权的网关/监督进程，并对确切 commit 与打包二进制重新浸泡验证。
-> 协议接口范围大于本地账本：定量准入只对普通单腿报单形成闭环；quote/exec/comb/parked 等高级变更
-> 仅属于 binding 能力，启用本地风控时会拒绝。在确切的 `3.0.0-rc` 制品完成浸泡且外部
-> mandate/watchdog 落地之前，生产实盘判定仍为 **No-Go**。
+> **边界：** 本包是进程内协议 binding 与第二道本地风控，不负责 caller 鉴权、签名 mandate、外部
+> 心跳看门狗，也不跟踪账户的持仓、挂单与资金。生产使用仍需有鉴权的网关/监督进程，并对确切 commit
+> 与打包二进制重新浸泡验证。协议接口范围大于原生风控闸门：闸门只判断普通单腿限价单；
+> quote/exec/comb/parked 等高级变更仅属于 binding 能力，启用本地风控时会拒绝。在确切的
+> `3.0.0-rc` 制品完成浸泡且外部 mandate/watchdog 落地之前，生产实盘判定仍为 **No-Go**。
 
 ## 环境要求
 
@@ -57,7 +57,7 @@ const { Trader, MarketData } = require("@hitrading/ctp-node");  // CommonJS
 ## 文档
 
 - **完整 API 参考** —— 每一个 TypeScript/JavaScript 接口和方法，含每个参数的类型与含义，以及用法示例：[English](docs/API.md) · [简体中文](docs/API.zh-CN.md)
-- 架构与原生内部 —— 无锁数据平面、C++ 风控引擎、背压，以及一次创建的进程生命周期说明：[English](docs/native-hooks.md) · [简体中文](docs/native-hooks.zh-CN.md)
+- 架构与原生内部 —— 无锁数据平面、无状态 C++ 风控闸门、背压，以及一次创建的进程生命周期说明：[English](docs/native-hooks.md) · [简体中文](docs/native-hooks.zh-CN.md)
 - **故障排查与 FAQ** —— 连接/前置轮换、登录与认证、查询限频、报单被拒、跌停、生命周期、构建问题、CTP 错误码：[English](docs/troubleshooting.md) · [简体中文](docs/troubleshooting.zh-CN.md)
 - **测试与覆盖率** —— 完整离线回归 + 需要凭据、必须另行执行的 SimNow 集成套件；历史样本不等于当前候选版浸泡结论：[集成与测试](docs/integration.md)
 - **发布** —— 全自动 `semantic-release`（Conventional Commits → 版本号 + CHANGELOG + GitHub Release + npm 发布）：[RELEASING.md](RELEASING.md) · [CHANGELOG.md](CHANGELOG.md)
@@ -92,14 +92,15 @@ import { Trader } from "@hitrading/ctp-node";
 
 const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
-// 盘前风控，在 C++ 中对每笔报单执行：
-td.setRiskLimits({ maxOrderVolume: 10, maxOrdersPerSec: 20, maxPriceDeviation: 0.02, maxAccountMargin: 2_000_000 });
-td.trackMarketData(md); // 为偏离、名义价值与保证金闸提供 C++ 新鲜参考价
-td.setInstrumentPositionLimits({ rb2610: 100, au2610: 10, ru2610: { long: 100, short: 20 } });
-td.setInstrumentMarginLimits({ ag2608: 2_000_000, au2608: 5_000_000 });              // 按合约的计划保证金上限
+// 无状态盘前风控，在 C++ 中对每笔报单执行（每条规则只判断这一笔）：
+td.setRiskLimits({ maxOrderVolume: 10, maxOrdersPerSec: 20, maxPriceDeviation: 0.02, maxNotional: 5_000_000 });
+td.trackMarketData(md); // 为偏离与名义价值闸提供 C++ 新鲜参考价
+// 账户级上限（账户保证金、单合约保证金、持仓手数）属于你自己的交易层，
+// 由它掌握账户事实（见下方查询）。
 
 td.on("front-connected", async () => {
-  // 一站式握手。保证金表需显式给出有限交易合约集和套保标志（CTP 每合约一次查询）。
+  // 一站式握手（重连后再调一次），也是它向原生报单闸门确认交易账户。
+  // 保证金表需显式给出有限交易合约集和套保标志（CTP 每合约一次查询）。
   await td.session({
     brokerId, userId, password, appId, authCode,
     sync: {
@@ -110,15 +111,17 @@ td.on("front-connected", async () => {
     },
   });
 
-  // ……或在需要更细控制时手写：
+  // ……或在需要更细控制时手写各步。手写登录可以查询，但只有 session() 会为普通报单确认账户：
   //   await td.reqAuthenticate({ brokerId, userId, appId, authCode });
   //   await td.reqUserLogin({ brokerId, userId, password });
   //   await td.reqSettlementInfoConfirm({ brokerId, investorId }); // 实盘账户
   //   await td.syncMultipliers(); await td.syncMarginRates(["rb2510"]);
-  //   await td.syncOrders(); await td.syncPositions(); // 最后提交持仓快照
 
-  // 基于 Promise 的查询返回所有行：
+  // 基于 Promise 的查询返回所有行。你自己的账本从这里建立，此后用 rtn-order / rtn-trade 保持最新：
   const positions = await td.reqQryInvestorPosition({ brokerId, investorId });
+  const orders = await td.reqQryOrder({ brokerId, investorId });
+  const [funds] = await td.reqQryTradingAccount({ brokerId, investorId });
+  const [rb] = td.readMarginRates(["rb2510"], "1"); // 解析好的保证金率，供你自己计算保证金
 
   // 报单走 C++ 风控网关。reqOrderInsert 提交成功即 resolve（CTP 对已接受的报单
   // 不返回 ack）；通过 rtn-order / rtn-trade 跟踪结果。orderRef 留空会自动分配唯一值。
@@ -134,27 +137,12 @@ td.on("rtn-trade", (trade) => console.log("已成交", trade.price, trade.volume
 
 // 应急一键熔断（拦截增险入口，保留减仓/撤单）：
 // 原子模式：reduceOnly() 保留平仓与撤单；haltAll() 也拦平仓。
-// 多腿 combOffsetFlag 在具备逐腿账本前会直接拒绝。
+// 只放行单腿 GFD/FAK/FOK 限价单；多腿 combOffsetFlag 会直接拒绝。
 // td.reduceOnly();  /  td.haltAll();  /  td.resume();
 ```
 
-### 预埋单（延迟攸关）
-
-在市场触及你的触发条件的瞬间从 C++ 发出报单——在行情回调线程上判定，穿过风控网关，**JS 不在回路中**（无事件循环跳转、无 GC 暴露）：
-
-```ts
-const armed = trader.arm(md, {
-  instrumentId: "rb2510",
-  side: "buy",            // buy 在 ask ≤ trigger 时触发；sell 在 bid ≥ trigger 时触发
-  triggerPrice: 3500,
-  order: {
-    brokerId, investorId, instrumentId: "rb2510", direction: "0", combOffsetFlag: "0",
-    limitPrice: 3500, volumeTotalOriginal: 1, orderRef: "900001",
-  },
-});
-// 成功发送后删除；拒绝会保留并按有上限的指数退避重试。
-// armed.disarm();
-```
+从 4.x 升级？5.0 删除了原生持仓/委托账本、账户级与按合约上限以及预埋单——见
+[docs/MIGRATION.md](docs/MIGRATION.md)。
 
 枚举已导出且带类型：
 
@@ -171,7 +159,7 @@ Direction.Sell;  // "1"
 - 同一客户端内全部 `reqQry*` / `reqQuery*` 都会在调用时快照、内部串行并限频：最多一个在途，间隔按登录后前置下发的流控（`td.frontInfo`）计算，最多用掉 FTD 报文配额的一半、每秒不超过 10 笔；尚未取得流控时至少间隔 1100 ms。调用方不要再写 `setTimeout(1000)`。有界队列按客户端隔离；原始查询只限频，只有 `sync*` 会重试瞬时流控错误。
 - 发往交易所的 insert/action（`reqOrderInsert`、`reqOrderAction` 等）**提交成功即** resolve —— CTP 对已接受的报单不返回成功响应，只有 `rtn-order` / `rtn-trade`（用 `orderRef` 关联）。只有发送被拒（风控网关、限频、或 CTP API 错误码）才 reject。
 - 流式事件用 kebab-case 名称（`rtn-depth-market-data`、`rtn-order` 等）；处理函数收到 `(data, options)`，`options` 带 `{ requestId?, isLast?, rspInfo? }`。
-- 每个合约的最新 tick 保存在 C++ 的 last-value 缓存里。成功 MD 登录会开启一个全新的空 epoch；此前，以及连接/断线、新登录或登出尝试、成功登出、关闭之后，缓存都会立即失效并清空。只有当前已认证 epoch 后续收到的 tick 才能更新缓存或驱动预埋单。`md.snapshot(instrumentId)` 同步返回最新完整 `DepthMarketData`（或 `null`），`md.last(instrumentId)` 返回最新价（无则为 0）。价格偏离校验使用同一份带 epoch 约束的缓存。
+- 每个合约的最新 tick 保存在 C++ 的 last-value 缓存里。成功 MD 登录会开启一个全新的空 epoch；此前，以及连接/断线、新登录或登出尝试、成功登出、关闭之后，缓存都会立即失效并清空。只有当前已认证 epoch 后续收到的 tick 才能更新缓存。`md.snapshot(instrumentId)` 同步返回最新完整 `DepthMarketData`（或 `null`），`md.last(instrumentId)` 返回最新价（无则为 0）。用 `td.trackMarketData(md)` 接入后，价格偏离与名义价值校验使用同一份带 epoch 约束的缓存。
 - 行情背压使用有界 keep-newest 暂存并保留最新行情，不覆盖 JS 正在解码的槽位；交易端 4096 槽满后进入有序无损队列，不主动丢回报，但持续消费停顿会增长内存。
 - `client.close()` 释放底层 CTP API。在关闭时调用**一次**——CTP 客户端是一次创建/复用的；靠重建来重连会在厂商 DLL 里死锁（见[生命周期](#生命周期-一次创建并复用)）。
 

@@ -151,7 +151,6 @@ private:
   Napi::Value DropCount(const Napi::CallbackInfo &info);
   Napi::Value ChannelInfo(const Napi::CallbackInfo &info);
   Napi::Value Close(const Napi::CallbackInfo &info);
-  Napi::Value AttachArm(const Napi::CallbackInfo &info);
   Napi::Value Snapshot(const Napi::CallbackInfo &info);
   Napi::Value Last(const Napi::CallbackInfo &info);
   Napi::Value SnapshotExternal(const Napi::CallbackInfo &info);
@@ -171,9 +170,8 @@ private:
   std::vector<std::string> fronts_;
   MdSpi *spi_ = nullptr;
   EventChannel *ch_ = nullptr;
-  std::shared_ptr<ArmRegistry> armReg_;
   // Latest-tick cache (LVC). shared_ptr so a Trader can borrow it (trackMarketData)
-  // for its in-C++ deviation reference, like the arm registry.
+  // for its in-C++ reference price.
   std::shared_ptr<SnapshotCache> snap_ = std::make_shared<SnapshotCache>();
   napi_env env_ = nullptr;
   napi_ref bufferRef_ = nullptr;
@@ -204,7 +202,6 @@ Napi::Function MarketData::Init(Napi::Env env) {
           InstanceMethod("_release", &MarketData::ReleaseBatch),
           InstanceMethod("_dropCount", &MarketData::DropCount),
           InstanceMethod("_info", &MarketData::ChannelInfo),
-          InstanceMethod("_attachArm", &MarketData::AttachArm),
           InstanceMethod("snapshot", &MarketData::Snapshot),
           InstanceMethod("last", &MarketData::Last),
           InstanceMethod("_snapshotExternal", &MarketData::SnapshotExternal),
@@ -312,7 +309,6 @@ void MarketData::doClose() {
   if (burst_.joinable())
     burst_.join();
   if (spi_) {
-    spi_->setArmRegistry(nullptr);
     spi_->setSnapshotCache(nullptr);
   }
   if (api_) {
@@ -325,7 +321,6 @@ void MarketData::doClose() {
   // with a deceptively fresh risk-reference quote.
   if (snap_)
     snap_->clear(); // a Trader still holding it now sees an empty cache
-  armReg_.reset();
   // Every _buffer() call returns the same externally-backed ArrayBuffer. Detach
   // it before freeing the ring so a caller that retained the ArrayBuffer (or a
   // typed view over it) observes byteLength 0 instead of a dangling pointer.
@@ -605,46 +600,6 @@ Napi::Value MarketData::Close(const Napi::CallbackInfo &info) {
   return info.Env().Undefined();
 }
 
-Napi::Value MarketData::AttachArm(const Napi::CallbackInfo &info) {
-  if (closed_ || !spi_) {
-    Napi::Error::New(info.Env(), "cannot attach arms to a closed MarketData")
-        .ThrowAsJavaScriptException();
-    return info.Env().Undefined();
-  }
-  if (info.Length() < 1 || !info[0].IsExternal()) {
-    Napi::TypeError::New(info.Env(), "invalid Trader arm-registry handle")
-        .ThrowAsJavaScriptException();
-    return info.Env().Undefined();
-  }
-  auto ext = info[0].As<Napi::External<SharedHandle>>();
-  SharedHandle *handle = ext.Data();
-  if (!handle || handle->magic != SharedHandle::kMagic ||
-      handle->kind != SharedHandleKind::ArmRegistry || !handle->arm) {
-    Napi::TypeError::New(info.Env(), "invalid Trader arm-registry handle")
-        .ThrowAsJavaScriptException();
-    return info.Env().Undefined();
-  }
-  const std::shared_ptr<ArmRegistry> &registry = handle->arm;
-  {
-    if (!registry->hasSink()) {
-      Napi::Error::New(info.Env(), "cannot attach a closed Trader arm registry")
-          .ThrowAsJavaScriptException();
-      return info.Env().Undefined();
-    }
-    if (armReg_ && armReg_.get() != registry.get() && armReg_->hasSink()) {
-      Napi::Error::New(
-          info.Env(),
-          "MarketData is already attached to another live Trader arm registry")
-          .ThrowAsJavaScriptException();
-      return info.Env().Undefined();
-    }
-    armReg_ = registry; // share ownership so the registry can't dangle
-    if (spi_)
-      spi_->setArmRegistry(armReg_);
-  }
-  return info.Env().Undefined();
-}
-
 // snapshot(instrumentId) -> the latest full depth tick as raw struct bytes (JS
 // decodes with the shared codec, identical to a streamed tick), or null if none.
 Napi::Value MarketData::Snapshot(const Napi::CallbackInfo &info) {
@@ -666,7 +621,7 @@ Napi::Value MarketData::Last(const Napi::CallbackInfo &info) {
 }
 
 // Hand the LVC (as a shared_ptr) to a Trader so its deviation check reads live
-// prices in C++ (Trader._attachSnapshot). Mirrors the arm-registry sharing: a
+// prices in C++ (Trader._attachSnapshot): a
 // heap shared_ptr copy with a finalizer, so the cache can't dangle.
 Napi::Value MarketData::SnapshotExternal(const Napi::CallbackInfo &info) {
   auto *handle = new SharedHandle();
@@ -683,9 +638,9 @@ Napi::Value MarketData::InjectTestTick(const Napi::CallbackInfo &info) {
         .ThrowAsJavaScriptException();
     return info.Env().Undefined();
   }
-  // Drive the real SPI path (so arm triggers are evaluated too). Optional args
+  // Drive the real SPI path (cache update + ring publish). Optional args
   // override bid/ask, so tests can inject edge prices - e.g. a DBL_MAX "no-bid"
-  // sentinel (BidPrice1 at limit-down) to verify armed triggers ignore it:
+  // sentinel (BidPrice1 at limit-down):
   //   _injectTestTick(bid?, ask?)
   if (spi_ && !closed_) {
     CThostFtdcDepthMarketDataField f;
@@ -866,7 +821,7 @@ Napi::Value MarketData::BurstTicks(const Napi::CallbackInfo &info) {
 // Test-only full hot-path producer. Unlike _burstTicks (which intentionally
 // targets EventChannel directly), this calls MdSpi::OnRtnDepthMarketData from a
 // native background thread. Consequently it exercises TradingDay enrichment,
-// SnapshotCache cardinality, arm lookup, channel overflow and JS decoding with
+// SnapshotCache cardinality, channel overflow and JS decoding with
 // distinct InstrumentID values.
 //
 //   _produceTestTicks(count, instrumentCount, ratePerSecond = 0,

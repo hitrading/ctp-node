@@ -29,7 +29,6 @@ const cfg = {
   tdFront: env.CTP_TD_FRONT ?? "tcp://182.254.243.31:30002",
   symbol: env.CTP_SYMBOL ?? "rb2610",
   placeOrder: env.CTP_PLACE_ORDER === "1",
-  arm: env.CTP_ARM === "1",
   devDemo: env.CTP_DEV_DEMO === "1",
   riskLive: env.CTP_RISK_LIVE === "1",
   skipAuth: env.CTP_SKIP_AUTH === "1",
@@ -81,30 +80,23 @@ td.setRiskLimits({ maxOrderVolume: 5, maxOrdersPerSec: 5 });
 td.on("front-connected", async () => {
   log("TD front-connected");
   try {
-    if (cfg.skipAuth) {
-      log("TD skipping authenticate (CTP_SKIP_AUTH=1)");
-    } else {
-      try {
-        await td.reqAuthenticate({ brokerId: cfg.brokerId, userId: cfg.userId, appId: cfg.appId, authCode: cfg.authCode });
-        log("TD authenticated");
-      } catch (e) {
-        log("TD authenticate failed (continuing to login):", e.message, "errorId=", e.errorId);
-      }
-    }
-    const li = await td.reqUserLogin({ brokerId: cfg.brokerId, userId: cfg.userId, password: cfg.password });
+    if (cfg.skipAuth) log("TD skipping authenticate (CTP_SKIP_AUTH=1)");
+    // session() = authenticate (unless skipped) -> login -> settlement confirm ->
+    // multiplier sync, and it is what confirms the trading account to the native
+    // order gate (a raw reqUserLogin would leave every order insert refused).
+    const s = await td.session({
+      brokerId: cfg.brokerId, userId: cfg.userId, password: cfg.password,
+      ...(cfg.skipAuth ? {} : { appId: cfg.appId, authCode: cfg.authCode }),
+      sync: { multipliers: [cfg.symbol] },
+    });
     tdLoggedIn = true;
-    log("TD login ok, frontId =", li.frontId, "sessionId =", li.sessionId, "maxOrderRef =", li.maxOrderRef);
-
-    // Settlement confirm is required before trading queries on many brokers.
-    await td.reqSettlementInfoConfirm({ brokerId: cfg.brokerId, investorId: cfg.userId }).catch(() => {});
+    log("TD session ok, frontId =", s.identity.frontId, "sessionId =", s.identity.sessionId, "maxOrderRef =", s.identity.maxOrderRef);
 
     const acct = await td.reqQryTradingAccount({ brokerId: cfg.brokerId, investorId: cfg.userId });
     log("TD trading account rows:", acct.length, acct[0] ? `available=${acct[0].available} balance=${acct[0].balance}` : "");
 
     const pos = await td.reqQryInvestorPosition({ brokerId: cfg.brokerId, investorId: cfg.userId });
     log("TD positions rows:", pos.length, pos.map((p) => `${p.instrumentId}:${p.position}`).slice(0, 6).join(" "));
-    await td.syncOrders();
-    await td.syncPositions();
 
     if (cfg.placeOrder) {
       log("placing a test order: BUY 1 @ 1 (far below market -> rejected, no fill) ...");
@@ -118,21 +110,6 @@ td.on("front-connected", async () => {
       })
         .then((o) => log("order rsp: accepted", JSON.stringify(o)))
         .catch((e) => log("order rsp: rejected -", e.message, "errorId=", e.errorId));
-    }
-
-    if (cfg.arm) {
-      log("arming BUY 1 @ 1 (fires on the next tick in C++, rejected at exchange, no fill)...");
-      td.arm(md, {
-        instrumentId: cfg.symbol, side: "buy", triggerPrice: 99999,
-        order: {
-          brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: cfg.symbol,
-          orderRef: "900001", direction: "0", combOffsetFlag: "0", combHedgeFlag: "1",
-          orderPriceType: "2", limitPrice: 1, volumeTotalOriginal: 1,
-          timeCondition: "3", volumeCondition: "1", contingentCondition: "1",
-          forceCloseReason: "0", isAutoSuspend: 0, userForceClose: 0,
-        },
-      });
-      setTimeout(() => log("arm fireCount =", td._armFireCount()), 4000);
     }
 
     if (cfg.devDemo) {
@@ -155,21 +132,29 @@ td.on("front-connected", async () => {
     }
 
     if (cfg.riskLive) {
-      log("--- live position-margin verification (auto multiplier + auto position) ---");
+      // The native gate keeps no position/margin ledger: the caller estimates margin
+      // from the resolved schedule and compares it with the account's own facts.
+      log("--- live position-margin verification (resolved schedule -> caller-side estimate vs CTP UseMargin) ---");
       const inst = await td.reqQryInstrument({ instrumentId: cfg.symbol });
-      log(`reqQryInstrument ${cfg.symbol}: volumeMultiple=${inst[0]?.volumeMultiple}`);
+      const mult = inst.find((r) => r.instrumentId === cfg.symbol)?.volumeMultiple;
+      log(`reqQryInstrument ${cfg.symbol}: volumeMultiple=${mult}`);
       log(`syncMultipliers applied ${await td.syncMultipliers([cfg.symbol])}`);
       td.trackMarketData(md);
       log(`syncMarginRates applied ${await td.syncMarginRates([cfg.symbol])}`);
-      td.setRiskLimits({ maxAccountMargin: 100_000_000 }); // high: won't block, just track
+      const [rate] = td.readMarginRates([cfg.symbol], "1");
+      log(`resolved long schedule: ${rate.longMarginRatioByMoney} by money + ${rate.longMarginRatioByVolume} per lot`);
       const buyPx = Math.round((lastSeenPrice || 3200) + 30);
       log(`opening BUY 1 @ ${buyPx} (marketable -> should fill) ...`);
       await td
         .reqOrderInsert({ brokerId: cfg.brokerId, investorId: cfg.userId, instrumentId: cfg.symbol, direction: "0", combOffsetFlag: "0", combHedgeFlag: "1", orderPriceType: "2", limitPrice: buyPx, volumeTotalOriginal: 1, timeCondition: "3", volumeCondition: "1", contingentCondition: "1", forceCloseReason: "0", isAutoSuspend: 0, userForceClose: 0 })
         .then(() => log("open accepted")).catch((e) => log("open:", e.message));
       await sleep(2500);
-      log(`accountMargin after fill (auto from OnRtnTrade) = ${td.accountMargin}  (expect ~ ${buyPx}*10)`);
-      log(`syncPositions seeded ${await td.syncPositions()} position(s); accountMargin = ${td.accountMargin}`);
+      const longRows = (await td.reqQryInvestorPosition({ brokerId: cfg.brokerId, investorId: cfg.userId }))
+        .filter((p) => p.instrumentId === cfg.symbol && p.posiDirection === "2");
+      const lots = longRows.reduce((sum, p) => sum + p.position, 0);
+      const useMargin = longRows.reduce((sum, p) => sum + p.useMargin, 0);
+      const estimate = buyPx * lots * mult * rate.longMarginRatioByMoney + lots * rate.longMarginRatioByVolume;
+      log(`long ${lots} lot(s): CTP UseMargin = ${useMargin}; caller-side estimate at the order price = ${estimate.toFixed(0)}`);
       const sellPx = Math.round((lastSeenPrice || 3100) - 30);
       log(`closing SELL 1 @ ${sellPx} (平今) to flatten ...`);
       await td

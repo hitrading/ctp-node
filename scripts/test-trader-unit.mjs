@@ -1,8 +1,8 @@
-// Coverage for trader.ts logic the e2e tests don't reach offline: the risk/cap
-// setters + finite guards, seedFromPositions aggregation, arm() validation, the
-// rsp-user-login credential/session listener, and session()/sync* (driven by
-// stubbing the leaf req query methods so the row-processing logic runs without a
-// live connection). The native risk-engine calls underneath run for real.
+// Coverage for trader.ts logic the e2e tests don't reach offline: the stateless
+// risk setters + finite guards, order validation, the rsp-user-login
+// credential/session listener, and session()/sync* (driven by stubbing the leaf
+// req query methods so the row-processing logic runs without a live
+// connection). The native risk-engine calls underneath run for real.
 import { Trader, MarketData } from "../dist/index.js";
 import { mkdirSync } from "node:fs";
 
@@ -17,31 +17,9 @@ const ok = (c, m) => { c ? (pass++, console.log("  PASS:", m)) : (fail++, consol
 const throws = (fn, m) => { try { fn(); ok(false, m + " (did not throw)"); } catch { ok(true, m); } };
 const rejects = async (p, m) => { try { await p; ok(false, m + " (did not reject)"); } catch { ok(true, m); } };
 
-// N-API prototype methods are intentionally immutable. Wrap the native object
-// temporarily so the synchronization CAS paths can be forced without adding a
-// test-only hook to the production addon.
-const withNativeMethod = async (trader, name, replacement, run) => {
-  const real = trader.native;
-  trader.native = new Proxy(real, {
-    get(target, prop) {
-      if (prop === name) return (...args) => replacement(target, ...args);
-      const value = Reflect.get(target, prop, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  });
-  try { return await run(); }
-  finally { trader.native = real; }
-};
-
 const td = new Trader("./flow-tu/", "tcp://127.0.0.1:1");
 ok(td.queryRetryDelayMs === 1100, "sync helpers pause a full second between attempts by default");
 td.queryRetryDelayMs = 0; // the pause itself is covered separately
-ok(td.snapshotSettleMs === 6000, "a raced snapshot is retaken for six seconds by default");
-td.snapshotSettleMs = 0; // the time budget is covered separately
-// A flat account's funds: what makes an empty position/order snapshot credible.
-const flatFunds = (brokerId = "9999", accountId = "u") => [{
-  brokerId, accountId, currMargin: 0, frozenMargin: 0, frozenCash: 0, frozenCommission: 0,
-}];
 delete process.env.CTP_NODE_TEST_HOOKS;
 throws(() => td.native._burstEvents(1), "queue-producing Trader test hooks are disabled by default");
 process.env.CTP_NODE_TEST_HOOKS = "1";
@@ -53,8 +31,22 @@ for (const removed of [
   "setMaxInstrumentPosition", "setMaxInstrumentPositions",
   "setMaxInstrumentMargin", "setMaxInstrumentMargins",
   "seedPosition",
+  // 5.0.0: the native position/order ledger and armed orders are gone.
+  "setInstrumentPositionLimit", "setInstrumentPositionLimits",
+  "setInstrumentMarginLimit", "setInstrumentMarginLimits",
+  "syncPositions", "syncOrders", "seedPositions", "seedFromPositions",
+  "resetPositions", "accountMargin", "arm", "armStats", "_armRegistry",
+  "_armFireCount", "_armBlockedCount",
 ]) {
   ok(typeof td[removed] === "undefined", `${removed} compatibility API is absent`);
+}
+for (const removed of [
+  "lastMarginRejection", "_setInstrumentPositionLimits", "_setInstrumentMarginLimits",
+  "rebuildReservations", "riskRevision", "_markPositionLedgerUncertain",
+  "_markOrderLedgerUncertain", "replacePositions", "accountMargin", "resetPositions",
+  "_armRegistry", "arm", "disarm", "_armFireCount", "_armBlockedCount", "_seedPositions",
+]) {
+  ok(typeof td.native[removed] === "undefined", `native ${removed} is absent`);
 }
 
 // Only a response correlated to a currently pending request may update the
@@ -202,8 +194,12 @@ await rejects(snapshottedQuery, "queued query is revoked on a front transition")
 resolveSession("rsp-user-login", { brokerId: "9999", userId: "u", maxOrderRef: "101", frontId: 1, sessionId: 7 });
 
 // risk config + finite guards.
-td.setRiskLimits({ maxOrderVolume: 10, maxNotional: 1e6, maxPriceDeviation: 0.02, maxOrdersPerSec: 5, orderBurst: 10, maxCloseOrdersPerSec: 2, closeOrderBurst: 2, maxAccountMargin: 1e7 });
+td.setRiskLimits({ maxOrderVolume: 10, maxNotional: 1e6, maxPriceDeviation: 0.02, maxOrdersPerSec: 5, orderBurst: 10, maxCloseOrdersPerSec: 2, closeOrderBurst: 2, maxReferenceAgeMs: 5000 });
 ok(true, "setRiskLimits applies a full config");
+throws(() => td.setRiskLimits({ maxAccountMargin: 1e7 }),
+  "setRiskLimits rejects the removed maxAccountMargin field instead of silently ignoring it");
+throws(() => td.native.setRiskLimits({ maxAccountMargin: 1e7 }),
+  "native setRiskLimits rejects the removed maxAccountMargin field");
 throws(() => td.setRiskLimits({ maxOrderVolume: Infinity }), "setRiskLimits rejects non-finite maxOrderVolume");
 throws(() => td.setRiskLimits({ maxOrderVolume: 1.5 }), "setRiskLimits rejects a fractional order-volume cap");
 throws(() => td.setRiskLimits({ maxNotional: NaN }), "setRiskLimits rejects NaN maxNotional");
@@ -230,169 +226,7 @@ throws(() => td.setRiskLimits({ [Symbol("hidden")]: 1 }),
   "setRiskLimits rejects symbol config fields");
 td.reduceOnly(); td.resume(); td.haltAll(); td.resume();
 ok(true, "NORMAL / REDUCE_ONLY / HALT_ALL transitions");
-throws(() => td.setRiskLimits({ maxAccountMargin: Infinity }), "setRiskLimits rejects non-finite maxAccountMargin");
 throws(() => td.setRiskLimits({ maxReferenceAgeMs: 0 }), "setRiskLimits rejects a zero reference-age window");
-td.setRiskLimits({ maxAccountMargin: 3e5 }); ok(true, "setRiskLimits applies the account-margin hard cap");
-td.setInstrumentPositionLimit("rb2510", 100); ok(true, "setInstrumentPositionLimit caps both sides");
-td.setInstrumentPositionLimit("ru2510", { long: 100, short: 20 }); ok(true, "setInstrumentPositionLimit supports side limits");
-td.setInstrumentPositionLimit("ag2510", { long: 5 }); ok(true, "setInstrumentPositionLimit supports one side");
-throws(() => td.setInstrumentPositionLimit("x", Infinity), "setInstrumentPositionLimit rejects non-finite number");
-throws(() => td.setInstrumentPositionLimit("x", 1.5), "setInstrumentPositionLimit rejects fractional lots");
-throws(() => td.setInstrumentPositionLimit("x", -1), "setInstrumentPositionLimit rejects a negative cap");
-throws(() => td.setInstrumentPositionLimit("", 1), "setInstrumentPositionLimit rejects an empty instrument");
-throws(() => td.setInstrumentPositionLimit("x", { long: Infinity }), "setInstrumentPositionLimit rejects non-finite side");
-throws(() => td.setInstrumentPositionLimit("x", {}), "setInstrumentPositionLimit rejects an empty side object");
-throws(() => td.setInstrumentPositionLimit("x", { long: 1, max: 2 }), "setInstrumentPositionLimit rejects unknown fields");
-const nullPrototypeSideLimit = Object.assign(Object.create(null), { long: 2 });
-td.setInstrumentPositionLimit("np", nullPrototypeSideLimit);
-ok(true, "setInstrumentPositionLimit accepts a null-prototype side object");
-td.setInstrumentPositionLimits({ a: 5, b: { long: 1, short: 2 } }); ok(true, "setInstrumentPositionLimits atomic batch");
-throws(() => td.setInstrumentPositionLimits([]), "setInstrumentPositionLimits rejects arrays");
-throws(() => td.setInstrumentPositionLimits(Object.create({ rb: 1 })),
-  "setInstrumentPositionLimits rejects inherited map entries");
-td.setInstrumentMarginLimit("ag2608", 2e6); ok(true, "setInstrumentMarginLimit");
-td.setInstrumentMarginLimits({ au2608: 5e6, ag2608: 2e6 }); ok(true, "setInstrumentMarginLimits atomic batch");
-throws(() => td.setInstrumentMarginLimits({ x: Infinity }), "setInstrumentMarginLimits rejects non-finite");
-throws(() => td.setInstrumentMarginLimits([]), "setInstrumentMarginLimits rejects arrays");
-throws(() => td.setInstrumentMarginLimits(Object.create({ rb: 1 })),
-  "setInstrumentMarginLimits rejects inherited map entries");
-throws(() => td.setInstrumentMarginLimit("x", -1), "setInstrumentMarginLimit rejects a negative cap");
-// A pathological Array *length* on the native limit bindings must be rejected
-// with a catchable RangeError BEFORE reserve(); an unbounded reserve() would
-// throw std::bad_alloc which — under the Error-only N-API trampoline — escapes
-// as an uncatchable std::terminate that aborts the risk-gating process.
-const throwsRange = (fn, m) => {
-  try { fn(); ok(false, m + " (did not throw)"); }
-  catch (e) { ok(e instanceof RangeError && /exceeds the maximum/.test(e.message), m); }
-};
-throwsRange(() => td.native._setInstrumentPositionLimits(new Array(4294967295)),
-  "native _setInstrumentPositionLimits rejects an over-cap array length with a catchable RangeError (no abort)");
-throwsRange(() => td.native._setInstrumentMarginLimits(new Array(4294967295)),
-  "native _setInstrumentMarginLimits rejects an over-cap array length with a catchable RangeError (no abort)");
-const shrinkingPositionLimits = [undefined, { instrumentId: "late", long: 1 }];
-Object.defineProperty(shrinkingPositionLimits, 0, {
-  configurable: true,
-  get() {
-    shrinkingPositionLimits.length = 1;
-    return { instrumentId: "first", long: 1 };
-  },
-});
-throws(() => td.native._setInstrumentPositionLimits(shrinkingPositionLimits),
-  "native position-limit batching rejects an array shortened during its fixed-length snapshot");
-const growingMarginLimits = [undefined];
-Object.defineProperty(growingMarginLimits, 0, {
-  configurable: true,
-  get() {
-    growingMarginLimits.push(null);
-    return { instrumentId: "first", limit: 1 };
-  },
-});
-td.native._setInstrumentMarginLimits(growingMarginLimits);
-ok(growingMarginLimits.length === 2,
-  "native margin-limit batching ignores rows appended after its fixed-length snapshot");
-ok(typeof td.native._seedPositions === "undefined",
-  "incremental native _seedPositions compatibility API is absent");
-{
-  // Capture the seeds handed to native so the JS side->isLong mapping + field
-  // pass-through is verified (accountMargin is side-invariant, so the total can't
-  // catch an inverted isLong or swapped volume/margin — same bug class as the
-  // seedFromPositions test above).
-  const seedCap = [];
-  const realSeedNative = td.native;
-  td.native = new Proxy(realSeedNative, {
-    get(target, prop) {
-      if (prop === "replacePositions")
-        return (seeds, revision) => { seedCap.push(...seeds); return realSeedNative.replacePositions(seeds, revision); };
-      const v = Reflect.get(target, prop, target);
-      return typeof v === "function" ? v.bind(target) : v;
-    },
-  });
-  td.seedPositions([
-    { instrumentId: "rb2510", side: "long", hedgeFlag: "1", volume: 5, margin: 10000 },
-    { instrumentId: "au2510", side: "short", hedgeFlag: "3", volume: 2, margin: 20000 },
-  ]);
-  td.native = realSeedNative;
-  const s = (id) => seedCap.find((x) => x.instrumentId === id);
-  const rb = s("rb2510"), au = s("au2510");
-  ok(seedCap.length === 2 &&
-     rb && rb.isLong === true && rb.hedgeFlag === "1" && rb.volume === 5 && rb.margin === 10000 &&
-     au && au.isLong === false && au.hedgeFlag === "3" && au.volume === 2 && au.margin === 20000,
-    "seedPositions installs each bucket with the correct side->isLong / hedge / volume / margin mapping");
-}
-throws(() => td.seedPositions(null), "seedPositions rejects a non-array complete snapshot");
-await rejects(withNativeMethod(td, "replacePositions", () => false,
-  async () => td.seedPositions([])),
-"manual seedPositions fails closed when every native revision CAS conflicts");
-throws(() => td.seedPositions([
-  { instrumentId: "rb", side: "long", hedgeFlag: "1", volume: 1.5, margin: 1 },
-]), "seedPositions rejects fractional volume");
-throws(() => td.seedPositions([
-  { instrumentId: "rb", side: "long", hedgeFlag: "4", volume: 1, margin: 1 },
-]), "seedPositions rejects an invalid hedge flag");
-throws(() => td.seedPositions([{
-  instrumentId: "rb", side: "long", hedgeFlag: "1", volume: 1, margin: 1, legacy: true,
-}]), "seedPositions rejects unknown fields");
-throws(() => td.seedPositions(new Array(1)), "seedPositions rejects sparse snapshots");
-const shrinkingSeeds = [
-  { instrumentId: "rb", side: "long", hedgeFlag: "1", volume: 1, margin: 1 },
-  { instrumentId: "ag", side: "long", hedgeFlag: "1", volume: 1, margin: 1 },
-];
-Object.defineProperty(shrinkingSeeds, 0, {
-  configurable: true,
-  get() {
-    shrinkingSeeds.length = 1;
-    return { instrumentId: "rb", side: "long", hedgeFlag: "1", volume: 1, margin: 1 };
-  },
-});
-throws(() => td.seedPositions(shrinkingSeeds),
-  "seedPositions rejects an accessor that shrinks a complete snapshot during validation");
-throws(() => td.seedFromPositions([{ instrumentId: "rb\0evil", posiDirection: "2", hedgeFlag: "1", position: 1, useMargin: 1 }]),
-  "seedFromPositions rejects embedded NUL instrument ids");
-// Capture the aggregated seeds handed to native so the JS-only aggregation is
-// actually verified (accountMargin is invariant under re-bucketing, so the total
-// alone can't catch a wrong-bucket / wrong-hedge-split / failed-zero-skip bug).
-{
-  const seedCapture = [];
-  const realSeedNative = td.native;
-  td.native = new Proxy(realSeedNative, {
-    get(target, prop) {
-      if (prop === "replacePositions")
-        return (seeds, revision) => { seedCapture.push(...seeds); return realSeedNative.replacePositions(seeds, revision); };
-      const v = Reflect.get(target, prop, target);
-      return typeof v === "function" ? v.bind(target) : v;
-    },
-  });
-  td.seedFromPositions([
-    { instrumentId: "rb", posiDirection: "2", hedgeFlag: "1", position: 3, useMargin: 300 },
-    { instrumentId: "rb", posiDirection: "2", hedgeFlag: "1", position: 2, useMargin: 200 },
-    { instrumentId: "rb", posiDirection: "2", hedgeFlag: "3", position: 1, useMargin: 50 },
-    { instrumentId: "au", posiDirection: "3", hedgeFlag: "1", position: 1, useMargin: 900 },
-    { instrumentId: "z", posiDirection: "2", hedgeFlag: "1", position: 0, useMargin: 0 },
-  ]);
-  td.native = realSeedNative;
-  const bucket = (id, isLong, hedge) => seedCapture.find((s) => s.instrumentId === id && s.isLong === isLong && s.hedgeFlag === hedge);
-  const rbL1 = bucket("rb", true, "1"), rbL3 = bucket("rb", true, "3"), auS1 = bucket("au", false, "1");
-  ok(seedCapture.length === 3 &&
-     rbL1 && rbL1.volume === 5 && rbL1.margin === 500 &&   // 3+2 merged
-     rbL3 && rbL3.volume === 1 && rbL3.margin === 50 &&     // distinct hedge bucket
-     auS1 && auS1.volume === 1 && auS1.margin === 900 &&    // short side kept separate
-     !seedCapture.some((s) => s.instrumentId === "z"),      // zero-position row skipped
-    "seedFromPositions aggregates by instrument+side+hedge (rb|long|1=5/500, rb|long|3=1/50, au|short|1=1/900) and skips zero rows");
-}
-throws(() => td.seedFromPositions([{ instrumentId: "rb", posiDirection: "1", hedgeFlag: "1", position: 1, useMargin: 1 }]),
-  "seedFromPositions rejects net/unknown direction instead of guessing a side");
-throws(() => td.seedFromPositions(null), "seedFromPositions rejects a non-array snapshot");
-throws(() => td.seedFromPositions([Object.create({
-  instrumentId: "rb", posiDirection: "2", hedgeFlag: "1", position: 1, useMargin: 1,
-})]), "seedFromPositions rejects inherited snapshot rows");
-throws(() => td.seedFromPositions(new Array(1)),
-  "seedFromPositions rejects sparse/inherited array entries");
-throws(() => td.seedFromPositions([
-  { instrumentId: "overflow", posiDirection: "2", hedgeFlag: "1", position: Number.MAX_SAFE_INTEGER, useMargin: 1 },
-  { instrumentId: "overflow", posiDirection: "2", hedgeFlag: "1", position: 1, useMargin: 1 },
-]), "seedFromPositions rejects unsafe aggregate volume overflow");
-ok(typeof td.accountMargin === "number", "accountMargin property");
-td.resetPositions(); ok(true, "resetPositions");
 ok(typeof td.apiVersion === "string", "apiVersion property");
 ok(typeof td.tradingDay === "string", "tradingDay property");
 {
@@ -400,8 +234,6 @@ ok(typeof td.tradingDay === "string", "tradingDay property");
   ok(typeof front.frontAddr === "string" && Number.isInteger(front.qryFreq) && Number.isInteger(front.ftdPkgFreq),
     "frontInfo exposes the front address and its per-second limits");
 }
-const stats = td.armStats;
-ok(typeof stats.fired === "number" && typeof stats.blocked === "number", "armStats property");
 
 // reqOrderInsert: auto orderRef when blank, and keep an explicit one (rejects offline; logic runs).
 await td.reqOrderInsert({ instrumentId: "rb2510", direction: "0", combOffsetFlag: "0", volumeTotalOriginal: 1, limitPrice: 3500 }).catch(() => {});
@@ -418,6 +250,22 @@ ok(td.orderRefSeq === beforeEncFail, "a failed encode preflight does not consume
 await td.reqOrderInsert({ instrumentId: "rb", direction: "0", combOffsetFlag: "0", volumeTotalOriginal: 1, limitPrice: 3500, orderRef: "500" }).catch(() => {});
 ok(td.orderRefSeq === 500, "the OrderRef is then consumable by a valid send");
 throws(() => td.reqOrderInsert({ instrumentId: "rb", direction: "0", combOffsetFlag: "0", volumeTotalOriginal: 1, limitPrice: 3500, orderRef: "bad-ref" }), "reqOrderInsert rejects a non-numeric OrderRef");
+for (const [label, fields] of [
+  ["a missing instrumentId", { direction: "0" }],
+  ["an empty instrumentId", { instrumentId: "", direction: "0" }],
+  ["a non-string instrumentId", { instrumentId: 2510, direction: "0" }],
+  ["an embedded NUL instrumentId", { instrumentId: "rb\0evil", direction: "0" }],
+  ["a missing direction", { instrumentId: "rb" }],
+  ["an unknown direction", { instrumentId: "rb", direction: "2" }],
+]) {
+  let identityError;
+  try {
+    td.reqOrderInsert({ combOffsetFlag: "0", volumeTotalOriginal: 1, limitPrice: 3500, ...fields });
+  } catch (e) { identityError = e; }
+  ok(identityError instanceof TypeError &&
+     /instrumentId and direction \("0"\/"1"\) are required/.test(identityError.message),
+    `reqOrderInsert rejects ${label} before encoding`);
+}
 throws(() => td.reqOrderInsert({ instrumentId: "rb", direction: "0", volumeTotalOriginal: 1 }), "reqOrderInsert rejects a missing offset flag");
 throws(() => td.reqOrderInsert({ instrumentId: "rb", direction: "0", combOffsetFlag: "0", combHedgeFlag: "", volumeTotalOriginal: 1 }),
   "reqOrderInsert rejects a missing hedge flag override");
@@ -470,6 +318,23 @@ for (const policy of [
   ok(outcome?.ctpReturnCode !== -10008,
     `native ordinary-order capability accepts ${policy.name}`);
 }
+// Explicit empty strings mean the same as omitted optional text fields; any
+// non-empty routing/account override is outside the ordinary-order capability.
+const explicitEmpty = td.reqOrderInsert({
+  instrumentId: "rb", direction: "0", combOffsetFlag: "1", volumeTotalOriginal: 1, limitPrice: 3500,
+  gtdDate: "", businessUnit: "", exchangeId: "", investUnitId: "", accountId: "", currencyId: "", clientId: "",
+});
+ok(explicitEmpty instanceof Promise, "reqOrderInsert treats explicit empty optional text fields as omitted");
+await explicitEmpty.catch(() => {});
+for (const field of ["gtdDate", "businessUnit", "exchangeId", "investUnitId", "accountId", "currencyId", "clientId"]) {
+  let overrideError;
+  try {
+    td.reqOrderInsert({ instrumentId: "rb", direction: "0", combOffsetFlag: "1", volumeTotalOriginal: 1,
+      limitPrice: 3500, [field]: "X" });
+  } catch (e) { overrideError = e; }
+  ok(/only single-instrument GFD, FAK or FOK limit orders are supported/.test(String(overrideError?.message)),
+    `reqOrderInsert rejects a non-empty ${field} override`);
+}
 for (const invalidPolicy of [
   { timeCondition: "5", volumeCondition: "1" },
   { timeCondition: "3", volumeCondition: "3" },
@@ -483,29 +348,7 @@ for (const invalidPolicy of [
 ok(td.shouldTimeoutRequest(999_999, false) === true, "a non-session-transition request always times out");
 ok(td.shouldTimeoutRequest(999_999, true) === false, "an unmatched session-transition timeout is linearized natively (no pending -> false)");
 
-// arm() validation branches + a valid arm/disarm.
 const md = new MarketData("./flow-tu-md/", "tcp://127.0.0.1:1");
-throws(() => td.arm(md, { instrumentId: "", side: "buy", triggerPrice: 1, order: {} }), "arm throws on empty instrumentId");
-throws(() => td.arm(md, { instrumentId: "rb", side: "buy", triggerPrice: 0, order: {} }), "arm throws on a non-positive trigger price");
-throws(() => td.arm(md, { instrumentId: "rb", side: "buy", triggerPrice: Number.MAX_VALUE, order: {} }), "arm rejects a sentinel-scale trigger price");
-throws(() => td.arm(md, { instrumentId: "rb", side: "buy", triggerPrice: 1, order: { instrumentId: "rb" } }), "arm throws on an incomplete order template");
-// These target arm()'s OWN side/instrument/direction checks, which run only
-// after validateOrder() passes — so the templates must be otherwise valid
-// (incl. limitPrice), else validateOrder throws first and arm's checks never run.
-throws(() => td.arm(md, { instrumentId: "rb", side: "buy", triggerPrice: 1, order: { instrumentId: "rb", direction: "1", combOffsetFlag: "0", volumeTotalOriginal: 1, limitPrice: 3500 } }), "arm requires trigger side to match order direction");
-throws(() => td.arm(md, { instrumentId: "rb", side: "buy", triggerPrice: 1, order: { instrumentId: "rb", direction: "0", combOffsetFlag: "30", volumeTotalOriginal: 1 } }), "arm rejects a multi-leg offset template");
-throws(() => td.arm(md, { instrumentId: "rb", side: "hold", triggerPrice: 1, order: { instrumentId: "rb", direction: "0", combOffsetFlag: "0", volumeTotalOriginal: 1, limitPrice: 3500 } }),
-  "arm rejects an unknown trigger side");
-throws(() => td.arm(md, { instrumentId: "rb", side: "buy", triggerPrice: 1, order: { instrumentId: "ag", direction: "0", combOffsetFlag: "0", volumeTotalOriginal: 1, limitPrice: 3500 } }),
-  "arm rejects a trigger/order instrument mismatch");
-td.haltAll();
-throws(() => td.arm(md, { instrumentId: "rb", side: "buy", triggerPrice: 1,
-  order: { instrumentId: "rb", direction: "0", combOffsetFlag: "0", volumeTotalOriginal: 1, limitPrice: 1 } }),
-  "HALT_ALL rejects new arms instead of preserving them for resume");
-td.resume();
-const h = td.arm(md, { instrumentId: "rb", side: "sell", triggerPrice: 3500, order: { instrumentId: "rb", direction: "1", combOffsetFlag: "0", volumeTotalOriginal: 1, limitPrice: 3500 } });
-ok(typeof h.id === "number", "arm returns a handle id");
-ok(typeof h.disarm() === "boolean", "arm handle disarm()");
 
 // trackMarketData wires the MD snapshot cache into the risk engine in C++ (the
 // deviation reference). Wire the shared td (harmless for later tests) and then
@@ -534,24 +377,20 @@ td.trackMarketData(md);
   const far = await outcome(5000);  // ~43% off -> blocked ONLY if the reference is wired
   ok(!/deviat|reference/i.test(near) && /deviat/i.test(far),
     "trackMarketData wires the MD snapshot: near-reference order passes the deviation gate, a far one is blocked (would fail closed on 'reference' if unwired)");
-  // 只替换柜台查询，正式报单入口、原生准入和拒单证据走同一条调用链。
-  tdTrack.reqQryOrder = async () => [];
-  tdTrack.reqQryTradingAccount = async (request) => flatFunds(request.brokerId, request.investorId);
-  await tdTrack.syncOrders();
-  tdTrack.seedPositions([{ instrumentId: "rb2510", side: "long", hedgeFlag: "1", volume: 1, margin: 1000 }]);
-  tdTrack.setInstrumentMarginLimit("rb2510", 4000);
-  const submit = () => tdTrack.reqOrderInsert({ instrumentId: "rb2510", direction: "0", combOffsetFlag: "0",
-    combHedgeFlag: "1", limitPrice: 3501, volumeTotalOriginal: 1 }).then(() => null, error => error);
-  const missing = await submit();
-  ok(missing?.ctpReturnCode === -10007 && !missing.marginRejection, "原生缺少合约乘数时如实报告缺少估值资料");
-  for (const scope of ["INSTRUMENT", "ACCOUNT"]) {
-    tdTrack.setInstrumentMarginLimit("rb2510", scope === "INSTRUMENT" ? 1000 : 0);
-    if (scope === "ACCOUNT") tdTrack.setRiskLimits({ maxAccountMargin: 1000 });
-    const denied = await submit(), evidence = denied?.marginRejection;
-    ok(denied?.ctpReturnCode === -10003 && evidence?.scope === scope && evidence.limit === 1000 &&
-      evidence.held === 1000 && evidence.pending === 0 && evidence.requested === null,
-      "持仓已达上限时返回准确范围、已知金额和本笔估值缺失：" + scope + " " + JSON.stringify(evidence));
-  }
+  // maxNotional reads the same wired reference through the real order path. The
+  // multiplier comes only from OnRspQryInstrument inside C++, so before any
+  // instrument query an enabled notional cap fails closed with the specific
+  // reason as an ordinary pre-trade block (no ledger-era -10007 / evidence).
+  tdTrack.setRiskLimits({ maxNotional: 1e9, maxReferenceAgeMs: 60000 });
+  const submit = (direction, combOffsetFlag) => tdTrack.reqOrderInsert({ instrumentId: "rb2510", direction,
+    combOffsetFlag, combHedgeFlag: "1", limitPrice: 3501, volumeTotalOriginal: 1 }).then(() => null, (error) => error);
+  const missing = await submit("0", "0");
+  ok(missing?.ctpReturnCode === -10001 && /instrument multiplier unavailable/.test(missing.message) &&
+    !("marginRejection" in missing),
+    "maxNotional without a synchronized multiplier fails closed, naming the missing multiplier");
+  const closing = await submit("1", "1");
+  ok(!(closing?.ctpReturnCode <= -10001 && closing?.ctpReturnCode >= -10009),
+    "a risk-reducing close still reaches the vendor API while the multiplier is missing");
   tdTrack.close(); mdTrack.close();
 }
 
@@ -561,15 +400,25 @@ signedSessionTrader.reqUserLogin = async () => {
   ok(signedSessionTrader.native._injectTestLogin(1, sessionId, "9999", "signed"),
     "native login/account confirmation accepts a negative non-zero SessionID");
   return {
-    brokerId: "9999", userId: "signed", maxOrderRef: "0", frontId: 1, sessionId,
+    brokerId: "9999", userId: "signed", maxOrderRef: "42", frontId: 1, sessionId,
   };
 };
+for (const [label, investorId] of [["an empty", ""], ["a non-string", 7], ["a NUL-bearing", "inv\0x"]]) {
+  let investorError;
+  await signedSessionTrader.session({ brokerId: "9999", userId: "signed", password: "p", investorId })
+    .catch((e) => { investorError = e; });
+  ok(investorError instanceof TypeError &&
+     investorError.message === "session investorId must be a non-empty string",
+    `session rejects ${label} explicit investorId before changing context`);
+}
 const signedSession = await signedSessionTrader.session({
   brokerId: "9999", userId: "signed", password: "p", confirmSettlement: false,
-  sync: { multipliers: false, positions: false, orders: false },
+  sync: { multipliers: false },
 });
 ok(signedSession.identity.sessionId === -2147483647,
   "session() preserves the exact negative signed SessionID");
+ok(signedSession.identity.maxOrderRef === 42 && signedSessionTrader.orderRefSeq === 42,
+  "session() raises the automatic OrderRef high-water mark to the login's higher MaxOrderRef");
 signedSessionTrader.close();
 
 const zeroSessionTrader = new Trader("./flow-tu-zero-session/", "tcp://127.0.0.1:1");
@@ -603,27 +452,22 @@ td.reqQryInstrumentMarginRate = async (request) => {
   shortMarginRatioByMoney: 0.1, shortMarginRatioByVolume: 0,
 }];
 };
-td.reqQryInvestorPosition = async () => [
-  { brokerId: "9999", investorId: "u", instrumentId: "rb2510", posiDirection: "2", hedgeFlag: "1", position: 3, useMargin: 30000 },
-];
-td.reqQryOrder = async () => [
-  { brokerId: "9999", investorId: "u", frontId: 1, sessionId: 7, orderRef: "7", instrumentId: "rb2510", combOffsetFlag: "0", combHedgeFlag: "1", direction: "0", orderStatus: "3", limitPrice: 3500, volumeTotalOriginal: 2, volumeTraded: 0 },
-  { brokerId: "9999", investorId: "u", frontId: 1, sessionId: 7, orderRef: "8", instrumentId: "rb", combOffsetFlag: "1", combHedgeFlag: "1", direction: "0", orderStatus: "0", limitPrice: 1, volumeTotalOriginal: 1, volumeTraded: 1 },
-  { brokerId: "9999", investorId: "u", frontId: 2, sessionId: 9, orderRef: "9", instrumentId: "mix", combOffsetFlag: "0", combHedgeFlag: "1", direction: "0", orderStatus: "3", limitPrice: 1, volumeTotalOriginal: 1, volumeTraded: 0 },
-];
+// session() no longer snapshots positions or working orders: the native gate
+// keeps no ledger, so the handshake must not issue either query.
+let ledgerQueries = 0;
+td.reqQryInvestorPosition = async () => { ledgerQueries++; return []; };
+td.reqQryOrder = async () => { ledgerQueries++; return []; };
 const res = await td.session({ brokerId: "9999", userId: "u", password: "p", appId: "a", authCode: "c" });
 ok(res.multipliers === 1, "session: syncMultipliers applied 1 (skipped volumeMultiple 0)");
-ok(res.positions === 1, "session: syncPositions counted 1");
-ok(res.orders === 2, "session: syncOrders re-reserved two single-leg working opens");
-const res2 = await td.session({ brokerId: "9999", userId: "u", password: "p", confirmSettlement: false, sync: { multipliers: ["rb2510"], positions: false, orders: false } });
-ok(res2.multipliers === 1 && res2.marginRates === 0 && res2.positions === 0 && res2.orders === 0, "session: auth skipped + settlement off + sync subset");
+ok(Object.keys(res).sort().join() === "identity,marginRates,multipliers" && ledgerQueries === 0,
+  "session: the result carries no positions/orders counts and the handshake queries no ledger");
+const res2 = await td.session({ brokerId: "9999", userId: "u", password: "p", confirmSettlement: false, sync: { multipliers: ["rb2510"] } });
+ok(res2.multipliers === 1 && res2.marginRates === 0, "session: auth skipped + settlement off + sync subset");
 const res3 = await td.session({
   brokerId: "9999", userId: "u", password: "p", confirmSettlement: false,
   sync: {
     multipliers: false,
     marginRates: { instrumentIds: ["rb2510"], hedgeFlag: "1" },
-    positions: false,
-    orders: false,
   },
 });
 ok(res3.marginRates === 1, "session executes an explicitly bounded margin-rate synchronization");
@@ -636,8 +480,6 @@ const res4 = await td.session({
   sync: {
     multipliers: false,
     marginRates: { instrumentIds: ["rb2510"], hedgeFlag: "2" },
-    positions: false,
-    orders: false,
   },
 });
 ok(res4.marginRates === 1 && sessionMarginHedgeFlags.at(-1) === "2",
@@ -652,7 +494,7 @@ td.reqUserLogin = async () => {
 };
 await rejects(td.session({
   brokerId: "9999", userId: "u", password: "p", confirmSettlement: false,
-  sync: { multipliers: false, positions: false, orders: false },
+  sync: { multipliers: false },
 }), "session rejects an invalid correlated MaxOrderRef");
 ok(td.broker === undefined && td.investor === undefined,
   "an invalid MaxOrderRef does not leave a usable JS session identity");
@@ -669,7 +511,7 @@ td.reqUserLogin = async () => {
 };
 const generatedTransitionSession = await td.session({
   brokerId: "9999", userId: "u", password: "p", confirmSettlement: false,
-  sync: { multipliers: false, positions: false, orders: false },
+  sync: { multipliers: false },
 });
 ok(generatedTransitionSession.multipliers === 0 &&
    td.broker === "9999" && td.investor === "u",
@@ -681,8 +523,21 @@ td.reqUserLogin = () => {
 };
 await rejects(td.session({
   brokerId: "9999", userId: "u", password: "p", confirmSettlement: false,
-  sync: { multipliers: false, positions: false, orders: false },
+  sync: { multipliers: false },
 }), "session rejects multiple context transitions crossed by one login request");
+td.reqUserLogin = () => {
+  td.beginRequestContextTransition("simulated first login transition");
+  td.beginRequestContextTransition("simulated second login transition");
+  return Promise.resolve({ brokerId: "9999", userId: "u", frontId: 1, sessionId: 7 });
+};
+let doubleTransitionError;
+await td.session({
+  brokerId: "9999", userId: "u", password: "p", confirmSettlement: false,
+  sync: { multipliers: false },
+}).catch((e) => { doubleTransitionError = e; });
+ok(/crossed multiple context transitions/.test(String(doubleTransitionError?.message)) &&
+   td.broker === undefined,
+  "even a successful login response cannot be accepted across multiple context transitions");
 td.reqUserLogin = stableGeneratedTransitionLogin;
 td.broker = "9999";
 td.investor = "u";
@@ -700,7 +555,7 @@ td.reqUserLogin = () => new Promise((resolve) => {
 td.reqSettlementInfoConfirm = async () => { staleSettlementCalls++; return {}; };
 await rejects(td.session({
   brokerId: "9999", userId: "u", password: "p",
-  sync: { multipliers: false, positions: false, orders: false },
+  sync: { multipliers: false },
 }), "session rejects a login response followed by a same-batch disconnect");
 ok(staleSettlementCalls === 0 && td.broker === undefined && td.investor === undefined,
   "an invalidated session neither confirms settlement nor resurrects identity");
@@ -709,23 +564,20 @@ td.reqSettlementInfoConfirm = stableSettlementForEpoch;
 td.broker = "9999";
 td.investor = "u";
 
-const stablePositionQueryForEpoch = td.reqQryInvestorPosition;
-let crossEpochPositionCommits = 0;
-td.reqQryInvestorPosition = () => new Promise((resolve) => {
-  resolve([{
-    brokerId: "9999", investorId: "u", instrumentId: "rb2510",
-    posiDirection: "2", hedgeFlag: "1", position: 3, useMargin: 30000,
-  }]);
+// A query result and a front transition can arrive in the same native drain.
+// A sync helper must not apply (or retry) a snapshot taken under the old epoch.
+const stableInstrumentQueryForEpoch = td.reqQryInstrument;
+let crossEpochQueries = 0;
+td.reqQryInstrument = () => new Promise((resolve) => {
+  crossEpochQueries++;
+  resolve([{ instrumentId: "rb2510", productId: "rb", volumeMultiple: 10 }]);
   td.emit("front-disconnected", 124, {});
 });
-await rejects(withNativeMethod(td, "replacePositions", () => {
-  crossEpochPositionCommits++;
-  return true;
-}, () => td.syncPositions()),
-"syncPositions rejects a snapshot followed by a same-batch disconnect");
-ok(crossEpochPositionCommits === 0,
-  "an invalidated position snapshot never reaches the native CAS commit");
-td.reqQryInvestorPosition = stablePositionQueryForEpoch;
+await rejects(td.syncMultipliers(["rb2510"]),
+  "syncMultipliers rejects a snapshot followed by a same-batch disconnect");
+ok(crossEpochQueries === 1,
+  "an invalidated snapshot is neither accepted nor retried across the front change");
+td.reqQryInstrument = stableInstrumentQueryForEpoch;
 td.broker = "9999";
 td.investor = "u";
 
@@ -745,7 +597,7 @@ const successfulLogin = td.reqUserLogin;
 td.reqUserLogin = async () => undefined;
 await rejects(td.session({
   brokerId: "8888", userId: "u2", password: "p", confirmSettlement: false,
-  sync: { multipliers: false, positions: false, orders: false },
+  sync: { multipliers: false },
 }), "session fails closed when login omits front/session identity");
 ok(td.broker === undefined && td.investor === undefined,
   "an identity-less login revokes the previous confirmed session identity");
@@ -755,7 +607,7 @@ td.reqUserLogin = async () => ({ brokerId: "9999", userId: "u", frontId: 1, sess
 let confirmFailErr;
 await td.session({
   brokerId: "9999", userId: "u", password: "p", confirmSettlement: false,
-  sync: { multipliers: false, positions: false, orders: false },
+  sync: { multipliers: false },
 }).then(() => {}, (e) => { confirmFailErr = e; });
 // Assert the specific reason, not merely that it rejected, so a regression that
 // rejects at an earlier gate cannot silently pass this security-critical check.
@@ -768,34 +620,11 @@ td.reqUserLogin = async () => ({
 });
 await rejects(td.session({
   brokerId: "8888", userId: "u2", password: "p", confirmSettlement: false,
-  sync: { multipliers: false, positions: false, orders: false },
+  sync: { multipliers: false },
 }), "session fails closed when the login response identifies another account");
 td.reqUserLogin = successfulLogin;
 td.broker = "9999";
 td.investor = "u";
-const validPositionQuery = td.reqQryInvestorPosition;
-td.reqQryInvestorPosition = async () => [{
-  brokerId: "other", investorId: "other", instrumentId: "rb2510",
-  posiDirection: "2", hedgeFlag: "1", position: 3, useMargin: 30000,
-}];
-await rejects(td.syncPositions(),
-  "syncPositions rejects a non-empty snapshot for a different account instead of treating it as flat");
-td.reqQryInvestorPosition = validPositionQuery;
-const validOrderQuery = td.reqQryOrder;
-td.reqQryOrder = async () => [{
-  brokerId: "other", investorId: "other", frontId: 1, sessionId: 7,
-  orderRef: "foreign", tradingDay: "20260710", exchangeId: "SHFE",
-  orderSysId: "foreign", instrumentId: "rb2510", combOffsetFlag: "0",
-  combHedgeFlag: "1", direction: "0", orderStatus: "3", limitPrice: 3500,
-  volumeTotalOriginal: 1, volumeTraded: 0,
-}];
-await rejects(td.syncOrders(),
-  "syncOrders rejects a non-empty snapshot for a different account instead of clearing reservations");
-td.reqQryOrder = validOrderQuery;
-// Restore both authoritative ledgers for the tests below. Order sync
-// deliberately keeps positions uncertain until the final position snapshot.
-await td.syncOrders();
-await td.syncPositions();
 {
   const oldCatalog = td.reqQryInstrument, oldMargins = td.reqQryInstrumentMarginRate;
   const requests = [];
@@ -883,10 +712,14 @@ await rejects(td.session({ brokerId: "9999", userId: "u", password: "p", sync: {
   "session.sync rejects unknown fields");
 await rejects(td.session({ brokerId: "9999", userId: "u", password: "p", confirmSettlement: "false" }),
   "session rejects non-boolean confirmSettlement");
-await rejects(td.session({ brokerId: "9999", userId: "u", password: "p", sync: { positions: "yes" } }),
-  "session rejects a non-boolean position-sync selector");
-await rejects(td.session({ brokerId: "9999", userId: "u", password: "p", sync: { orders: 1 } }),
-  "session rejects a non-boolean order-sync selector");
+for (const removed of ["positions", "orders"]) {
+  let selectorError;
+  await td.session({ brokerId: "9999", userId: "u", password: "p", sync: { [removed]: false } })
+    .catch((e) => { selectorError = e; });
+  ok(selectorError instanceof TypeError &&
+     selectorError.message === `session.sync: unknown field ${removed}` && td.broker === "9999",
+    `session.sync rejects the removed ${removed} selector before changing context`);
+}
 await rejects(td.session({
   brokerId: "9999", userId: "u", password: "p",
   sync: { marginRates: { instrumentIds: ["rb2510"], hedgeFlag: "4" } },
@@ -911,15 +744,9 @@ await rejects(td.session({
 await rejects(td.syncMultipliers(["rb\0evil"]), "syncMultipliers rejects embedded NUL instrument ids");
 await rejects(td.syncMultipliers(sparseInstrumentIds),
   "syncMultipliers rejects sparse instrument-id arrays instead of querying all instruments");
-await rejects(td.syncPositions({ brokerId: "other", investorId: "other" }),
-  "syncPositions rejects the removed account-override interface");
-await rejects(td.syncOrders({ brokerId: "other", investorId: "other" }),
-  "syncOrders rejects the removed account-override interface");
 const confirmedBroker = td.broker, confirmedInvestor = td.investor;
 td.broker = undefined; td.investor = undefined;
 await rejects(td.syncMarginRates(["rb2510"]), "syncMarginRates fails closed without a confirmed login");
-await rejects(td.syncPositions(), "syncPositions fails closed without a confirmed login");
-await rejects(td.syncOrders(), "syncOrders fails closed without a confirmed login");
 td.broker = confirmedBroker; td.investor = confirmedInvestor;
 td.setRiskLimits({ maxOrderVolume: 1 });
 let modifyBlocked = false;
@@ -958,11 +785,9 @@ ok(transferBlocked, "bank-to-futures transfer is explicitly blocked outside NORM
 td.resume();
 
 // A counter that is not ready is asked again after a pause that faster query
-// pacing must not shorten; an empty snapshot is settled by the account's funds.
-td.reqQryTradingAccount = async (request) => flatFunds(request.brokerId, request.investorId);
+// pacing must not shorten.
 {
-  const saved = { instrument: td.reqQryInstrument, position: td.reqQryInvestorPosition,
-    order: td.reqQryOrder, funds: td.reqQryTradingAccount };
+  const savedInstrumentQuery = td.reqQryInstrument;
   td.queryRetryDelayMs = 250;
   td.queryIntervalMs = 110;
   const sentAt = [];
@@ -982,50 +807,17 @@ td.reqQryTradingAccount = async (request) => flatFunds(request.brokerId, request
   await td.syncMultipliers(["rb2510"]);
   ok(sentAt.length === 2 && sentAt[1] - sentAt[0] >= 240,
     "the counter's explicit not-ready reply is asked again after the pause");
-
-  const positions = [{ brokerId: "9999", investorId: "u", instrumentId: "rb2510", posiDirection: "2",
-    position: 1, useMargin: 3000, hedgeFlag: "1" }];
   sentAt.length = 0;
-  let replies = [[]], funds = { currMargin: 0 };
-  td.reqQryInvestorPosition = async () => { sentAt.push(performance.now()); return replies.length > 1 ? replies.shift() : replies[0]; };
-  td.reqQryTradingAccount = async (request) => [{ ...flatFunds(request.brokerId, request.investorId)[0], ...funds }];
-  const flatStarted = performance.now();
-  ok((await td.syncPositions()) === 0 && sentAt.length === 1 && performance.now() - flatStarted < 200,
-    "an empty position snapshot is accepted at once when the funds show no margin in use");
-  sentAt.length = 0; replies = [[], positions]; funds = { currMargin: 3000 };
-  ok((await td.syncPositions()) === 1 && sentAt.length === 2 && sentAt[1] - sentAt[0] >= 240,
-    "an empty position snapshot its funds contradict is asked again, after the pause");
-  for (const currMargin of [3000, Number.MAX_VALUE, Number.NaN]) {
-    td.queryRetryDelayMs = 0; sentAt.length = 0; replies = [[]]; funds = { currMargin };
-    await rejects(td.syncPositions(), `an empty position snapshot never passes with margin ${currMargin}`);
-    ok(sentAt.length === 5, "the contradiction is asked five times before failing closed");
-  }
-  funds = { accountId: "funds-account" };
-  ok((await td.syncPositions()) === 0, "a funds account id that differs from the investor id still settles an empty snapshot");
-  funds = { brokerId: "other" };
-  await rejects(td.syncPositions(), "funds of a different broker never settle an empty snapshot");
-  td.reqQryTradingAccount = async () => [];
-  await rejects(td.syncPositions(), "a missing funds record means the account is not ready");
-  td.reqQryOrder = async () => [];
-  td.reqQryTradingAccount = saved.funds;
-  ok((await td.syncOrders()) === 0, "an empty order snapshot is accepted when nothing is frozen");
-  for (const key of ["frozenMargin", "frozenCash", "frozenCommission"]) {
-    td.reqQryTradingAccount = async (request) => [{ ...flatFunds(request.brokerId, request.investorId)[0], [key]: 5 }];
-    await rejects(td.syncOrders(), `an empty order snapshot never passes with ${key}`);
-  }
-  td.queryRetryDelayMs = 250; sentAt.length = 0; replies = [[]];
-  td.reqQryTradingAccount = async (request) => [{ ...flatFunds(request.brokerId, request.investorId)[0], currMargin: 3000 }];
-  const invalidated = td.syncPositions();
+  td.reqQryInstrument = async () => { sentAt.push(performance.now()); return []; };
+  let pauseError;
+  const invalidated = td.syncMultipliers(["rb2510"]).catch((e) => { pauseError = e; });
   setTimeout(() => td.invalidateRequestContext("front disconnected"), 100);
-  await rejects(invalidated, "a front change during the pause rejects the snapshot");
+  await invalidated;
+  ok(/query synchronization invalidated: front disconnected/.test(String(pauseError?.message)),
+    "a front change during the pause rejects the snapshot as invalidated");
   ok(sentAt.length === 1, "a query is never repeated across a front change");
   td.queryRetryDelayMs = 0;
-  td.reqQryInstrument = saved.instrument;
-  td.reqQryInvestorPosition = saved.position;
-  td.reqQryOrder = saved.order;
-  td.reqQryTradingAccount = saved.funds;
-  // invalidation above dropped nothing but the pending snapshot; restore certain ledgers
-  await td.syncOrders(); await td.syncPositions();
+  td.reqQryInstrument = savedInstrumentQuery;
 }
 
 // queryWithRetry: required data that stays empty, or keeps failing, throws.
@@ -1061,131 +853,28 @@ td.reqQryInstrument = async () => {
 await rejects(td.syncMultipliers(["rb2510"]),
   "sync helpers surface the final transient error after exhausting retries");
 
+// The gate keeps no position/order ledger: once the session is confirmed, an
+// in-limit opening order passes every native check with no snapshot at all.
+// (The handshake tests above revoked the native session; re-establish it.)
 td.setRiskLimits({});
-await td.syncPositions(); // res2 deliberately skipped sync and left the position ledger fail-closed
-
-let replacePositionAttempts = 0;
-const positionsAfterConflict = await withNativeMethod(td, "replacePositions", (native, ...args) =>
-  ++replacePositionAttempts === 1 ? false : native.replacePositions(...args),
-() => td.syncPositions());
-ok(positionsAfterConflict === 1 && replacePositionAttempts === 2,
-  "syncPositions retries a snapshot invalidated by a live ledger revision");
-await rejects(withNativeMethod(td, "replacePositions", () => false, () => td.syncPositions()),
-  "syncPositions fails closed when every snapshot revision conflicts");
-await td.syncPositions(); // restore a certain held-position snapshot after the forced failure
-
-// A burst of live callbacks is ridden out for as long as the settle budget, no
-// matter how fast queries are paced; the budget, not an attempt count, ends it.
-td.snapshotSettleMs = 1500;
-for (const [label, method, run, done] of [
-  ["position", "replacePositions", () => td.syncPositions(), 1],
-  ["order", "rebuildReservations", () => td.syncOrders(), 2],
-]) {
-  const until = performance.now() + 1000;
-  let raced = 0;
-  const settled = await withNativeMethod(td, method, (native, ...args) =>
-    performance.now() < until ? (raced++, false) : native[method](...args), run);
-  ok(settled === done && raced >= 2, `a ${label} snapshot raced for a second settles within its budget`);
-  const started = performance.now();
-  let attempts = 0;
-  await rejects(withNativeMethod(td, method, () => { attempts++; return false; }, run),
-    `a ${label} snapshot that never settles fails closed`);
-  const elapsed = performance.now() - started;
-  ok(attempts >= 5 && elapsed >= 1490 && elapsed < 2600, `the ${label} snapshot fails only after its budget`);
-}
-td.snapshotSettleMs = 0;
-await td.syncOrders();
-await td.syncPositions();
-
-let rebuildOrderAttempts = 0;
-const ordersAfterConflict = await withNativeMethod(td, "rebuildReservations", (native, ...args) =>
-  ++rebuildOrderAttempts === 1 ? false : native.rebuildReservations(...args),
-() => td.syncOrders());
-ok(ordersAfterConflict === 2 && rebuildOrderAttempts === 2,
-  "syncOrders retries a snapshot invalidated by a live ledger revision");
-await rejects(withNativeMethod(td, "rebuildReservations", () => false, () => td.syncOrders()),
-  "syncOrders fails closed when every snapshot revision conflicts");
-await td.syncOrders();
-await td.syncPositions(); // order-first reconciliation intentionally leaves positions uncertain
-
-// The epoch/disconnect tests above invalidated the native session; re-establish
-// a confirmed one so the unsupported-order gate below reaches the ledger check
-// (rather than failing at the account gate) on a live account.
 td.native._injectTestLogin(1, 7, "9999", "u");
-await td.syncPositions();
-td.setInstrumentPositionLimit("rb", 10);
-td.reqQryOrder = async () => [{
-  brokerId: "9999", investorId: "u", frontId: 1, sessionId: 7, orderRef: "9",
-  orderSysId: "sys-x", instrumentId: "rb", combOffsetFlag: "0", combHedgeFlag: "1",
-  direction: "0", orderStatus: "3", limitPrice: 3500, volumeTotalOriginal: 1, volumeTraded: 0,
-}]; // orderSysId present but exchangeId empty -> malformed working-order snapshot
-await rejects(td.syncOrders(), "syncOrders rejects a malformed working-order snapshot");
-td.reqQryOrder = async () => [{
-  brokerId: "9999", investorId: "u", frontId: 2, sessionId: 9, orderRef: "multi-live", tradingDay: "20260710",
-  exchangeId: "SHFE", orderSysId: "sys-multi", instrumentId: "rb",
-  combOffsetFlag: "30", combHedgeFlag: "11", direction: "0", orderStatus: "3",
-  limitPrice: 3500, volumeTotalOriginal: 1, volumeTraded: 0,
-}];
-await rejects(td.syncOrders(), "syncOrders reports an unsupported working multi-leg order");
-let unsupportedBlocked = false;
-await td.reqOrderInsert({ instrumentId: "rb", direction: "0", combOffsetFlag: "0", volumeTotalOriginal: 1, limitPrice: 3500, orderRef: "2001" })
-  .catch((e) => { unsupportedBlocked = /metadata unavailable/i.test(String(e)); });
-ok(unsupportedBlocked, "unsupported working orders make position-dependent opens fail closed");
-td.reqQryOrder = async () => [];
-ok((await td.syncOrders()) === 0, "a later authoritative empty order snapshot clears unsupported state");
-let orderFirstStillBlocked = false;
-await td.reqOrderInsert({ instrumentId: "rb", direction: "0", combOffsetFlag: "0", volumeTotalOriginal: 1, limitPrice: 3500, orderRef: "2002" })
-  .catch((e) => { orderFirstStillBlocked = /metadata unavailable/i.test(String(e)); });
-ok(orderFirstStillBlocked, "syncOrders keeps opens blocked until a later position snapshot");
-await td.syncPositions();
-let stillMetadataBlocked = false;
-await td.reqOrderInsert({ instrumentId: "rb", direction: "0", combOffsetFlag: "0", volumeTotalOriginal: 1, limitPrice: 3500, orderRef: "2003" })
-  .catch((e) => { stillMetadataBlocked = /metadata unavailable/i.test(String(e)); });
-ok(!stillMetadataBlocked, "opens no longer fail on unsupported-order ambiguity after reconciliation");
-
-const sessionBoundArm = td.arm(md, { instrumentId: "rb", side: "sell", triggerPrice: 3500, order: { instrumentId: "rb", direction: "1", combOffsetFlag: "0", volumeTotalOriginal: 1, limitPrice: 3500 } });
+const plainOrder = { instrumentId: "rb", direction: "0", combOffsetFlag: "0", volumeTotalOriginal: 1, limitPrice: 3500 };
+const isRiskSentinel = (e) => e?.ctpReturnCode <= -10001 && e?.ctpReturnCode >= -10009;
+const openOutcome = await td.reqOrderInsert(plainOrder).then(() => null, (e) => e);
+ok(!isRiskSentinel(openOutcome),
+  `a confirmed session admits an in-limit opening order without any ledger synchronization (${openOutcome?.message ?? "sent"})`);
+// A login/logout transition still revokes native order authority. Restore the
+// JS identity afterwards so validation passes and the native gate decides.
 const logoutAttempt = td.reqUserLogout({ brokerId: "9999", userId: "u" });
 logoutAttempt.catch(() => {});
-ok(sessionBoundArm.disarm() === false,
-  "a login/logout transition revokes arms from the previous session");
-
-// Regression (round-17 finding): the syncOrders() resync key MUST be byte-
-// identical to the native realtime key built in traderspi.gen.cc (OnRtnOrder/
-// OnRtnTrade): day|broker|investor|exchange|instrument|orderSysId. A 4-field key
-// (missing broker/investor) leaves a reservation rebuilt on reconnect
-// uncorrelated with the subsequent realtime order/trade callbacks, stranding
-// opening inserts fail-closed for any account carrying resting orders.
-{
-  mkdirSync("flow-tu-syskey", { recursive: true });
-  const tdKey = new Trader("./flow-tu-syskey/", "tcp://127.0.0.1:1");
-  tdKey.broker = "9999";
-  tdKey.investor = "u";
-  const captured = [];
-  const realKeyNative = tdKey.native;
-  tdKey.native = new Proxy(realKeyNative, {
-    get(target, prop) {
-      if (prop === "rebuildReservations")
-        return (working) => { captured.push(...working); return true; }; // capture only, no native mutation
-      const v = Reflect.get(target, prop, target);
-      return typeof v === "function" ? v.bind(target) : v;
-    },
-  });
-  tdKey.reqQryOrder = async () => [{
-    brokerId: "9999", investorId: "u", frontId: 1, sessionId: 7, orderRef: "syskey-probe",
-    instrumentId: "rb2510", combOffsetFlag: "0", combHedgeFlag: "1", direction: "0",
-    orderStatus: "3", limitPrice: 3500, volumeTotalOriginal: 2, volumeTraded: 0,
-    tradingDay: "20260711", exchangeId: "SHFE", orderSysId: "  800001 ",
-  }];
-  await tdKey.syncOrders();
-  tdKey.native = realKeyNative;
-  const probe = captured.find((w) => w.orderRef === "syskey-probe");
-  ok(probe && probe.orderSysKey === "20260711|9999|u|SHFE|rb2510|800001",
-    "syncOrders resync key is byte-identical to the native realtime key (day|broker|investor|exchange|instrument|orderSysId)");
-  tdKey.close();
-}
+td.broker = "9999"; td.investor = "u";
+const afterLogout = await td.reqOrderInsert(plainOrder).then(() => null, (e) => e);
+ok(afterLogout?.ctpReturnCode === -10001 &&
+   /order account does not match confirmed session/.test(afterLogout.message),
+  "a login/logout transition revokes native order authority for the previous session");
+ok(ledgerQueries === 0, "no handshake in this run queried positions or working orders");
 
 td.close(); md.close(); // release the native doorbell handles so the process exits
-throws(() => td._armRegistry(), "closed Trader cannot expose a dead arm registry");
 ok(td.tradingDay === "", "tradingDay remains a string after close");
 console.log(`TRADER-UNIT TEST: ${pass} pass, ${fail} fail`);
 if (fail) process.exit(1);

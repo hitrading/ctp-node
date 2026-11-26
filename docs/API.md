@@ -14,10 +14,13 @@ Complete usage documentation for every public TypeScript/JavaScript interface in
 - [`MarketData`](#marketdata) — the market-data (行情) client
 - [`Trader`](#trader) — the trading (交易) client
 - [`CtpClient`](#ctpclient) — shared base (events, close, backpressure)
-- [Types](#types) — `RiskLimits`, `InstrumentPositionLimit`, `SessionOptions`, `ArmSpec`, `ArmHandle`, `CallbackOptions`, `RspInfo`, `MdLoginReq`
+- [Types](#types) — `RiskLimits`, `SessionOptions`, `CallbackOptions`, `RspInfo`, `MdLoginReq`
 - [Enums & struct types](#enums--struct-types)
 - [Risk controls at a glance](#risk-controls-at-a-glance)
 - [Recipes](#recipes) — strategy skeleton · reconnect handling · combination orders
+
+Upgrading from 4.x? See [MIGRATION.md](MIGRATION.md) for the removed ledger,
+caps and armed orders.
 
 ```ts
 import {
@@ -72,8 +75,8 @@ import { Trader, Direction, OffsetFlag } from "@hitrading/ctp-node";
 
 const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
-td.setRiskLimits({ maxOrderVolume: 10, maxOrdersPerSec: 20 });
-td.setInstrumentPositionLimit("rb2510", 100); // never hold more than 100 lots/side
+td.setRiskLimits({ maxOrderVolume: 10, maxOrdersPerSec: 20 }); // per-order gates in C++
+// Account-level caps (margin, position lots) live in your own trading layer.
 
 td.on("front-connected", async () => {
   await td.session({
@@ -127,10 +130,17 @@ Trader overflow is lossless and ordered: it spills beyond the
 4096-slot ring instead of dropping callbacks. Sustained Trader overload can use
 unbounded memory, so event handlers still need to remain bounded.
 
-**Pre-trade risk runs in C++.** All risk limits (`setRiskLimits`,
-`setInstrumentPositionLimit`, `reduceOnly` / `haltAll`, …) are enforced on the order-send path inside the native addon, before
-the order reaches CTP — no JS round trip. A blocked order makes
-`reqOrderInsert()` reject; the reason is in the error message.
+**Pre-trade risk runs in C++, and it is stateless.** The risk limits
+(`setRiskLimits`) and modes (`reduceOnly` / `haltAll`) are enforced on the
+order-send path inside the native addon, before the order reaches CTP — no JS
+round trip. A blocked order makes `reqOrderInsert()` reject; the reason is in
+the error message. Every rule judges one order from the order itself, the latest
+market-data reference (`trackMarketData`) and static instrument metadata (from
+`reqQryInstrument`). The binding keeps no position or working-order ledger, so
+there is nothing to rebuild after a reconnect and nothing that can disagree with
+your own books. Account-level exposure caps — account margin, per-instrument
+margin, position lots — belong to your trading layer, which owns the account
+facts: see [Account facts and account-level caps](#account-facts-and-account-level-caps).
 
 ---
 
@@ -179,7 +189,7 @@ with a CTP error (`err.errorId`, `err.errorMsg`).
 > Await every market-data `login()` / `logout()` before starting another one.
 > Some fronts answer these requests with `requestId = 0`, so the binding
 > deliberately permits only one such transition at a time. If one times out,
-> the native cache/armed-order path remains fail-closed: the first late final
+> the native cache remains fail-closed: the first late final
 > response is ignored (or a front transition resets the state) before a new
 > authenticated cache epoch can be established.
 
@@ -299,23 +309,6 @@ const px = md.last("rb2510");
 if (px > 0) console.log("last traded", px);
 ```
 
-### `md.attachArm(trader)` → `void`
-
-Route this feed's ticks to a `Trader`'s armed triggers (see
-[`Trader.arm`](#tdarmmd-spec--armhandle)). Usually you call `td.arm(md, …)`,
-which calls this for you. A `MarketData` feeds exactly one **live** `Trader`'s
-triggers; attaching a second live Trader throws. After the old Trader has closed,
-its registry may be replaced without retaining the closed JS object.
-
-```ts
-// explicit (rarely needed — td.arm() does this automatically):
-md.attachArm(td);
-
-// a second, different live trader throws:
-md.attachArm(td);        // ok
-md.attachArm(otherTd);   // throws: already feeds another Trader
-```
-
 ### `md.apiVersion` / `md.tradingDay` → `string` (read-only)
 
 The CTP API version string, and the current trading day (`YYYYMMDD`), available
@@ -383,17 +376,17 @@ md.on("front-disconnected", (reason) => console.warn("MD disconnected, code", re
 
 ## `Trader`
 
-The trading (交易) client: order entry, queries, position/risk tracking, and
-latency-critical armed triggers. Extends [`CtpClient`](#ctpclient); every
+The trading (交易) client: order entry, queries, and the stateless native
+pre-trade risk gate. Extends [`CtpClient`](#ctpclient); every
 generated `reqXxx` request method is available (see
 [request methods](#generated-request-methods)).
 
 ### `new Trader(flowPath, fronts)`
 
 Same parameters as [`MarketData`](#new-marketdataflowpath-fronts). The trader
-remembers the credentials from the login response, so `sync*` need no arguments,
-and seeds its auto-`OrderRef` counter past the broker's `maxOrderRef` so refs
-never collide with a prior session.
+remembers the confirmed account, so the `sync*` helpers never take account
+fields, and seeds its auto-`OrderRef` counter past the broker's `maxOrderRef` so
+refs never collide with a prior session.
 
 ```ts
 const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
@@ -401,43 +394,42 @@ const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 const td2 = new Trader("./flow/td/", ["tcp://182.254.243.31:30002", "tcp://182.254.243.31:30001"]);
 ```
 
-### `td.session(opts)` → `Promise<{ identity, multipliers, marginRates, positions, orders }>`
+### `td.session(opts)` → `Promise<{ identity, multipliers, marginRates }>`
 
 One-call post-connect handshake: **authenticate → login → confirm settlement →
-sync multipliers / optional margin rates / orders / positions**. Call it from the `front-connected`
+sync multipliers / optional margin rates**. Call it from the `front-connected`
 handler (and again after a reconnect). Returns the request-correlated
 `identity: { frontId, sessionId, maxOrderRef }` plus row counts from the sync.
 Here `maxOrderRef` is the value reported by that login response; the Trader's
 automatic allocator may retain a higher process-local high-water mark.
-Each step just wraps the matching request/sync method, so you can
-hand-roll the flow when you need finer control.
 
-At handshake start, held-position and working-order ledgers are marked
-uncertain, so all opening inserts fail closed across a possible
-reconnect gap. Successful `syncPositions()` and `syncOrders()` each clear only
-their own uncertainty. Disabling either sync leaves that side fail-closed until
-you reconcile it later.
-
-A newly created Trader starts in the same fail-closed state, including the small
-window before its first `front-connected` callback.
+`session()` is also what binds the native order gate to the trading account. At
+handshake start the previous session's order authority is revoked; ordinary
+order inserts are accepted again only after this handshake has confirmed the new
+login's `frontId` / `sessionId` and the trading account (`investorId`). A newly
+created Trader starts unconfirmed, and every front connect/disconnect and every
+login/logout request revokes the confirmation, so run `session()` on every
+`front-connected`. It does not query positions or working orders: keep those in
+your own books (see [Account facts and account-level caps](#account-facts-and-account-level-caps)).
 
 `opts` is a [`SessionOptions`](#sessionoptions):
 
 The login response must contain a concrete `frontId` / `sessionId` and the same
 `brokerId` / `userId` that were requested. An empty or mismatched success
-payload is rejected because those fields are part of the local reservation and
-snapshot identity; reusing an old/zero session or reconciling another account
-would make the ledger unsafe.
+payload is rejected because those fields identify the session the native order
+gate is bound to; accepting an old/zero session or another account would let
+orders go out under a stale identity.
 
 | Field | Type | Meaning |
 |---|---|---|
 | `brokerId` | `string` | Broker id (required). |
 | `userId` | `string` | Investor id (required). |
+| `investorId` | `string?` | Trading account confirmed for orders. Defaults to `userId`; set it when the login operator differs from the investor. |
 | `password` | `string` | Password (required). |
 | `appId` | `string?` | Terminal app id for authentication. SimNow: `"simnow_client_test"`. |
 | `authCode` | `string?` | Terminal auth code. SimNow: 16 zeros. Omit both `appId`/`authCode` to skip authentication. |
 | `confirmSettlement` | `boolean?` | Confirm the settlement statement after login (real accounts must, or orders are rejected). Default `true`. |
-| `sync` | `object?` | `{ multipliers?: boolean \| string[], marginRates?: { instrumentIds: string[], hedgeFlag: "1" \| "2" \| "3" \| "5" \| "6" \| "7" }, positions?: boolean, orders?: boolean }`. Multipliers/positions/orders default on; margin rates require an explicit bounded contract list and hedge flag because CTP needs one query per contract and keeps separate schedules per hedge flag. |
+| `sync` | `object?` | `{ multipliers?: boolean \| string[], marginRates?: { instrumentIds: string[], hedgeFlag: "1" \| "2" \| "3" \| "5" \| "6" \| "7" } }`. Multipliers default on (all instruments; pass a list to scope it, `false` to skip); margin rates require an explicit bounded contract list and hedge flag because CTP needs one query per contract and keeps separate schedules per hedge flag. |
 
 ```ts
 // SimNow full handshake
@@ -446,7 +438,7 @@ td.on("front-connected", async () => {
     brokerId: "9999", userId: "id", password: "pw",
     appId: "simnow_client_test", authCode: "0000000000000000",
   });
-  console.log("synced", counts); // { identity, multipliers, marginRates, positions, orders }
+  console.log("synced", counts); // { identity, multipliers, marginRates }
 });
 
 // scope the multiplier sync to the symbols you trade (faster cold start)
@@ -455,8 +447,6 @@ await td.session({
   sync: {
     multipliers: ["rb2510", "au2508"],
     marginRates: { instrumentIds: ["rb2510", "au2508"], hedgeFlag: "2" },
-    positions: true,
-    orders: true,
   },
 });
 
@@ -464,10 +454,12 @@ await td.session({
 await td.session({ brokerId: "9999", userId: "id", password: "pw", confirmSettlement: false });
 ```
 
-> The hand-rolled equivalent: `await td.reqAuthenticate(...)` →
-> `await td.reqUserLogin(...)` → `await td.reqSettlementInfoConfirm(...)` →
-> `await td.syncMultipliers()` → `await td.syncMarginRates([...])` → `await td.syncOrders()` →
-> `await td.syncPositions()`.
+> Each step wraps the matching request/sync method: `reqAuthenticate(...)` →
+> `reqUserLogin(...)` → `reqSettlementInfoConfirm(...)` → `syncMultipliers()` →
+> `syncMarginRates([...])`. A hand-rolled flow can query, but only `session()`
+> confirms the trading account to the native order gate: ordinary order inserts
+> after a hand-rolled login are refused with `-10001`
+> (`order account does not match confirmed session`).
 
 ### `td.reqOrderInsert(req?)` → `Promise<void>`
 
@@ -477,9 +469,9 @@ CTP sends no success acknowledgement for an accepted order, only `rtn-order` /
 (risk gate, rate limit, or a CTP API error code). A blank `orderRef` is assigned
 a unique numeric value automatically.
 
-A confirmed login is required. `brokerId` and `investorId` are filled from that
-session; supplying a different value is rejected before encoding, so the local
-position/order snapshots cannot be applied to an order for another account.
+A confirmed `session()` is required. `brokerId` and `investorId` are filled from
+that session; supplying a different value is rejected before encoding, so an
+order can only go out under the account the native gate has confirmed.
 
 `req` is a `Partial<InputOrder>`; the fields you almost always set:
 
@@ -493,7 +485,7 @@ position/order snapshots cannot be applied to an order for another account.
 | `orderRef` | `string?` | Leave unset for an auto-assigned unique ref; otherwise 1–12 decimal digits. |
 | `orderPriceType` | `OrderPriceType?` | Optional; if set, must be `"2"` (limit). Defaults to limit. |
 
-> **Only single-instrument GFD, FAK and FOK limit orders are accepted.** Use `timeCondition: "3", volumeCondition: "1"` for GFD; `"1", "1"` for FAK; and `"1", "3"` for FOK. `reqOrderInsert` deliberately rejects (with a `TypeError`) anything the native risk-reservation ledger cannot represent: other time/volume-condition combinations, min-volume/conditional/stop/swap/force-close variants, and multi-leg offset/hedge flags.
+> **Only single-instrument GFD, FAK and FOK limit orders are accepted.** Use `timeCondition: "3", volumeCondition: "1"` for GFD; `"1", "1"` for FAK; and `"1", "3"` for FOK. `reqOrderInsert` deliberately rejects (with a `TypeError`) anything the native gate cannot judge as one instrument at one limit price: other time/volume-condition combinations, min-volume/conditional/stop/swap/force-close variants, and multi-leg offset/hedge flags.
 
 ```ts
 import { Direction, OffsetFlag } from "@hitrading/ctp-node";
@@ -590,17 +582,17 @@ See [request methods](#generated-request-methods) for the full list.
 ### `td.syncMultipliers(instrumentIds?)` → `Promise<number>`
 
 Trigger the instrument query so the C++ risk engine picks up contract multipliers
-(合约乘数) — it sources them **directly** from CTP's `OnRspQryInstrument` response,
-so this no longer calls a JS setter. Needed for multiplier-accurate notional and
-position-margin limits. No argument queries all instruments in one request; pass a
-symbol list to scope it. An explicit empty list is a no-op returning `0`; only an
-omitted argument means "query all". Retries through cold-start flow control.
-Returns the count of contracts whose final callback row has a usable multiplier.
+(合约乘数) and product classes — it sources them **directly** from CTP's
+`OnRspQryInstrument` response, so this calls no JS setter. Needed for the
+multiplier-accurate `maxNotional` check. No argument queries all instruments in
+one request; pass a symbol list to scope it. An explicit empty list is a no-op
+returning `0`; only an omitted argument means "query all". Retries through
+cold-start flow control. Returns the count of contracts whose final callback row
+has a usable multiplier.
 
 Starting an instrument refresh invalidates the old multiplier before the request
-is sent, so a failed/empty refresh cannot leave stale metadata active. If held
-positions exist, run `syncPositions()` afterwards to refresh their authoritative
-`UseMargin`; monetary opening gates remain fail-closed until then.
+is sent, so a failed/empty refresh cannot leave stale metadata active; an enabled
+`maxNotional` check fails closed for that contract until a refresh succeeds.
 
 ```ts
 const n = await td.syncMultipliers();          // all instruments
@@ -610,60 +602,34 @@ console.log(n, "contracts with a multiplier");
 
 ### `td.syncMarginRates(instrumentIds, hedgeFlag?)` → `Promise<number>`
 
-Investor margin queries are grouped by the ProductID in a fresh complete CTP catalog. Contract overrides take precedence even when invalid. C++ expands the complete successful response atomically into contract risk schedules. Relative schedules still require per-contract exchange bases. `readMarginRates(instrumentIds, hedgeFlag)` returns copies of completed synchronization results from the current session only; incomplete queries, reconnects and product refreshes invalidate old snapshots.
+Resolve investor long/short by-money/by-volume margin schedules for a bounded
+contract universe (default hedge flag `"1"`, speculation), for **your own**
+margin calculations — the native gate does not use them. Investor queries are
+grouped by the ProductID in a fresh complete CTP catalog; a contract-level row
+takes precedence over the product row even when it is invalid. A second
+exchange-base query is issued only for a relative (`IsRelative`) row, and the
+relative investor schedule is added to that base. The shared scheduler spaces
+every query. Returns the number of contracts with a usable schedule.
 
-Query investor long/short by-money/by-volume schedules for a bounded contract
-universe (default hedge flag `"1"`, speculation). A second exchange-base query
-is issued only for a relative row; the shared scheduler spaces every query.
-Relative investor schedules are added to their exchange base. Missing metadata
-fails closed.
+Schedules previously resolved for the requested contracts (and for the other
+contracts of the same products) are dropped during the refresh. The new
+results are kept only when every requested contract resolved; a partial refresh
+keeps none of them.
 
-Old investor and exchange schedules are invalidated before the refresh. Run
-`syncPositions()` after refreshing schedules when the account already holds
-positions; the engine will not treat margin estimated under an old schedule as
-authoritative.
+### `td.readMarginRates(instrumentIds, hedgeFlag)` → `CtpResolvedMarginRate[]`
 
-### `td.syncPositions()` → `Promise<number>`
-
-Seed open-position **margin** from CTP (`reqQryInvestorPosition`, each row's
-`UseMargin`) into the risk engine's position tracker. It always uses the
-confirmed login identity; account overrides are rejected. Returns the number of
-positions seeded. Empty snapshots must be observed twice; applying the snapshot is an
-atomic revision-checked replacement that preserves working reservations. A
-realtime callback during the query causes a retry rather than a clear/reseed gap.
-
-```ts
-const held = await td.syncPositions();
-console.log("seeded", held, "positions, margin =", td.accountMargin);
-```
-
-### `td.syncOrders()` → `Promise<number>`
-
-Rebuild the in-flight reservation from CTP's currently-working orders
-(`reqQryOrder`) — an authoritative resync. Call after login and after any
-reconnect so the position caps account for orders already working at the broker
-(placed before a reconnect, or — since CTP delivers them too — from another
-terminal on the same account). Run `syncMultipliers()` first so the reserved cost
-uses the right multiplier and query margin schedules before monetary caps are
-enabled. Conditional statuses (`a`/`b`/`c`) remain reserved. Applying the
-snapshot is revision-checked against realtime callbacks. Returns the number of
-working open orders re-reserved.
-
-If the account has a working multi-leg/unsupported order (including one placed
-by another terminal), its exposure cannot be represented by this single-leg
-ledger. The snapshot is still committed atomically, that order is recorded as
-unsupported, and the method throws. Opening inserts then fail
-closed until a later successful `syncOrders()` confirms the order is gone.
-
-`syncOrders()` deliberately marks the held-position side uncertain too. Run
-`syncPositions()` **after it**; reversing the order stays fail-closed instead of
-opening on two broker snapshots that have no transactional common cut.
+Copies of the schedules resolved by the last complete `syncMarginRates()` (or
+`session({ sync: { marginRates } })`) in the current session:
+`{ instrumentId, hedgeFlag, longMarginRatioByMoney, longMarginRatioByVolume,
+shortMarginRatioByMoney, shortMarginRatioByVolume }`. It throws when a requested
+contract has no completed schedule, and after a reconnect or login/logout until
+the schedules are synced again; old values are never returned.
 
 ```ts
-await td.syncMultipliers();
-const working = await td.syncOrders();
-await td.syncPositions();
-console.log("re-reserved", working, "working open orders");
+await td.syncMarginRates(["rb2510"], "1");
+const [rb] = td.readMarginRates(["rb2510"], "1");
+// one long lot at 3500 on a x10 contract, by your own formula:
+const margin = 3500 * 10 * rb.longMarginRatioByMoney + rb.longMarginRatioByVolume;
 ```
 
 ### Risk configuration
@@ -676,19 +642,34 @@ silently disabling the control. `config` is a [`RiskLimits`](#risklimits); omit 
 field or pass `0` to disable that control; negative values are rejected. The object replaces the
 whole prior configuration; `maxReferenceAgeMs` is the exception: it must be
 positive and defaults to 3000 ms when omitted. Unknown fields (including removed
-legacy names such as `maxMargin`) are rejected instead of being ignored.
+names such as `maxMargin` and `maxAccountMargin`) are rejected instead of being
+ignored.
+
+The volume, deviation and notional limits and the opening rate apply to
+**opening** orders. A closing order still needs the confirmed session and
+well-formed fields, but among the risk rules it is refused only in `HALT_ALL`
+(and by the close-order rate limiter when configured), so exits keep working
+when a reference quote or metadata is missing.
+
+`maxNotional` is enabled only for CTP Futures/TAS product classes: option premium
+and combination prices are not treated as futures notional, so an unknown or
+unsupported product class fails closed while the guard is on. Notional is
+valued at the greater of the order price and a fresh market reference, so a low
+sell/open limit cannot understate it. Attach market data with
+[`trackMarketData()`](#tdtrackmarketdatamd--this); a missing quote, or one older
+than `maxReferenceAgeMs`, makes the deviation and notional checks fail closed for
+opening orders.
 
 ```ts
 // full set
 td.setRiskLimits({
-  maxOrderVolume: 10,          // ≤ 10 lots per order
+  maxOrderVolume: 10,          // ≤ 10 lots per opening order
   maxPriceDeviation: 0.02,     // ≤ 2% from the reference price
   maxNotional: 5_000_000,      // ≤ 5M Futures/TAS notional per opening order
   maxOrdersPerSec: 20,         // token-bucket rate limit
   orderBurst: 40,              // bucket size (default: maxOrdersPerSec)
   maxCloseOrdersPerSec: 10,    // optional independent close-order rate
   closeOrderBurst: 20,
-  maxAccountMargin: 20_000_000, // ≤ 20M held + reserved account margin
 });
 
 // just a couple of controls (the rest stay disabled)
@@ -703,32 +684,25 @@ td.setRiskLimits({ maxNotional: 0 });
 The atomic modes are `NORMAL`, `REDUCE_ONLY`, and `HALT_ALL`. `reduceOnly()`
 blocks normal opens, every advanced mutation, and bank/futures transfers while
 keeping cancellations and single-leg normal closes available. `haltAll()` also
-blocks close inserts, clears all armed triggers, and rejects new `arm()` calls
-until `resume()`. Mode transitions share the
-final vendor-API send barrier, so no forbidden armed order can cross after the
-transition returns. `resume()` restores `NORMAL`.
+blocks close inserts until `resume()`. Mode transitions share the final
+vendor-API send barrier with every order insert, so no forbidden order can be
+sent after the call returns. `resume()` restores `NORMAL`.
 
-Advanced mutations (complex inserts, offset setting, spread/hedge confirmation)
-cannot be represented by the normal reservation ledger, so they fail closed
-whenever any local risk control is configured. The generator requires every
-future non-query SDK request to be classified; an unreviewed method fails code
-generation instead of defaulting to unguarded.
+Advanced mutations (complex inserts, order modify, offset setting, spread/hedge
+confirmation) cannot be judged by the per-order rules, so they are forwarded only
+in `NORMAL`, for a confirmed session, and when no local risk control (limit or
+rate limiter) is configured; otherwise they fail with `-10006`. The generator
+requires every future non-query SDK request to be classified; an unreviewed
+method fails code generation instead of defaulting to unguarded.
 
-This separation is lifetime-sticky: after CTP accepts any unsupported risk
-mutation in pure binding mode, later enabling a local control makes ordinary
-opening orders fail closed. `syncOrders()` covers normal single-leg orders only
-and therefore cannot certify that quote/exec/comb/parked exposure has gone away.
-Realtime advanced-mutation and funds-transfer returns observed from another
-terminal set the same sticky fail-closed marker; they are not mistaken for
-ordinary-ledger state merely because this process did not originate them.
-Use a Trader instance in one capability mode for its whole lifetime; do not
-switch a protocol-binding session into locally managed trading after advanced
-mutations have been admitted.
+Each such request is judged on its own and leaves no state behind. The native
+gate does not track the exposure that advanced requests — or orders from another
+terminal — create; accounting for it is your trading layer's job.
 
 Bank/futures transfers are subject to the same rule. They change available
-collateral but are not represented by this local ledger, so they are forwarded
-only in `NORMAL` mode when every local risk control is disabled. Authentication
-and transfer authorization remain the caller's responsibility.
+collateral, so they are forwarded only in `NORMAL` mode, for a confirmed
+session, when every local risk control is disabled. Authentication and transfer
+authorization remain the caller's responsibility.
 
 ```ts
 // stop risk increases but keep closes/cancels working
@@ -744,209 +718,72 @@ td.resume();
 td.on("rtn-trade", () => { if (computePnl() < -100000) td.reduceOnly(); });
 ```
 
-#### `td.setInstrumentPositionLimit(instrumentId, limit)` / `td.setInstrumentPositionLimits(limits)` → `this`
-
-Cap the open position (in lots) per instrument, enforced on every opening order.
-`limit` is an [`InstrumentPositionLimit`](#instrumentpositionlimit): a number caps both sides; `{ long, short }` caps
-each side separately. Within `{ long, short }`, **omitting a side leaves its
-current cap unchanged** (pass `0` to clear; negative values are rejected). Long and short are tracked
-independently. The check counts committed = held + in-flight (working) volume.
-
-```ts
-td.setInstrumentPositionLimit("rb2510", 100);                  // long ≤ 100 and short ≤ 100
-td.setInstrumentPositionLimit("au2508", { long: 50, short: 10 }); // asymmetric
-
-// raise only the long cap, leave short as it was
-td.setInstrumentPositionLimit("au2508", { long: 80 });
-// clear the short cap
-td.setInstrumentPositionLimit("au2508", { short: 0 });
-
-// many at once
-td.setInstrumentPositionLimits({ rb2510: 100, ru2510: { long: 100, short: 20 }, au2508: 10 });
-```
-
-#### `td.setInstrumentMarginLimit(instrumentId, limit)` / `td.setInstrumentMarginLimits(limits)` → `this`
-
-Cap one instrument's open-position **margin** (price × volume × multiplier ×
-by-money + volume × by-volume, long and short summed).
-Per-instrument and independent of the account-wide
-`setRiskLimits({ maxAccountMargin })`; both apply. Pass `limit = 0` to remove it; negative values are rejected. Until a
-contract multiplier and usable absolute margin schedule are known (fed from CTP
-callbacks after the corresponding queries), capped opening orders fail closed.
-Both by-money and by-volume/per-lot components are included. `IsRelative`
-schedules are added to the matching exchange schedule loaded by
-`syncMarginRates()`; either half missing fails closed.
-
-This formula is enabled only for CTP Futures/TAS product classes. Options,
-combinations and spot products require product-specific margin models and fail
-closed while a monetary cap is active.
-
-`maxNotional` uses the same Futures/TAS allowlist. Option premium and combination
-price are not treated as futures notional; unknown/unsupported product metadata
-fails closed when the notional guard is enabled.
-
-Notional and working-order margin are valued at the greater of the order price
-and a fresh market reference. This prevents a low sell/open limit from
-understating exposure. Attach market data with `trackMarketData()`; missing or
-older-than-`maxReferenceAgeMs` quotes make every enabled monetary gate fail
-closed. Existing working orders are revalued before each monetary admission.
-
-```ts
-td.setInstrumentMarginLimit("au2508", 5_000_000); // ≤ 5M of gold margin
-td.setInstrumentMarginLimits({ ag2508: 2_000_000, au2508: 5_000_000 });
-td.setInstrumentMarginLimit("au2508", 0);         // remove the cap
-```
-
 #### `td.trackMarketData(md)` → `this`
 
-Provide the live reference price used by price deviation, notional and
-working-order margin checks.
-Wires the `MarketData` feed's C++ snapshot cache straight into this Trader's risk
-engine, so the deviation reference is read **in C++ on the order-send path** — no
-JS round-trip, and it covers armed orders that fire from C++ with no JS in the
-loop. Without a reference, or when its age exceeds `maxReferenceAgeMs` (default
-3000 ms), every enabled deviation or monetary check fails closed for opening
-orders.
+Provide the live reference price used by the price-deviation and notional
+checks. Wires the `MarketData` feed's C++ snapshot cache straight into this
+Trader's risk engine, so the reference is read **in C++ on the order-send path**
+— no JS round-trip. Without a reference, or when its age exceeds
+`maxReferenceAgeMs` (default 3000 ms), every enabled deviation or notional check
+fails closed for opening orders.
 
 ```ts
 td.setRiskLimits({ maxPriceDeviation: 0.02 });
 
-// live reference from the feed (read in C++ on every order, incl. armed orders)
+// live reference from the feed (read in C++ on every order)
 td.trackMarketData(md);
 ```
 
-> Contract multipliers (for notional / cost accounting) and per-contract margin
-> rates (for the `maxAccountMargin` cap) are **not** fed from JS: the C++ risk engine
-> sources them directly from CTP's `OnRspQryInstrument` /
-> `OnRspQryInstrumentMarginRate` callbacks. So any `reqQryInstrument` keeps
-> multipliers current (see [`syncMultipliers`](#tdsyncmultipliersinstrumentids--promisenumber)),
-> Prefer `syncMarginRates()` for every contract/hedge flag you trade: it queries
-> both investor and exchange schedules, includes both formula components, and
-> combines `IsRelative` correctly. Missing metadata is never guessed.
+> Contract multipliers and product classes (for `maxNotional`) are **not** fed
+> from JS: the C++ risk engine sources them directly from CTP's
+> `OnRspQryInstrument` callback, so any `reqQryInstrument` keeps them current
+> (see [`syncMultipliers`](#tdsyncmultipliersinstrumentids--promisenumber)).
+> Margin schedules are not used by the native gate at all;
+> [`syncMarginRates()`](#tdsyncmarginratesinstrumentids-hedgeflag--promisenumber)
+> and `readMarginRates()` resolve them for your own calculations. Missing
+> metadata is never guessed.
 
-### Position-margin tracking
+#### Account facts and account-level caps
 
-#### `td.seedPositions(positions)` → `this`
+The native gate keeps no position, working-order or funds ledger, and it has no
+account-level caps. CTP's position snapshot and its realtime order/trade stream
+share no common sequence number, so a ledger inside the binding could only
+duplicate your own books — and could disagree with them. Keep the account facts
+in your trading layer and judge account-wide limits (account margin,
+per-instrument margin, position lots) there, before calling `reqOrderInsert()`:
 
-Atomically replace held positions from a **complete** manually reconciled
-snapshot. Each row is `{ instrumentId, side, hedgeFlag, volume, margin }`, where
-`margin` is the actual capital occupied (`InvestorPosition.UseMargin`). An empty
-array is an authoritative flat book. The removed singular `seedPosition()` is
-intentionally not retained: several incremental JS calls would expose a partial
-book to native armed orders between calls.
-
-```ts
-td.seedPositions([
-  { instrumentId: "rb2510", side: "long", hedgeFlag: "1", volume: 3, margin: 30_000 },
-  { instrumentId: "au2508", side: "short", hedgeFlag: "1", volume: 2, margin: 112_000 },
-]);
-```
-
-#### `td.seedFromPositions(positions)` → `this`
-
-Atomically replace held open-position **margin** from a complete set of
-`reqQryInvestorPosition` rows (each row's `UseMargin`) for **gross-mode**
-accounts (`posiDirection` `"2"` = long, `"3"` = short), retaining each
-supported `HedgeFlag` as a separate cost bucket. Net/unknown directions or
-hedge flags are rejected because guessing would corrupt per-side volume or
-margin accounting; convert those rows explicitly and submit one complete
-`seedPositions()` snapshot.
+- **Snapshot** after every `session()` (first connect and every reconnect):
+  `reqQryInvestorPosition`, `reqQryOrder` and `reqQryTradingAccount`.
+- **Stay current** from `rtn-order` / `rtn-trade`. CTP also delivers the
+  returns of the investor's other sessions, so orders placed from another
+  terminal on the same account show up there too. Reconciling a snapshot with
+  the realtime stream is your book's job.
+- **Margin estimates** for orders you are about to send: multipliers from
+  `reqQryInstrument`, schedules from `syncMarginRates()` / `readMarginRates()`.
 
 ```ts
-const rows = await td.reqQryInvestorPosition({ brokerId: "9999", investorId: "id" });
-td.seedFromPositions(rows); // complete held snapshot; working reservations remain
-```
-
-#### `td.accountMargin` → `number` (read-only)
-
-Current held-position margin tracked by the risk engine. It deliberately excludes
-working-order reservations, although `maxAccountMargin` admits against
-**held + reserved** margin. This property is best-effort observability: when
-metadata is missing or refreshed it may not be an exact admission value; an
-enabled monetary gate still fails closed until an authoritative position sync.
-
-```ts
-console.log("book margin", td.accountMargin);
-td.on("rtn-trade", () => console.log("margin now", td.accountMargin));
-```
-
-#### `td.resetPositions()` → `this`
-
-Clear held position margin only. Working-order reservations are deliberately
-preserved. A reset is not proof that the account is flat, so opening inserts
-remain fail-closed until `seedFromPositions()` or `syncPositions()` completes an
-authoritative revision-checked replacement.
-
-```ts
-td.resetPositions();              // clear held rows, keep reservations; block opens
-td.seedFromPositions(freshRows);  // atomic complete replacement; reopen the ledger
-```
-
-### Latency-critical armed triggers
-
-#### `td.arm(md, spec)` → `ArmHandle`
-
-Arm a trigger evaluated and fired entirely in C++ on the market-data callback
-thread — when `md` sees the condition, the order is sent through this Trader's
-risk gate with **no JS round trip**. It is removed after a successful submission;
-a halt/rate/metadata/send refusal leaves it armed with exponential retry
-backoff (100 ms initially, capped at 5 seconds).
-`haltAll()` is the hard-stop exception: it closes the final send barrier and
-clears every existing arm, so `resume()` cannot fire a historical trigger.
-Front connect/disconnect events and every Trader login/logout request also
-clear all arms: a mandate never crosses an authenticated session boundary.
-Recreate the required triggers only after `session()` has reconciled the new
-session.
-The acknowledgement arrives via the normal `rtn-order` / `rsp-order-insert`
-events (correlate by `orderRef`).
-
-The supplied `md` is also attached automatically as this Trader's fresh-price
-source for deviation, notional and working-margin checks.
-
-`spec` is an [`ArmSpec`](#armspec): `{ instrumentId, side, triggerPrice, order }`.
-A **buy** fires when `ask ≤ triggerPrice`; a **sell** when `bid ≥ triggerPrice`.
-The `order` is a full `Partial<InputOrder>` and is validated up front (it must
-have `instrumentId`, `direction`, `combOffsetFlag` and
-`volumeTotalOriginal > 0`).
-
-Returns an [`ArmHandle`](#armhandle) — call `handle.disarm()` to remove it.
-
-```ts
-import { Direction, OffsetFlag } from "@hitrading/ctp-node";
-
-// stop-loss: sell rb2510 the instant the bid reaches 3450
-const stop = td.arm(md, {
-  instrumentId: "rb2510",
-  side: "sell",
-  triggerPrice: 3450,
-  order: {
-    instrumentId: "rb2510", direction: Direction.Sell,
-    combOffsetFlag: OffsetFlag.CloseToday, limitPrice: 3445, volumeTotalOriginal: 1,
-  },
+const acct = { brokerId: "9999", investorId: "id" };
+td.on("front-connected", async () => {
+  await td.session({ brokerId: acct.brokerId, userId: acct.investorId, password: "pw",
+    sync: { marginRates: { instrumentIds: ["rb2510"], hedgeFlag: "1" } } });
+  book.reset(
+    await td.reqQryInvestorPosition(acct),
+    await td.reqQryOrder(acct),
+    (await td.reqQryTradingAccount(acct))[0],
+  );
 });
+td.on("rtn-order", (o) => book.onOrder(o));
+td.on("rtn-trade", (t) => book.onTrade(t));
 
-// breakout entry: buy when the ask reaches 3600
-const entry = td.arm(md, {
-  instrumentId: "rb2510", side: "buy", triggerPrice: 3600,
-  order: { instrumentId: "rb2510", direction: "0", combOffsetFlag: "0", limitPrice: 3605, volumeTotalOriginal: 2 },
-});
-
-// cancel a trigger that hasn't fired
-stop.disarm();
+// your own account-level check, then the native per-order gate
+const [rb] = td.readMarginRates(["rb2510"], "1");
+const add = 3500 * 1 * 10 * rb.longMarginRatioByMoney + 1 * rb.longMarginRatioByVolume;
+if (book.marginInUse() + add <= MY_ACCOUNT_MARGIN_CAP && book.longLots("rb2510") + 1 <= MY_LOT_CAP) {
+  await td.reqOrderInsert({ instrumentId: "rb2510", direction: "0", combOffsetFlag: "0", limitPrice: 3500, volumeTotalOriginal: 1 });
+}
 ```
 
-#### `td.armStats` → `{ fired: number; blocked: number }` (read-only)
-
-Observability for armed triggers (they fire in C++ with no JS in the loop):
-how many fired and were sent (`fired`) vs were refused by the risk gate / send
-(`blocked`). Poll this after a trigger you expected to fire — a blocked armed
-order is otherwise invisible.
-
-```ts
-const { fired, blocked } = td.armStats;
-console.log(`armed: ${fired} sent, ${blocked} refused`);
-if (blocked > 0) console.warn("an armed order was refused by risk");
-```
+`book` stands for your own ledger; the binding does not provide one.
 
 ### `td.apiVersion` / `td.tradingDay` → `string` (read-only)
 
@@ -1107,40 +944,28 @@ is generated from the CTP headers — 125 request methods.)
 
 Pre-trade risk limits for [`setRiskLimits`](#tdsetrisklimitsconfig--this). All fields
 are optional; **omit or `0` = disabled** for controls. `maxReferenceAgeMs` must
-be positive and defaults to 3000 ms. `NaN`/`Infinity` throws.
+be positive and defaults to 3000 ms. `NaN`/`Infinity` throws. Every rule judges
+one order; there is no account-level field.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `maxOrderVolume` | `number` | Max lots per single order. |
-| `maxPriceDeviation` | `number` | Max `\|price − reference\| / reference` ratio (e.g. `0.02` = 2%); missing/stale reference fails closed. |
-| `maxReferenceAgeMs` | `number` | Maximum quote age for deviation and monetary valuation; default 3000 ms. |
-| `maxNotional` | `number` | Max notional (`max(order price, fresh reference) × volume × multiplier`) per order; missing/stale reference fails closed. |
+| `maxOrderVolume` | `number` | Max lots per single opening order. |
+| `maxPriceDeviation` | `number` | Max `\|price − reference\| / reference` ratio for an opening order (e.g. `0.02` = 2%); missing/stale reference fails closed. |
+| `maxReferenceAgeMs` | `number` | Maximum quote age for the deviation and notional checks; default 3000 ms. |
+| `maxNotional` | `number` | Max Futures/TAS notional (`max(order price, fresh reference) × volume × multiplier`) per opening order; missing/stale reference, missing multiplier or another product class fails closed. |
 | `maxOrdersPerSec` | `number` | Max opening-order sends per second (token bucket). |
 | `orderBurst` | `number` | Token-bucket burst size. Default: `maxOrdersPerSec`. |
 | `maxCloseOrdersPerSec` | `number` | Independent close-order send rate; disabled by default. |
 | `closeOrderBurst` | `number` | Close-order bucket size. Default: `maxCloseOrdersPerSec`. |
-| `maxAccountMargin` | `number` | Cap on total held + reserved account margin. Requires a fresh reference, multiplier and investor schedule; includes by-money/by-volume and combines relative schedules with the exchange base. Missing/stale inputs fail closed. |
 
 ```ts
 const conservative: RiskLimits = { maxOrderVolume: 5, maxOrdersPerSec: 10, maxNotional: 2_000_000 };
 td.setRiskLimits(conservative);
 ```
 
-### `InstrumentPositionLimit`
-
-`number | { long?: number; short?: number }` — the limit argument to
-[`setInstrumentPositionLimit`](#tdsetinstrumentpositionlimitinstrumentid-limit--tdsetinstrumentpositionlimitslimits--this).
-A number caps both sides; `{ long, short }` caps each (omit a side = unchanged,
-`0` = clear; negative values are rejected).
-
-```ts
-const a: InstrumentPositionLimit = 100;                  // both sides ≤ 100
-const b: InstrumentPositionLimit = { long: 50, short: 5 }; // long ≤ 50, short ≤ 5
-```
-
 ### `SessionOptions`
 
-Options for [`session`](#tdsessionopts--promise-identity-multipliers-marginrates-positions-orders-).
+Options for [`session`](#tdsessionopts--promise-identity-multipliers-marginrates-).
 See the table there.
 
 ```ts
@@ -1148,43 +973,8 @@ const opts: SessionOptions = {
   brokerId: "9999", userId: "id", password: "pw",
   appId: "simnow_client_test", authCode: "0000000000000000",
   confirmSettlement: true,
-  sync: { multipliers: ["rb2510"], positions: true, orders: true },
+  sync: { multipliers: ["rb2510"], marginRates: { instrumentIds: ["rb2510"], hedgeFlag: "1" } },
 };
-```
-
-### `ArmSpec`
-
-```ts
-interface ArmSpec {
-  instrumentId: string;          // contract the trigger watches
-  side: "buy" | "sell";          // buy: fires when ask ≤ trigger; sell: when bid ≥ trigger
-  triggerPrice: number;          // must be > 0
-  order: Partial<InputOrder>;    // the order to send (needs instrumentId, direction,
-                                 // combOffsetFlag, volumeTotalOriginal > 0)
-}
-```
-
-```ts
-const spec: ArmSpec = {
-  instrumentId: "rb2510", side: "sell", triggerPrice: 3450,
-  order: { instrumentId: "rb2510", direction: "1", combOffsetFlag: "3", limitPrice: 3445, volumeTotalOriginal: 1 },
-};
-const handle = td.arm(md, spec);
-```
-
-### `ArmHandle`
-
-```ts
-interface ArmHandle {
-  readonly id: number;
-  disarm(): boolean; // remove the trigger; false if it was already gone/fired
-}
-```
-
-```ts
-const handle = td.arm(md, spec);
-console.log("armed id", handle.id);
-if (!handle.disarm()) console.log("it had already fired");
 ```
 
 ### `CallbackOptions`
@@ -1289,24 +1079,22 @@ function buildOrder(): Partial<InputOrder> {
 
 | Control | Set via | Scope | Disabled when |
 |---|---|---|---|
-| Risk mode | `reduceOnly()` / `haltAll()` / `resume()` | Opens, or all order inserts; `haltAll()` also clears arms | `resume()` |
-| Max order volume | `setRiskLimits({ maxOrderVolume })` | Per order | `0` / omitted |
-| Max price deviation | `setRiskLimits({ maxPriceDeviation })` + reference | Per order | `0` / omitted (missing reference blocks) |
-| Max notional | `setRiskLimits({ maxNotional })` | Per order | `0` / omitted |
+| Risk mode | `reduceOnly()` / `haltAll()` / `resume()` | Opens, or all order inserts (cancels always pass) | `resume()` |
+| Max order volume | `setRiskLimits({ maxOrderVolume })` | Per opening order | `0` / omitted |
+| Max price deviation | `setRiskLimits({ maxPriceDeviation })` + reference | Per opening order | `0` / omitted (missing reference blocks) |
+| Max notional | `setRiskLimits({ maxNotional })` + reference + multiplier | Per opening order | `0` / omitted |
 | Open rate | `setRiskLimits({ maxOrdersPerSec, orderBurst })` | Per second | `0` / omitted |
 | Close rate | `setRiskLimits({ maxCloseOrdersPerSec, closeOrderBurst })` | Per second | `0` / omitted |
-| Max position lots | `setInstrumentPositionLimit(id, …)` | Per instrument, per side | `0` |
-| Max position margin (per instrument) | `setInstrumentMarginLimit(id, …)` | Per instrument | `0` |
-| Max position margin (account) | `setRiskLimits({ maxAccountMargin })` | Account | `0` / omitted |
+| Account margin, per-instrument margin, position lots | your own trading layer | Account / instrument | — |
 
-Position-lot and position-margin caps count **committed = held (filled) +
-in-flight (working order) volume**, so a burst of opens can't slip past a cap
-before the fills report. Feed held positions via `syncPositions()` /
-`seedPositions()` and working orders via `syncOrders()` (especially after a
-reconnect). Query contract multipliers and both investor/exchange margin schedules before
-enabling monetary caps; missing metadata blocks capped opens. All caps
-are enforced in C++ on the send path; a breach
-makes `reqOrderInsert()` reject with the reason in the message.
+The native controls are stateless: each judges the order at hand from the order
+itself, the latest reference quote (`trackMarketData`) and static contract
+metadata (`reqQryInstrument`), so none of them needs a position or order
+snapshot and none of them changes after a reconnect. All of them are enforced
+in C++ on the send path; a breach makes `reqOrderInsert()` reject with the
+reason in the message. Limits that depend on what the account holds or has
+working are judged in your own trading layer — see
+[Account facts and account-level caps](#account-facts-and-account-level-caps).
 
 ---
 
@@ -1335,10 +1123,10 @@ const SYMBOL = "rb2510";
 const md = new MarketData("./flow/md/", "tcp://182.254.243.31:30012");
 const td = new Trader("./flow/td/", "tcp://182.254.243.31:30002");
 
-// 1) Configure risk BEFORE any order can be sent (enforced in C++).
-td.setRiskLimits({ maxOrderVolume: 5, maxNotional: 2_000_000, maxOrdersPerSec: 10, maxPriceDeviation: 0.02, maxAccountMargin: 5_000_000 });
-td.setInstrumentPositionLimit(SYMBOL, { long: 10, short: 10 });
-td.trackMarketData(md);              // fresh reference for deviation + monetary gates
+// 1) Configure risk BEFORE any order can be sent (per-order gates, enforced in C++).
+td.setRiskLimits({ maxOrderVolume: 5, maxNotional: 2_000_000, maxOrdersPerSec: 10, maxPriceDeviation: 0.02 });
+td.trackMarketData(md);              // fresh reference for the deviation + notional gates
+const MAX_NET_LOTS = 10;             // account-level cap: judged here, in your own layer
 
 // 2) Never let a buggy handler wedge the feed — log handler throws.
 md.on("error", (e) => console.error("[md handler]", e));
@@ -1354,7 +1142,8 @@ md.on("front-connected", async () => {
   md.subscribe([SYMBOL]);
 });
 
-// 4) Position is derived from FILLS, never assumed from sends.
+// 4) Position is derived from FILLS, never assumed from sends. (A real book also
+//    starts from reqQryInvestorPosition after each session(); see the reconnect recipe.)
 let position = 0; // net lots (+long / -short)
 td.on("rtn-trade", (t: Trade) => {
   position += t.direction === Direction.Buy ? t.volume : -t.volume;
@@ -1364,7 +1153,8 @@ td.on("rtn-trade", (t: Trade) => {
 // 5) The strategy: turn each tick into a target and trade the difference.
 md.on("rtn-depth-market-data", async (tick: DepthMarketData) => {
   if (tick.instrumentId !== SYMBOL) return;
-  const want = signal(tick);         // your logic: target net lots, e.g. -1 / 0 / +1
+  // your logic: target net lots, clamped to your own position cap
+  const want = Math.max(-MAX_NET_LOTS, Math.min(MAX_NET_LOTS, signal(tick)));
   const delta = want - position;
   if (delta === 0) return;
   const buy = delta > 0;
@@ -1393,13 +1183,16 @@ CTP reconnects on its own; you re-run the handshake **in place** on every
 see [native-hooks.md](native-hooks.md#process-lifecycle-create-once-reuse)).
 
 ```ts
+const acct = { brokerId: CREDS.brokerId, investorId: CREDS.userId };
 td.on("front-connected", async () => {
-  // session() re-authenticates, re-logs-in, re-confirms, and crucially re-syncs
-  // multipliers/positions/orders — so the risk engine's position caps are rebuilt
-  // to include orders that were working before the drop (and any from another
-  // terminal on the same account). Then re-arm whatever you need.
+  // session() re-authenticates, re-logs-in, re-confirms settlement, re-syncs
+  // multipliers and re-confirms the account to the native order gate (orders are
+  // refused until it does). The gate itself has nothing to rebuild.
   await td.session({ ...CREDS });
-  rearmTriggers();
+  // Your books, however, may have missed order/trade returns while the link was
+  // down: rebuild them from fresh snapshots, then keep applying rtn-order /
+  // rtn-trade.
+  book.reset(await td.reqQryInvestorPosition(acct), await td.reqQryOrder(acct));
 });
 
 td.on("front-disconnected", (reason) => {
@@ -1407,21 +1200,12 @@ td.on("front-disconnected", (reason) => {
   // pending request Promises have already rejected; pause new signals until
   // the next front-connected if your strategy needs a confirmed session.
 });
-
-function rearmTriggers() { /* re-create any td.arm(...) triggers here */ }
 ```
 
-If you prefer to hand-roll instead of `session()`, the key is to **re-sync orders
-after a reconnect** so in-flight reservations are rebuilt:
-
-```ts
-td.on("front-connected", async () => {
-  await td.reqUserLogin({ ...CREDS });
-  await td.syncMultipliers();   // before syncOrders, so reserved cost uses the right multiplier
-  await td.syncOrders();        // rebuild reservations; marks positions uncertain
-  await td.syncPositions();     // final held snapshot; preserve reservations
-});
-```
+CTP gives no common sequence number between a position/order snapshot and the
+realtime return stream, so reconciling the two belongs to your book (the binding
+deliberately keeps no copy of its own). Do not replace `session()` with a raw
+`reqUserLogin()` here: only `session()` confirms the account for order inserts.
 
 ### Combination & multi-leg orders
 
@@ -1436,16 +1220,12 @@ await td.reqOrderInsert({ instrumentId: "rb2510", direction: Direction.Sell, com
 await td.reqOrderInsert({ instrumentId: "rb2510", direction: Direction.Sell, combOffsetFlag: OffsetFlag.CloseYesterday, limitPrice: px, volumeTotalOriginal: 3 });
 ```
 
-**Multi-leg offset flags are deliberately unsupported.** The local ledger is a
-single-instrument/single-side ledger and cannot prove per-leg position or margin
-for values such as `"00"`, `"30"`, or `"03"`. `reqOrderInsert()` and `arm()`
-therefore require exactly one offset character and reject multi-leg templates
-before they reach CTP. Use a higher-level gateway with a per-leg ledger if your
-strategy needs exchange combination instruments.
-
-Realtime callbacks and `syncOrders()` also detect unsupported working orders
-placed elsewhere; while any remain, opening inserts fail
-closed instead of guessing their per-leg exposure.
+**Multi-leg offset flags are deliberately unsupported.** The native gate judges
+one instrument at one limit price and cannot judge per-leg prices or volumes for
+values such as `"00"`, `"30"`, or `"03"`. `reqOrderInsert()` therefore requires
+exactly one offset character and rejects multi-leg templates before they reach
+CTP. Use a higher-level gateway with per-leg accounting if your strategy needs
+exchange combination instruments.
 
 **Building/dissolving a combined position** (where the exchange supports it) goes
 through `reqCombActionInsert` with an `InputCombAction`:

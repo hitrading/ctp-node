@@ -6,17 +6,19 @@
 //   - MACD dead cross (DIF crosses below DEA)     -> SELL (close that long)
 // Long-only, signal-driven. SimNow = a SIMULATION account (no real money).
 //
-// SAFETY (so "all contracts" can't run away): every order passes the C++ pre-trade
-// risk gate (max order volume, orders/sec, and a ZERO-LAG HARD CAP on total open
-// MARGIN using real per-contract margin rates fed from CTP); on top of that the JS
-// side caps concurrent open positions (STRAT_MAX_POS) and never opens a
-// contract it is already long (dedup). Stop any time with Ctrl-C (kill-switch) or
-// by the scheduled stop time.
+// SAFETY (so "all contracts" can't run away): every order passes the stateless C++
+// pre-trade risk gate (max order volume, orders/sec). Account-level exposure is this
+// script's own job, as it is for any caller: it caps concurrent open positions
+// (STRAT_MAX_POS), never opens a contract it is already long (dedup), and stops
+// opening once the account's margin in use (currMargin + frozenMargin from
+// reqQryTradingAccount, refreshed every stats tick, so a coarse cap) reaches
+// STRAT_MAX_MARGIN. Stop any time with Ctrl-C (kill-switch) or by the scheduled
+// stop time.
 //
 // CREDENTIALS come ONLY from the environment - never written to a file or the task:
 //   CTP_BROKER CTP_USER CTP_PASS CTP_APPID CTP_AUTHCODE CTP_MD_FRONT CTP_TD_FRONT
 // Tunables (env, optional):
-//   STRAT_LOTS (1)  STRAT_MAX_POS (30)  STRAT_MAX_MARGIN (300000 = local futures-margin cap, ¥)
+//   STRAT_LOTS (1)  STRAT_MAX_POS (30)  STRAT_MAX_MARGIN (300000 = account margin cap checked by this script, ¥)
 //   STRAT_MAX_OPS (5 = max order sends/sec)  STRAT_STOP (15:05 = HH:MM local exit)
 import { MarketData, Trader } from "../dist/index.js";
 import { mkdirSync } from "node:fs";
@@ -34,7 +36,7 @@ const cfg = {
   tdFront: env.CTP_TD_FRONT ?? "tcp://182.254.243.31:30002",
   lots: Number(env.STRAT_LOTS ?? 1),
   maxPos: Number(env.STRAT_MAX_POS ?? 30),
-  maxAccountMargin: Number(env.STRAT_MAX_MARGIN ?? 300_000), // C++ hard cap on total open MARGIN (¥); per-contract schedules fed from CTP
+  maxMargin: Number(env.STRAT_MAX_MARGIN ?? 300_000), // account margin in use (¥) above which this script stops opening
   maxOps: Number(env.STRAT_MAX_OPS ?? 5),
   stop: env.STRAT_STOP ?? "15:05",
   futuresOnly: (env.STRAT_FUTURES_ONLY ?? "1") === "1", // 1 = only trade futures (productClass '1'), skip options/combos
@@ -61,6 +63,7 @@ const st = new Map();        // instrumentId -> state
 const meta = new Map();      // instrumentId -> { tick, exch }
 const longPos = new Map();   // instrumentId -> { lots }  (positions WE opened)
 let allInstruments = [];
+let acctMargin = NaN;        // currMargin + frozenMargin from the latest reqQryTradingAccount (NaN = unknown)
 let totalTicks = 0, bars = 0, golden = 0, dead = 0, buys = 0, sells = 0, fills = 0, blocked = 0, dropBaseline = 0;
 let stratNanos = 0n;
 
@@ -75,8 +78,8 @@ const order = (id, dir, off, price, vol) => ({
 function tryBuy(id, s) {
   if (longPos.has(id)) return;                              // already long (dedup)
   if (longPos.size >= cfg.maxPos) { blocked++; return; }    // concurrency cap (count safety)
-  // The schedule-based futures-margin cap is enforced in C++ on the order
-  // path (setRiskLimits maxAccountMargin); a refused open rejects below and counts as blocked.
+  // Account margin cap, from the account's own funds (unknown -> no opens).
+  if (!(acctMargin < cfg.maxMargin)) { blocked++; return; }
   const price = s.ask > 0 && s.ask < 1e300 ? s.ask : s.px;  // marketable (hit the ask)
   if (!(price > 0)) return;
   longPos.set(id, { lots: cfg.lots });                      // optimistic; rolled back if the send is refused
@@ -166,10 +169,8 @@ md.on("front-connected", async () => {
 
 // ================= Trader =================
 const td = new Trader("./flow-td/", cfg.tdFront);
-// Hard cap on total open MARGIN. A multiplier and usable absolute margin schedule
-// are mandatory; opens fail closed until the per-contract query below succeeds.
-td.setRiskLimits({ maxOrderVolume: cfg.lots, maxOrdersPerSec: cfg.maxOps, maxAccountMargin: cfg.maxAccountMargin });
-let ratesQueried = 0;
+// Stateless per-order gates in C++. The account margin cap is checked in tryBuy().
+td.setRiskLimits({ maxOrderVolume: cfg.lots, maxOrdersPerSec: cfg.maxOps });
 td.on("error", (e) => log("[td handler error]", e?.message || e));
 td.on("front-disconnected", (r) => log("TD front-disconnected", r));
 td.on("rtn-trade", (tr) => { fills++; log(`  FILL ${tr.instrumentId} ${tr.offsetFlag === "0" ? "OPEN" : "CLOSE"} ${tr.volume}@${tr.price}`); });
@@ -181,9 +182,13 @@ let handshakeDone = false;
 td.on("front-connected", async () => {
   log("TD connected; handshake...");
   try {
-    await td.reqAuthenticate({ brokerId: cfg.brokerId, userId: cfg.userId, appId: cfg.appId, authCode: cfg.authCode }).catch(() => {});
-    await td.reqUserLogin({ brokerId: cfg.brokerId, userId: cfg.userId, password: cfg.password });
-    await td.reqSettlementInfoConfirm({ brokerId: cfg.brokerId, investorId: cfg.userId }).catch(() => {});
+    // session() confirms the trading account to the native order gate (a raw
+    // reqUserLogin would leave every order insert refused). Multipliers come from
+    // the full reqQryInstrument below, so the session skips its own sync.
+    await td.session({
+      brokerId: cfg.brokerId, userId: cfg.userId, password: cfg.password,
+      appId: cfg.appId, authCode: cfg.authCode, sync: { multipliers: false },
+    });
     if (!handshakeDone) {
       await sleep(1200);
       const rows = await td.reqQryInstrument({});            // one big multi-row response = every instrument
@@ -195,38 +200,30 @@ td.on("front-connected", async () => {
       }
       // (Contract multipliers are sourced into the C++ risk engine automatically
       // from this reqQryInstrument response.)
-      log(`got ${rows.length} instruments; trading set = ${allInstruments.length} ${cfg.futuresOnly ? "futures (productClass '1')" : "all contracts"}; seeding existing positions...`);
-      await td.syncOrders().catch(() => {});                 // working snapshot must precede held snapshot
-      await td.syncPositions().catch(() => {});              // final held snapshot; opens stay blocked if either failed
-      const a0 = (await td.reqQryTradingAccount({ brokerId: cfg.brokerId, investorId: cfg.userId }).catch(() => []))[0];
-      if (a0) log(`account: balance ${Math.round(a0.balance / 1e4)}w available ${Math.round(a0.available / 1e4)}w | maxAccountMargin hard cap ${Math.round(cfg.maxAccountMargin / 1e4)}w (enforced in C++)`);
+      log(`got ${rows.length} instruments; trading set = ${allInstruments.length} ${cfg.futuresOnly ? "futures (productClass '1')" : "all contracts"}.`);
+      const a0 = await refreshAccount();
+      if (a0) log(`account: balance ${Math.round(a0.balance / 1e4)}w available ${Math.round(a0.available / 1e4)}w margin in use ${Math.round(acctMargin / 1e4)}w | account margin cap ${Math.round(cfg.maxMargin / 1e4)}w (checked by this script)`);
       handshakeDone = true;
       resolveInstruments();
-      dripMarginRates();                                     // background: load CTP futures margin schedules into C++
     }
     log("TD handshake ok.");
   } catch (e) { log("TD flow FAILED:", e.message, "errorId", e.errorId); resolveInstruments(); }
 });
 
-// ================= margin-rate drip =================
-// Fetch each tradeable futures contract's published margin schedule from CTP (queries are rate-
-// limited ~1/s). The OnRspQryInstrumentMarginRate response is intercepted inside
-// C++ and fed straight to the risk engine, so maxAccountMargin uses the loaded
-// margin with both by-money/by-volume components and exchange bases for relative
-// schedules. Missing metadata stays fail-closed. Retries transient failures.
-async function dripMarginRates() {
-  let pending = [...allInstruments];
-  for (let pass = 0; pending.length && pass < 3; pass++) {
-    const retry = [];
-    for (const id of pending) {
-      try {
-        const usable = await td.syncMarginRates([id]);
-        if (usable > 0) ratesQueried++; else retry.push(id);
-      } catch { retry.push(id); }   // flow-control / transient: stays fail-closed
-    }
-    pending = retry;
-  }
-  log(`margin rates loaded for ${ratesQueried}/${allInstruments.length} contracts.`);
+// ================= account facts =================
+// The account margin cap is judged from the account's own funds: margin already
+// held plus margin frozen by working orders. Refreshed on every stats tick (queries
+// are paced by the binding), so the cap is coarse; maxOrdersPerSec and STRAT_MAX_POS
+// bound how far a burst can overshoot it. A failed refresh keeps the last value.
+let accountRefreshing = false;
+async function refreshAccount() {
+  if (accountRefreshing) return undefined;
+  accountRefreshing = true;
+  try {
+    const a = (await td.reqQryTradingAccount({ brokerId: cfg.brokerId, investorId: cfg.userId }).catch(() => []))[0];
+    if (a) acctMargin = a.currMargin + a.frozenMargin;
+    return a;
+  } finally { accountRefreshing = false; }
 }
 
 // ================= periodic stats =================
@@ -243,8 +240,9 @@ const stat = setInterval(() => {
   const cpu = process.cpuUsage(lastCpu); lastCpu = process.cpuUsage();
   const cpuPct = Math.round((cpu.user + cpu.system) / 1000 / (dt * 1000) * 100);
   const p99 = (eld.percentile(99) / 1e6).toFixed(1); eld.reset();
-  log(`t+${Math.round((Date.now() - t0) / 1000)}s | ticking ${st.size}/${allInstruments.length} | ticks ${totalTicks} (${tps}/s) | DROPPED ${md.droppedRecords - dropBaseline} | bars ${bars} | golden ${golden} dead ${dead} | BUY ${buys} SELL ${sells} fills ${fills} blocked ${blocked} | open ${longPos.size}/${cfg.maxPos} | margin ${Math.round(td.accountMargin / 1e4)}/${Math.round(cfg.maxAccountMargin / 1e4)}w (rates ${ratesQueried}/${allInstruments.length}) | RSS ${rss}MB cpu ${cpuPct}% lag-p99 ${p99}ms`);
-  if (now.getHours() > sh || (now.getHours() === sh && now.getMinutes() >= sm)) { log(`stop time ${cfg.stop} reached.`); shutdown(0); }
+  log(`t+${Math.round((Date.now() - t0) / 1000)}s | ticking ${st.size}/${allInstruments.length} | ticks ${totalTicks} (${tps}/s) | DROPPED ${md.droppedRecords - dropBaseline} | bars ${bars} | golden ${golden} dead ${dead} | BUY ${buys} SELL ${sells} fills ${fills} blocked ${blocked} | open ${longPos.size}/${cfg.maxPos} | margin ${Math.round(acctMargin / 1e4)}/${Math.round(cfg.maxMargin / 1e4)}w | RSS ${rss}MB cpu ${cpuPct}% lag-p99 ${p99}ms`);
+  if (now.getHours() > sh || (now.getHours() === sh && now.getMinutes() >= sm)) { log(`stop time ${cfg.stop} reached.`); shutdown(0); return; }
+  if (handshakeDone) refreshAccount();                       // background: keep the margin cap's input current
 }, 5000);
 
 async function shutdown(code) {
@@ -258,4 +256,4 @@ async function shutdown(code) {
 process.on("SIGINT", () => { log("SIGINT -> HALT_ALL + shutdown"); try { td.haltAll(); } catch { /* */ } shutdown(0); });
 process.on("SIGTERM", () => shutdown(0));
 
-log(`strategy starting | MD ${cfg.mdFront} | TD ${cfg.tdFront} | lots ${cfg.lots} maxPos ${cfg.maxPos} maxAccountMargin ${Math.round(cfg.maxAccountMargin / 1e4)}w ops/s ${cfg.maxOps} | stop ${cfg.stop}`);
+log(`strategy starting | MD ${cfg.mdFront} | TD ${cfg.tdFront} | lots ${cfg.lots} maxPos ${cfg.maxPos} account margin cap ${Math.round(cfg.maxMargin / 1e4)}w ops/s ${cfg.maxOps} | stop ${cfg.stop}`);
