@@ -147,6 +147,8 @@ private:
   Napi::Value RiskResume(const Napi::CallbackInfo &info);
   Napi::Value LastRiskReason(const Napi::CallbackInfo &info);
   Napi::Value TimeoutSessionTransition(const Napi::CallbackInfo &info);
+  Napi::Value TimeoutInstrumentQuery(const Napi::CallbackInfo &info);
+  Napi::Value AbandonInstrumentQuery(const Napi::CallbackInfo &info);
   Napi::Value ConfirmSessionAccount(const Napi::CallbackInfo &info);
   Napi::Value BeginSessionHandshake(const Napi::CallbackInfo &info);
   Napi::Value AttachSnapshot(const Napi::CallbackInfo &info);
@@ -160,6 +162,7 @@ private:
   Napi::Value BurstEvents(const Napi::CallbackInfo &info);
   Napi::Value InjectTestLogin(const Napi::CallbackInfo &info);
   Napi::Value InjectTestInstrumentRow(const Napi::CallbackInfo &info);
+  Napi::Value InjectTestRspError(const Napi::CallbackInfo &info);
 
   // Non-null only between _start() (CreateFtdcTraderApi + Init) and close():
   // CTP's Release() on an instance that never ran Init() joins a reactor thread
@@ -192,6 +195,10 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("lastRiskReason", &Trader::LastRiskReason),
           InstanceMethod("_timeoutSessionTransition",
                          &Trader::TimeoutSessionTransition),
+          InstanceMethod("_timeoutInstrumentQuery",
+                         &Trader::TimeoutInstrumentQuery),
+          InstanceMethod("_abandonInstrumentQuery",
+                         &Trader::AbandonInstrumentQuery),
           InstanceMethod("_confirmSessionAccount",
                          &Trader::ConfirmSessionAccount),
           InstanceMethod("_beginSessionHandshake",
@@ -199,6 +206,7 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("_injectTestLogin", &Trader::InjectTestLogin),
           InstanceMethod("_injectTestInstrumentRow",
                          &Trader::InjectTestInstrumentRow),
+          InstanceMethod("_injectTestRspError", &Trader::InjectTestRspError),
           InstanceMethod("_attachSnapshot", &Trader::AttachSnapshot),
           InstanceMethod("_start", &Trader::Start),
           InstanceMethod("_buffer", &Trader::Buffer),
@@ -463,17 +471,39 @@ Napi::Value Trader::LastRiskReason(const Napi::CallbackInfo &info) {
   return Napi::String::New(info.Env(), r ? r : "");
 }
 
-Napi::Value Trader::TimeoutSessionTransition(
-    const Napi::CallbackInfo &info) {
+// A JS request id argument; false for anything that is not one (the caller
+// then times the request out without consulting native state).
+static bool requestIdArg(const Napi::CallbackInfo &info, int &requestId) {
   if (info.Length() < 1 || !info[0].IsNumber())
-    return Napi::Boolean::New(info.Env(), true);
+    return false;
   const double raw = info[0].As<Napi::Number>().DoubleValue();
   if (!std::isfinite(raw) || std::floor(raw) != raw || raw <= 0.0 ||
       raw > 2147483647.0)
-    return Napi::Boolean::New(info.Env(), true);
+    return false;
+  requestId = static_cast<int>(raw);
+  return true;
+}
+
+Napi::Value Trader::TimeoutSessionTransition(
+    const Napi::CallbackInfo &info) {
+  int requestId = 0;
   return Napi::Boolean::New(
-      info.Env(),
-      risk_.timeoutSessionTransition(static_cast<int>(raw)));
+      info.Env(), !requestIdArg(info, requestId) ||
+                      risk_.timeoutSessionTransition(requestId));
+}
+
+Napi::Value Trader::TimeoutInstrumentQuery(const Napi::CallbackInfo &info) {
+  int requestId = 0;
+  return Napi::Boolean::New(
+      info.Env(), !requestIdArg(info, requestId) ||
+                      risk_.timeoutInstrumentQuery(requestId));
+}
+
+// A deliberate login/logout rejects every in-flight JS request; the instrument
+// query among them must not publish its staged rows afterwards.
+Napi::Value Trader::AbandonInstrumentQuery(const Napi::CallbackInfo &info) {
+  risk_.abandonInstrumentQuery();
+  return info.Env().Undefined();
 }
 
 Napi::Value Trader::ConfirmSessionAccount(const Napi::CallbackInfo &info) {
@@ -598,6 +628,30 @@ Napi::Value Trader::InjectTestInstrumentRow(const Napi::CallbackInfo &info) {
   spi_->OnRspQryInstrument(hasRow ? &row : nullptr, &rsp,
                            info[0].As<Napi::Number>().Int32Value(),
                            info[4].As<Napi::Boolean>().Value());
+  return env.Undefined();
+}
+
+// Test-only (CTP_NODE_TEST_HOOKS=1): drive the generic OnRspError callback the
+// live SPI would raise for a request id.
+Napi::Value Trader::InjectTestRspError(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  if (!testHooksEnabled(env)) {
+    Napi::Error::New(env,
+                     "test hook disabled; set CTP_NODE_TEST_HOOKS=1 explicitly")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  if (info.Length() < 2 || !isInt32Number(info[0]) || !isInt32Number(info[1])) {
+    Napi::TypeError::New(env, "_injectTestRspError requires requestId, errorId")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  if (!spi_ || closed_)
+    return env.Undefined();
+  CThostFtdcRspInfoField rsp;
+  std::memset(&rsp, 0, sizeof(rsp));
+  rsp.ErrorID = info[1].As<Napi::Number>().Int32Value();
+  spi_->OnRspError(&rsp, info[0].As<Napi::Number>().Int32Value(), true);
   return env.Undefined();
 }
 

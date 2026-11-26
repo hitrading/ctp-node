@@ -57,12 +57,18 @@ an order was refused.
      callbacks into C++.** Special-cased in `scripts/codegen/generate-trader.mjs`
      (emitted into `traderspi.gen.cc` / `traderreq.gen.cc`):
      - contract multipliers and product classes ← `OnRspQryInstrument`;
-       sending a `reqQryInstrument` first invalidates the queried contract (or
-       all contracts) and opens a staging area for that request id. Rows are
-       staged and published together only by the query's error-free final
-       packet; an error final packet, a front connect/disconnect or a newer
-       instrument query discards them, so a failed, partial or superseded
-       refresh cannot leave stale or partial metadata active
+       sending a `reqQryInstrument` first invalidates the queried contract (or,
+       with no filter, all contracts; a query filtered only by exchange or
+       product invalidates nothing and its publication merges, so it cannot
+       wipe the contracts outside its scope) and opens a staging area for that
+       request id. Rows are staged and published together only by the query's
+       error-free final packet; an error final packet, the generic
+       `OnRspError` of that request id, its JS idle timeout, a front
+       connect/disconnect, a deliberate login/logout or a newer instrument
+       query discards them, so a failed, timed-out, partial or superseded
+       refresh cannot leave stale or partial metadata active. A row whose
+       InstrumentID cannot be read makes even a filtered query clear every
+       contract on success (fail closed)
      - login session (FrontID/SessionID/BrokerID) ← `OnRspUserLogin`, correlated
        with the request id of the latest login request; `session()` then confirms
        the trading account (InvestorID), after the settlement confirmation,
@@ -114,7 +120,8 @@ an order was refused.
   sends: no order can pass the checks under the old state and then be sent after
   the change returns, or go out under a newly logged-in account.
 - Queue/state-producing test hooks (`_injectTestTick`, `_injectTestForQuote`,
-  `_injectTestLifecycle`, `_burstTicks`, `_produceTestTicks`, `_burstEvents`)
+  `_injectTestLifecycle`, `_injectTestLogin`, `_injectTestInstrumentRow`,
+  `_injectTestRspError`, `_burstTicks`, `_produceTestTicks`, `_burstEvents`)
   are disabled unless `CTP_NODE_TEST_HOOKS=1` is explicitly set. Never enable
   them in a live process: EventChannel relies on the vendor callback stream being
   its single producer, and lifecycle injection deliberately bypasses a real front.

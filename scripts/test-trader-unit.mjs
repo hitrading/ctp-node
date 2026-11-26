@@ -27,6 +27,7 @@ ok(td.queryRetryDelayMs === 1100, "sync helpers pause a full second between atte
 td.queryRetryDelayMs = 0; // the pause itself is covered separately
 delete process.env.CTP_NODE_TEST_HOOKS;
 throws(() => td.native._burstEvents(1), "queue-producing Trader test hooks are disabled by default");
+throws(() => td.native._injectTestRspError(1, 1), "the rsp-error test hook is disabled by default");
 process.env.CTP_NODE_TEST_HOOKS = "1";
 throws(() => new Trader("./flow\0evil/", "tcp://127.0.0.1:1"),
   "Trader rejects an embedded NUL flowPath before entering CTP");
@@ -427,6 +428,57 @@ td.trackMarketData(md);
   row(newest, "rb2510", 10, 0, true);
   ok(afterLateRow === "unavailable" && await notionalOutcome() === "published",
     "a superseded query's late rows are discarded while the newest query publishes its own");
+  const openQuery = async (request) => {
+    await tdTrack.reqQryInstrument(request).catch(() => {});
+    return tdTrack.reqSeq;
+  };
+  const byExchange = await openQuery({ exchangeId: "SHFE" });
+  const duringFiltered = await notionalOutcome();
+  row(byExchange, "hc2610", 10, 0, true);
+  ok(duringFiltered === "published" && await notionalOutcome() === "published",
+    "a query filtered only by exchange neither clears nor wipes the instruments outside its scope");
+  const byProduct = await openQuery({ productId: "hc" });
+  const duringProduct = await notionalOutcome();
+  row(byProduct, null, 0, 0, true);
+  ok(duringProduct === "published" && await notionalOutcome() === "published",
+    "a query filtered only by product merges as well");
+  const byExchangeCode = await openQuery({ exchangeInstId: "hc2610" });
+  const duringExchangeCode = await notionalOutcome();
+  row(byExchangeCode, null, 0, 0, true);
+  ok(duringExchangeCode === "published" && await notionalOutcome() === "published",
+    "a query filtered only by the exchange instrument code merges as well");
+  const unfiltered = await openQuery({});
+  const duringUnfiltered = await notionalOutcome();
+  row(unfiltered, "rb2510", 10, 0, true);
+  ok(duringUnfiltered === "unavailable" && await notionalOutcome() === "published",
+    "an unfiltered query invalidates every instrument until its own rows publish");
+  const errored = await openInstrumentQuery();
+  row(errored, "rb2510", 10, 0, false);
+  tdTrack.native._injectTestRspError(errored, 90);
+  row(errored, null, 0, 0, true);
+  ok(await notionalOutcome() === "unavailable",
+    "the generic error callback of an instrument query discards its rows; a later final packet of that id publishes nothing");
+  const timedOut = await openInstrumentQuery();
+  row(timedOut, "rb2510", 10, 0, false);
+  const timeoutWhileStaging = tdTrack.shouldTimeoutRequest(timedOut, false);
+  row(timedOut, null, 0, 0, true);
+  ok(timeoutWhileStaging === true && await notionalOutcome() === "unavailable",
+    "a JS timeout of a staging instrument query discards it, so its late final packet never publishes");
+  const raced = await openInstrumentQuery();
+  row(raced, "rb2510", 10, 0, true);
+  ok(tdTrack.shouldTimeoutRequest(raced, false) === false && await notionalOutcome() === "published",
+    "a query whose final packet already published waits for its queued response instead of timing out");
+  ok(tdTrack.shouldTimeoutRequest(raced + 1000, false) === true,
+    "any other request id simply times out");
+  const transitioned = await openInstrumentQuery();
+  row(transitioned, "rb2510", 10, 0, false);
+  await tdTrack.reqUserLogin({ brokerId: "9999", userId: "u", password: "p" }).catch(() => {});
+  tdTrack.native._injectTestLogin(1, 7, "9999", "u");
+  tdTrack.broker = "9999"; tdTrack.investor = "u";
+  row(transitioned, null, 0, 0, true);
+  ok(await notionalOutcome() === "unavailable",
+    "a deliberate login abandons the in-flight instrument query, so its late final packet publishes nothing");
+  throws(() => tdTrack.native._injectTestRspError("x", 1), "the rsp-error test hook validates its arguments");
   throws(() => tdTrack.native._injectTestInstrumentRow(1, 2, 3, 4, 5),
     "the instrument-row test hook validates its arguments");
   tdTrack.close(); mdTrack.close();
@@ -473,13 +525,13 @@ td.reqUserLogin = async () => {
   return { brokerId: "9999", userId: "u", maxOrderRef: "100", frontId: 1, sessionId: 7 };
 };
 td.reqSettlementInfoConfirm = async () => [];
-td.reqQryInstrument = async () => [{ instrumentId: "rb2510", productId: "rb", volumeMultiple: 10 }, { instrumentId: "x", volumeMultiple: 0 }];
+td.reqQryInstrument = async () => [{ instrumentId: "rb2510", productId: "rb", exchangeId: "SHFE", volumeMultiple: 10 }, { instrumentId: "x", volumeMultiple: 0 }];
 let exchangeMarginQueries = 0;
 // Rate rows carry the confirmed account's attribution (broker 9999, single
 // investor u, no invest unit); attribution rules live in test-product-rates.
-const ownMarginRow = { investorRange: "3", brokerId: "9999", investorId: "u", investUnitId: "" };
+const ownMarginRow = { investorRange: "3", brokerId: "9999", investorId: "u", investUnitId: "", exchangeId: "SHFE" };
 td.reqQryExchangeMarginRate = async (request) => { exchangeMarginQueries++; return [{
-  instrumentId: "rb2510", hedgeFlag: request.hedgeFlag, brokerId: "9999",
+  instrumentId: "rb2510", hedgeFlag: request.hedgeFlag, brokerId: "9999", exchangeId: "SHFE",
   longMarginRatioByMoney: 0.08, longMarginRatioByVolume: 0,
   shortMarginRatioByMoney: 0.08, shortMarginRatioByVolume: 0,
 }]; };
@@ -670,8 +722,9 @@ td.investor = "u";
 {
   const oldCatalog = td.reqQryInstrument, oldMargins = td.reqQryInstrumentMarginRate;
   const requests = [];
-  td.reqQryInstrument = async () => [{ instrumentId: 'rb2510', productId: 'rb', volumeMultiple: 10 },
-    { instrumentId: 'rb2601', productId: 'rb', volumeMultiple: 10 }, { instrumentId: 'hc2610', productId: 'hc', volumeMultiple: 10 }];
+  td.reqQryInstrument = async () => [{ instrumentId: 'rb2510', productId: 'rb', exchangeId: 'SHFE', volumeMultiple: 10 },
+    { instrumentId: 'rb2601', productId: 'rb', exchangeId: 'SHFE', volumeMultiple: 10 },
+    { instrumentId: 'hc2610', productId: 'hc', exchangeId: 'SHFE', volumeMultiple: 10 }];
   const rate = (instrumentId, isRelative = 0) => ({ ...ownMarginRow, instrumentId, hedgeFlag: '1', isRelative,
     longMarginRatioByMoney: .1, longMarginRatioByVolume: 0, shortMarginRatioByMoney: .1, shortMarginRatioByVolume: 0 });
   td.reqQryInstrumentMarginRate = async q => { requests.push(q.instrumentId); return [rate('rb2601'), rate('rb'), rate('hc2610'), { ...rate('rb'), hedgeFlag: '2' }]; };
@@ -687,8 +740,9 @@ td.investor = "u";
   await rejects(td.syncMarginRates(['rb2510']), 'missing product and contract rows fail closed');
   td.reqQryInstrumentMarginRate = async q => [rate(q.instrumentId)];
   await td.syncMarginRates(['hc2610']);
-  td.reqQryInstrument = async () => [{ instrumentId: 'hc2610', productId: 'rb', volumeMultiple: 10 },
-    { instrumentId: 'hc2610', productId: 'hc', volumeMultiple: 10 }, { instrumentId: 'rb2510', productId: 'rb', volumeMultiple: 10 }];
+  td.reqQryInstrument = async () => [{ instrumentId: 'hc2610', productId: 'rb', exchangeId: 'SHFE', volumeMultiple: 10 },
+    { instrumentId: 'hc2610', productId: 'hc', exchangeId: 'SHFE', volumeMultiple: 10 },
+    { instrumentId: 'rb2510', productId: 'rb', exchangeId: 'SHFE', volumeMultiple: 10 }];
   await td.syncMarginRates(['rb2510']);
   ok(td.readMarginRates(['hc2610'], '1')[0].longMarginRatioByMoney === .1,
     'the last catalog row decides product membership and unrelated product snapshots are preserved');

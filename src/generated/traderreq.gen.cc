@@ -348,7 +348,7 @@ int traderReq(CThostFtdcTraderApi *api, int methodId, const void *bytes, int len
     CThostFtdcQryInstrumentField f;
     std::memset(&f, 0, sizeof(f));
     std::memcpy(&f, bytes, std::min(static_cast<size_t>(len), sizeof(f)));
-    if (risk) risk->beginInstrumentQuery(requestId, f.InstrumentID);
+    if (risk) risk->beginInstrumentQuery(requestId, f.InstrumentID, f.ExchangeID[0] != '\0' || f.ExchangeInstID[0] != '\0' || f.ProductID[0] != '\0');
     return api->ReqQryInstrument(&f, requestId);
   }
   case M_ReqQryDepthMarketData: {

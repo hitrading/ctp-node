@@ -8,7 +8,7 @@
 
 import { native } from "./native-binding.js";
 import {
-  CTP_INVESTOR_RANGE_GROUP,
+  ctpInvestorGroupNeeded,
   ctpMarginRateMissing,
   groupCtpInstrumentsByProduct,
   selectCtpExchangeMarginRates,
@@ -246,6 +246,9 @@ export class Trader extends TraderBase {
     this.resolvedMarginRates.clear();
     this.broker = undefined;
     this.investor = undefined;
+    // The transition rejects every in-flight request, an instrument query
+    // included; its staged rows must not publish when the counter answers late.
+    this.native._abandonInstrumentQuery();
     super.beginRequestContextTransition(reason);
   }
 
@@ -253,8 +256,10 @@ export class Trader extends TraderBase {
     requestId: number,
     sessionTransition: boolean
   ): boolean {
-    if (!sessionTransition) return true;
-    return this.native._timeoutSessionTransition(requestId) as boolean;
+    if (sessionTransition) return this.native._timeoutSessionTransition(requestId) as boolean;
+    // A timed-out instrument query must not publish its multipliers later.
+    // Request ids are unique, so any other request simply times out here.
+    return this.native._timeoutInstrumentQuery(requestId) as boolean;
   }
 
   get apiVersion(): string {
@@ -744,8 +749,11 @@ export class Trader extends TraderBase {
    *  scheduler enforces spacing. Returns the number of usable schedules.
    *  Only rows attributed to the confirmed account count: the investor row's
    *  BrokerID, InvestorRange/InvestorID and an empty InvestUnitID, and the
-   *  exchange base row's BrokerID. Single investor overrides investor group,
-   *  which overrides all investors; disagreeing rows of one range fail the sync. */
+   *  exchange base row's BrokerID; a row of either kind naming an ExchangeID
+   *  other than the contract's catalog exchange belongs to another contract.
+   *  The investor group is queried only when an otherwise attributable row is an
+   *  investor-group row. Single investor overrides investor group, which
+   *  overrides all investors; disagreeing rows of one range fail the sync. */
   async syncMarginRates(
     instrumentIds: string[],
     hedgeFlag: "1" | "2" | "3" | "5" | "6" | "7" = "1"
@@ -767,6 +775,7 @@ export class Trader extends TraderBase {
     // multipliers). It is one request, independent of the number of traded months.
     const catalog = await this.queryWithRetry(() => this.reqQryInstrument({}), contextToken) as Instrument[];
     const productByInstrument = new Map(catalog.map(row => [row.instrumentId, row.productId]));
+    const exchangeByInstrument = new Map(catalog.map(row => [row.instrumentId, row.exchangeId]));
     const groups = groupCtpInstrumentsByProduct(instrumentIds, catalog);
     // Queried once, and only when a reply carries an investor-group row.
     let investorGroupId: string | undefined;
@@ -785,8 +794,14 @@ export class Trader extends TraderBase {
     for (const [productId, members] of groups) {
       for (const [contractId, currentProduct] of productByInstrument)
         if (currentProduct === productId) this.resolvedMarginRates.delete(`${contractId}|${hedgeFlag}`);
+      // Rate rows are attributed to the exchange of the contracts they price.
+      const exchanges = new Set(members.map(id => exchangeByInstrument.get(id)));
+      const [exchangeId] = exchanges;
+      if (exchanges.size !== 1 || typeof exchangeId !== "string" || !exchangeId)
+        throw new Error(`CTP product ${productId} has no single exchange in the instrument catalog`);
       type InvestorMarginRow = {
         instrumentId: string;
+        exchangeId: string;
         hedgeFlag: string;
         investorRange: string;
         brokerId: string;
@@ -808,16 +823,16 @@ export class Trader extends TraderBase {
           (row) => row.hedgeFlag === hedgeFlag && (row.instrumentId === productId ||
             productByInstrument.get(row.instrumentId) === productId)
         ), contextToken);
-      if (investorGroupId === undefined &&
-          investorRows.some(row => row.investorRange === CTP_INVESTOR_RANGE_GROUP))
+      if (investorGroupId === undefined && ctpInvestorGroupNeeded(investorRows, brokerId, exchangeId))
         investorGroupId = await loadInvestorGroup();
       const { rates, excluded } = selectCtpInvestorMarginRates(
-        investorRows, { brokerId, investorId, investorGroupId });
+        investorRows, { brokerId, investorId, investorGroupId }, exchangeId);
       for (const instrumentId of members) {
       const investor = selectCtpProductRate(rates, instrumentId, productId, excluded);
       const relative = investor.isRelative === 1;
       type ExchangeMarginRow = {
         instrumentId: string;
+        exchangeId: string;
         hedgeFlag: string;
         brokerId: string;
         longMarginRatioByMoney: number;
@@ -835,7 +850,7 @@ export class Trader extends TraderBase {
               (row) => row.instrumentId === instrumentId && row.hedgeFlag === hedgeFlag
             ), contextToken)
         : [];
-      const baseRates = selectCtpExchangeMarginRates(baseRows, brokerId);
+      const baseRates = selectCtpExchangeMarginRates(baseRows, brokerId, exchangeId);
       const base = baseRates.rates.get(instrumentId);
       if (relative && !base)
         throw ctpMarginRateMissing("exchange margin", `${instrumentId}/${hedgeFlag}`, baseRates.excluded);

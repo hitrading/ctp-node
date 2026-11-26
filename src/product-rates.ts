@@ -25,6 +25,7 @@ interface CtpMarginSchedule {
 /** The attribution fields of a CThostFtdcInstrumentMarginRateField row. */
 export interface CtpInvestorMarginRow extends CtpMarginSchedule {
   instrumentId: string;
+  exchangeId: string;
   investorRange: string;
   brokerId: string;
   investorId: string;
@@ -34,6 +35,7 @@ export interface CtpInvestorMarginRow extends CtpMarginSchedule {
 /** The attribution fields of a CThostFtdcExchangeMarginRateField row. */
 export interface CtpExchangeMarginRow extends CtpMarginSchedule {
   instrumentId: string;
+  exchangeId: string;
   brokerId: string;
 }
 /** The confirmed account a rate row must belong to. The Trader sends every
@@ -56,9 +58,30 @@ const SCHEDULE_FIELDS = ['longMarginRatioByMoney', 'longMarginRatioByVolume',
   'shortMarginRatioByMoney', 'shortMarginRatioByVolume'] as const;
 const INVESTOR_FIELDS = [...SCHEDULE_FIELDS, 'isRelative'] as const;
 
-function investorRowExclusion(row: CtpInvestorMarginRow, account: CtpMarginAccount): string | undefined {
-  if (row.brokerId !== account.brokerId) return `broker ${row.brokerId}`;
+/** A row naming another exchange belongs to another contract; an empty
+ * ExchangeID carries no exchange attribution and is judged by its key. */
+function exchangeExclusion(row: { exchangeId: string }, exchangeId: string): string | undefined {
+  return row.exchangeId !== '' && row.exchangeId !== exchangeId ? `exchange ${row.exchangeId}` : undefined;
+}
+
+/** Broker, investment unit and exchange: the attribution that needs no
+ * investor-group lookup. */
+function investorRowScopeExclusion(row: CtpInvestorMarginRow, brokerId: string, exchangeId: string): string | undefined {
+  if (row.brokerId !== brokerId) return `broker ${row.brokerId}`;
   if (row.investUnitId !== '') return `investment unit ${row.investUnitId}`;
+  return exchangeExclusion(row, exchangeId);
+}
+
+/** Whether judging these rows needs the account's investor group: only an
+ * investor-group row that is otherwise attributable to this account does. */
+export function ctpInvestorGroupNeeded(rows: readonly CtpInvestorMarginRow[], brokerId: string, exchangeId: string): boolean {
+  return rows.some(row => row.investorRange === CTP_INVESTOR_RANGE_GROUP &&
+    !investorRowScopeExclusion(row, brokerId, exchangeId));
+}
+
+function investorRowExclusion(row: CtpInvestorMarginRow, account: CtpMarginAccount, exchangeId: string): string | undefined {
+  const scope = investorRowScopeExclusion(row, account.brokerId, exchangeId);
+  if (scope) return scope;
   switch (row.investorRange) {
     // An all-investor row may carry a wildcard InvestorID; never compare it.
     case '1': return undefined;
@@ -89,14 +112,15 @@ function groupRows<T extends { instrumentId: string }>(rows: readonly T[]): Map<
   return groups;
 }
 
-/** Keep the investor margin rows that belong to this account and pick, per
- * instrument/product id, the narrowest applicable investor range. */
+/** Keep the investor margin rows that belong to this account and to the
+ * contract's exchange and pick, per instrument/product id, the narrowest
+ * applicable investor range. */
 export function selectCtpInvestorMarginRates<T extends CtpInvestorMarginRow>(
-  rows: readonly T[], account: CtpMarginAccount
+  rows: readonly T[], account: CtpMarginAccount, exchangeId: string
 ): CtpMarginRowSelection<T> {
   const excluded: string[] = [];
   const accepted = rows.filter(row => {
-    const reason = investorRowExclusion(row, account);
+    const reason = investorRowExclusion(row, account, exchangeId);
     if (reason) excluded.push(`investor ${row.instrumentId}: ${reason}`);
     return !reason;
   });
@@ -110,14 +134,16 @@ export function selectCtpInvestorMarginRates<T extends CtpInvestorMarginRow>(
   return { rates, excluded };
 }
 
-/** Keep the exchange base rows of this account's broker, one per instrument. */
+/** Keep the exchange base rows of this account's broker and the contract's
+ * exchange, one per instrument. */
 export function selectCtpExchangeMarginRates<T extends CtpExchangeMarginRow>(
-  rows: readonly T[], brokerId: string
+  rows: readonly T[], brokerId: string, exchangeId: string
 ): CtpMarginRowSelection<T> {
   const excluded: string[] = [];
   const accepted = rows.filter(row => {
-    if (row.brokerId !== brokerId) excluded.push(`exchange ${row.instrumentId}: broker ${row.brokerId}`);
-    return row.brokerId === brokerId;
+    const reason = row.brokerId !== brokerId ? `broker ${row.brokerId}` : exchangeExclusion(row, exchangeId);
+    if (reason) excluded.push(`exchange ${row.instrumentId}: ${reason}`);
+    return !reason;
   });
   const rates = new Map<string, T>();
   for (const [key, candidates] of groupRows(accepted))

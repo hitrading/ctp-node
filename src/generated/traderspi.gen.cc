@@ -339,6 +339,8 @@ void TraderSpi::OnRspQryAccountregister(CThostFtdcAccountregisterField *p, CThos
 }
 
 void TraderSpi::OnRspError(CThostFtdcRspInfoField *e, int id, bool last) {
+  if (risk_)
+    risk_->finishInstrumentQuery(id, false);
   ch_->push(ET_RspError, id, last ? 1 : 0, eid(e), emsg(e), -1, nullptr, 0);
 }
 

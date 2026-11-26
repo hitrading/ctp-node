@@ -530,10 +530,12 @@ const trades = await td.reqQryTrade({ brokerId: "9999", investorId: "id" });
 合约；传符号列表可限定范围。显式空数组是返回 `0` 的 no-op，只有省略参数才表示“查询全部”。会穿越
 冷启动限频重试，返回最终回调行含可用乘数的合约数量。
 
-合约刷新会在请求发出前先使旧乘数失效，因此失败/空刷新不会继续使用陈旧元数据；在刷新成功前，
-已启用的 `maxNotional` 校验对该合约 fail-closed。一次合约查询的各行先按请求号在原生侧暂存，
-只有该查询的末包无错误到达时才一起生效；错误末包、前置连接/断开或更新的合约查询都会丢弃暂存行，
-被取代查询的迟到行也会被忽略。
+合约刷新会在请求发出前先使所查合约（不带任何过滤条件时为全部合约）的旧乘数失效，因此失败/空刷新不会
+继续使用陈旧元数据；在刷新成功前，已启用的 `maxNotional` 校验对这些合约 fail-closed。只按交易所、交易所
+合约代码或品种过滤的查询（6.0.1 起）不使任何合约失效，成功后合并发布，不会清掉范围外的合约。一次合约查询的
+各行先按请求号在原生侧暂存，只有该查询的末包无错误到达时才一起生效；错误末包、该请求的通用 `rsp-error`、
+空闲超时、前置连接/断开、主动登录/登出或更新的合约查询都会丢弃暂存行，被取代查询的迟到行也会被忽略。
+有一行合约代码无法读取时，即便是过滤查询，成功后也会清空全部合约。
 
 ```ts
 const n = await td.syncMultipliers();           // 全部合约
@@ -548,9 +550,12 @@ console.log(n, "个合约带有乘数");
 品种行，即使合约级行非法也不继承品种设置。仅当返回 `IsRelative` 时才追加交易所基础表查询，相对
 投资者表与该基础表逐字段相加。共享调度器会自动间隔发送每笔查询。返回得到可用费率的合约数量。
 
-6.0 起每一行先核对归属再使用：经纪商必须是本账户、投资单元必须为空；单一投资者范围的行须是本
-投资者号，投资者组范围的行须是本账户的投资者组号（仅在出现此类行时用 `reqQryInvestor` 查询一次），
-全部投资者范围的行不核对投资者字段（可能是通配值）。同一合约有多个适用范围时取最具体的一种（单一投资者
+6.0 起每一行先核对归属再使用：经纪商必须是本账户、投资单元必须为空；行带交易所代码时须是该合约在
+合约目录中的交易所（6.0.1 起，投资者表与交易所基础表都核对）；单一投资者范围的行须是本投资者号，投资者组
+范围的行须是本账户的投资者组号（仅在出现经纪商、投资单元与交易所都归属本账户的投资者组行时，才用
+`reqQryInvestor` 查询一次），
+全部投资者范围的行不核对投资者字段（可能是通配值）。合约目录须给每个所请求品种唯一且非空的交易所
+（CTP 合约目录都会给），否则整次同步失败。同一合约有多个适用范围时取最具体的一种（单一投资者
 ＞投资者组＞全部）；同一范围数值冲突、交易所基础表来自其他经纪商或取不到投资者组时，整次同步失败，
 不再静默取最后一行。
 
@@ -672,14 +677,17 @@ td.trackMarketData(md);
 
 ```ts
 const acct = { brokerId: "9999", investorId: "id" };
+let ready = false;
+td.on("front-disconnected", () => { ready = false; }); // 断线即停止新增敞口
 td.on("front-connected", async () => {
   await td.session({ brokerId: acct.brokerId, userId: acct.investorId, password: "pw",
     sync: { marginRates: { instrumentIds: ["rb2510"], hedgeFlag: "1" } } });
-  book.reset(
-    await td.reqQryInvestorPosition(acct),
-    await td.reqQryOrder(acct),
-    (await td.reqQryTradingAccount(acct))[0],
-  );
+  // 本经纪商、本币种的资金行必须恰好一行。资金行不含投资者号，资金账号可与投资者号不同：按柜台返回的保留。
+  const funds = (await td.reqQryTradingAccount({ ...acct, currencyId: "CNY" }))
+    .filter((f) => f.brokerId === acct.brokerId && f.currencyId === "CNY");
+  if (funds.length !== 1) throw new Error("expected exactly one CNY funds row");
+  book.reset(await td.reqQryInvestorPosition(acct), await td.reqQryOrder(acct), funds[0]);
+  ready = true;
 });
 td.on("rtn-order", (o) => book.onOrder(o));
 td.on("rtn-trade", (t) => book.onTrade(t));
@@ -687,7 +695,7 @@ td.on("rtn-trade", (t) => book.onTrade(t));
 // 先做你自己的账户级检查，再交给原生逐笔闸门
 const [rb] = td.readMarginRates(["rb2510"], "1");
 const add = 3500 * 1 * 10 * rb.longMarginRatioByMoney + 1 * rb.longMarginRatioByVolume;
-if (book.marginInUse() + add <= MY_ACCOUNT_MARGIN_CAP && book.longLots("rb2510") + 1 <= MY_LOT_CAP) {
+if (ready && book.marginInUse() + add <= MY_ACCOUNT_MARGIN_CAP && book.longLots("rb2510") + 1 <= MY_LOT_CAP) {
   await td.reqOrderInsert({ instrumentId: "rb2510", direction: "0", combOffsetFlag: "0", limitPrice: 3500, volumeTotalOriginal: 1 });
 }
 ```

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { groupCtpInstrumentsByProduct, selectCtpProductRate, Trader } from '../dist/index.js';
-import { ctpMarginRateMissing, selectCtpInvestorMarginRates } from '../dist/product-rates.js';
+import { ctpInvestorGroupNeeded, ctpMarginRateMissing, selectCtpInvestorMarginRates } from '../dist/product-rates.js';
 const catalog = [{ instrumentId: 'rb2610', productId: 'rb' }, { instrumentId: 'rb2701', productId: 'rb' },
   { instrumentId: 'IF2610', productId: 'IF' }];
 assert.deepEqual([...groupCtpInstrumentsByProduct(['rb2610', 'rb2701', 'IF2610', 'rb2610'], catalog)],
@@ -36,11 +36,12 @@ const td = new Trader('./flow-product-rates/', 'tcp://127.0.0.1:1');
 td.queryRetryDelayMs = 0;
 td.broker = '9999';
 td.investor = 'u';
-td.reqQryInstrument = async () => [
-  { instrumentId: 'rb2610', productId: 'rb', volumeMultiple: 10 },
-  { instrumentId: 'rb2701', productId: 'rb', volumeMultiple: 10 },
-  { instrumentId: 'hc2610', productId: 'hc', volumeMultiple: 10 },
+const shfeCatalog = [
+  { instrumentId: 'rb2610', productId: 'rb', exchangeId: 'SHFE', volumeMultiple: 10 },
+  { instrumentId: 'rb2701', productId: 'rb', exchangeId: 'SHFE', volumeMultiple: 10 },
+  { instrumentId: 'hc2610', productId: 'hc', exchangeId: 'SHFE', volumeMultiple: 10 },
 ];
+td.reqQryInstrument = async () => shfeCatalog;
 let investorQueries = [];
 let investorReply = [{ brokerId: '9999', investorId: 'u', investorGroupId: 'G1' }];
 td.reqQryInvestor = async (request) => { investorQueries.push(request); return investorReply; };
@@ -144,8 +145,48 @@ test('exchange base rows of another broker or in conflict fail the sync', async 
 });
 test('an investor-group row cannot be judged without the account group', () => {
   assert.throws(() => selectCtpInvestorMarginRates(
-    [own('rb2610', .1, { investorRange: '2', investorId: 'G1' })], { brokerId: '9999', investorId: 'u' }),
+    [own('rb2610', .1, { investorRange: '2', investorId: 'G1' })], { brokerId: '9999', investorId: 'u' }, 'SHFE'),
   { message: 'CTP investor group is required to judge an investor-group margin row' });
+});
+
+test('review: an investor row of another exchange is excluded, the own 12% stays', async () => {
+  assert.equal(await longRate([own('rb2610', .12), own('rb2610', .04, { exchangeId: 'DCE' })]), .12);
+  await failsWith([own('rb2610', .04, { exchangeId: 'DCE' })], [],
+    'CTP product/contract rate is missing: rb/rb2610; excluded rows of other accounts: investor rb2610: exchange DCE');
+});
+test('review: a relative 2% adds only the base of the contract exchange', async () => {
+  const relative = [own('rb2610', .02, { isRelative: 1 })];
+  await failsWith(relative, [base('rb2610', .04, { exchangeId: 'DCE' })],
+    'CTP exchange margin rate is missing: rb2610/1; excluded rows of other accounts: exchange rb2610: exchange DCE');
+  const rate = await longRate(relative, [base('rb2610', .04, { exchangeId: 'DCE' }), base('rb2610', .1)]);
+  assert(Math.abs(rate - .12) < 1e-12, `expected 0.12, got ${rate}`);
+});
+test('rows without an ExchangeID are judged by their key alone', async () => {
+  assert.equal(await longRate([own('rb2610', .1, { exchangeId: '' })]), .1);
+  const rate = await longRate([own('rb2610', .02, { isRelative: 1 })], [base('rb2610', .1, { exchangeId: '' })]);
+  assert(Math.abs(rate - .12) < 1e-12, `expected 0.12, got ${rate}`);
+});
+test('review: a group row of another broker, unit or exchange does not trigger the group lookup', async () => {
+  investorReply = [];
+  for (const foreign of [{ brokerId: '8888' }, { investUnitId: 'U1' }, { exchangeId: 'DCE' }])
+    assert.equal(await longRate([own('rb2610', .12), own('rb2610', .04, { investorRange: '2', investorId: 'G9', ...foreign })]), .12);
+  assert.equal(investorQueries.length, 0);
+  investorReply = [{ brokerId: '9999', investorId: 'u', investorGroupId: 'G1' }];
+  assert.equal(ctpInvestorGroupNeeded([own('rb2610', .1, { investorRange: '2', investorId: 'G1' })], '9999', 'SHFE'), true);
+  assert.equal(ctpInvestorGroupNeeded([own('rb2610', .1, { investorRange: '2', investorId: 'G1', exchangeId: '' })], '9999', 'SHFE'), true);
+  assert.equal(ctpInvestorGroupNeeded([own('rb2610', .1)], '9999', 'SHFE'), false);
+});
+test('a product needs exactly one catalog exchange', async () => {
+  for (const catalog of [
+    [{ instrumentId: 'rb2610', productId: 'rb', exchangeId: 'SHFE' }, { instrumentId: 'rb2701', productId: 'rb', exchangeId: 'DCE' }],
+    [{ instrumentId: 'rb2610', productId: 'rb', exchangeId: '' }, { instrumentId: 'rb2701', productId: 'rb', exchangeId: '' }],
+  ]) {
+    td.reqQryInstrument = async () => catalog;
+    stub([own('rb', .1)]);
+    await assert.rejects(td.syncMarginRates(['rb2610', 'rb2701'], '1'),
+      { message: 'CTP product rb has no single exchange in the instrument catalog' });
+  }
+  td.reqQryInstrument = async () => shfeCatalog;
 });
 
 test('a missing-rate error names at most ten excluded rows and counts the rest', async () => {

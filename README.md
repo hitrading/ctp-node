@@ -131,7 +131,11 @@ td.on("front-connected", async () => {
   // current from rtn-order / rtn-trade:
   const positions = await td.reqQryInvestorPosition({ brokerId, investorId });
   const orders = await td.reqQryOrder({ brokerId, investorId });
-  const [funds] = await td.reqQryTradingAccount({ brokerId, investorId });
+  // Exactly one funds row of your broker and currency; its AccountID may differ
+  // from the InvestorID, so keep the one the counter returned.
+  const funds = (await td.reqQryTradingAccount({ brokerId, investorId, currencyId: "CNY" }))
+    .filter((f) => f.brokerId === brokerId && f.currencyId === "CNY");
+  if (funds.length !== 1) throw new Error("expected exactly one CNY funds row");
   const [rb] = td.readMarginRates(["rb2510"], "1"); // resolved schedule for your own margin math
 
   // Orders go through the C++ risk gate. reqOrderInsert resolves on submission

@@ -121,7 +121,10 @@ td.on("front-connected", async () => {
   // 基于 Promise 的查询返回所有行。你自己的账本从这里建立，此后用 rtn-order / rtn-trade 保持最新：
   const positions = await td.reqQryInvestorPosition({ brokerId, investorId });
   const orders = await td.reqQryOrder({ brokerId, investorId });
-  const [funds] = await td.reqQryTradingAccount({ brokerId, investorId });
+  // 本经纪商、本币种的资金行必须恰好一行；资金账号可与投资者号不同，按柜台返回的保留。
+  const funds = (await td.reqQryTradingAccount({ brokerId, investorId, currencyId: "CNY" }))
+    .filter((f) => f.brokerId === brokerId && f.currencyId === "CNY");
+  if (funds.length !== 1) throw new Error("expected exactly one CNY funds row");
   const [rb] = td.readMarginRates(["rb2510"], "1"); // 解析好的保证金率，供你自己计算保证金
 
   // 报单走 C++ 风控网关。reqOrderInsert 提交成功即 resolve（CTP 对已接受的报单

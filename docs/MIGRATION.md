@@ -146,6 +146,8 @@ let ready = false, generation = 0;
 const pending = [];
 td.on("rtn-order", (o) => (ready ? book.onOrder(o) : pending.push(["order", o])));
 td.on("rtn-trade", (t) => (ready ? book.onTrade(t) : pending.push(["trade", t])));
+// Stop admitting new exposure the moment the front drops, not only on reconnect.
+td.on("front-disconnected", () => { generation++; ready = false; });
 td.on("front-connected", () => {
   generation++; ready = false; pending.length = 0; // the new snapshot supersedes them
   /* ...and run this recovery again */
@@ -159,8 +161,11 @@ const acct = { brokerId: creds.brokerId, investorId: creds.investorId };
 const orders = await td.reqQryOrder(acct);
 const trades = await td.reqQryTrade(acct);
 const positions = await td.reqQryInvestorPosition(acct);
+// The funds row carries no InvestorID, and its AccountID may differ from the
+// InvestorID: the query scope and exactly one row attribute it. Keep the
+// AccountID the counter returned.
 const funds = (await td.reqQryTradingAccount({ ...acct, currencyId: "CNY" })).filter((f) =>
-  f.brokerId === acct.brokerId && f.accountId === acct.investorId && f.currencyId === "CNY");
+  f.brokerId === acct.brokerId && f.currencyId === "CNY");
 if (generation !== started || funds.length !== 1 || funds[0].tradingDay !== td.tradingDay)
   throw new Error("snapshot does not belong to this session; run the recovery again");
 book.reset({ identity, orders, trades, positions, funds: funds[0] });
@@ -173,9 +178,11 @@ ready = true; // ...and only then admit new exposure.
 
 `book` stands for your own ledger; the binding does not provide one. Query with
 the investor ID that `session()` confirmed, not the login user ID, and never
-take the first funds record unchecked: verify its broker, account, currency and
-trading day, and that no reconnect (a new session generation) happened while
-the snapshot was taken. A return that arrives while the queries run may or may
+take the first funds record unchecked: require exactly one record of your broker
+and currency for the session's trading day (the record has no InvestorID, and
+its AccountID may differ from the InvestorID, so do not compare those two), and
+that no disconnect or reconnect (a new session generation) happened while the
+snapshot was taken. A return that arrives while the queries run may or may
 not be in the snapshot; merge the buffered returns, deduplicated, before
 opening new exposure.
 

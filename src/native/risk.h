@@ -117,16 +117,23 @@ public:
   // would misrepresent, say, an option premium. The multiplier is still
   // recorded for every class.
   //
-  // beginInstrumentQuery runs immediately before ReqQryInstrument is sent: it
-  // clears the queried instrument (an empty id clears every instrument), so old
-  // values are unusable while the refresh is in flight, and opens the staging
-  // area of exactly this request id, superseding any earlier query. Rows of
-  // the current query are only staged; the successful final packet
-  // (finishInstrumentQuery(id, true)) publishes them together. An error packet
-  // (finishInstrumentQuery(id, false)), a front transition
-  // (abandonInstrumentQuery) or a newer query discards them, and rows or final
-  // packets carrying any other request id are ignored.
-  void beginInstrumentQuery(int requestId, const std::string &instrumentId);
+  // beginInstrumentQuery runs immediately before ReqQryInstrument is sent: a
+  // query naming an InstrumentID clears that instrument and an unfiltered query
+  // clears every instrument, so old values are unusable while the refresh is in
+  // flight. A query filtered only by exchange or product (`filtered`) clears
+  // nothing and its publication merges: it cannot vouch for, nor wipe, the
+  // instruments outside its scope. Each query opens the staging area of exactly
+  // this request id, superseding any earlier query. Rows of the current query
+  // are only staged; the successful final packet (finishInstrumentQuery(id,
+  // true)) publishes them together. An error packet or the generic error
+  // callback of this id (finishInstrumentQuery(id, false)), a front transition
+  // or a deliberate login/logout (abandonInstrumentQuery), a JS idle timeout
+  // (timeoutInstrumentQuery) or a newer query discards them, and rows or final
+  // packets carrying any other request id are ignored. A row whose InstrumentID
+  // cannot be read makes even a filtered query clear every instrument on
+  // success (fail closed).
+  void beginInstrumentQuery(int requestId, const std::string &instrumentId,
+                            bool filtered);
   // Stage one row; within a query the last row of an instrument wins, and an
   // unusable multiplier clears that instrument on publication.
   void stageInstrument(int requestId, const std::string &instrumentId,
@@ -136,6 +143,11 @@ public:
   void stageUnreadableInstrument(int requestId);
   void finishInstrumentQuery(int requestId, bool succeeded);
   void abandonInstrumentQuery();
+  // JS idle-timeout linearization, as for session transitions: true means this
+  // exact query was still staging and is now discarded, so its rows can never
+  // publish; false means its final packet already published or discarded them
+  // and the queued lossless response should settle the Promise.
+  bool timeoutInstrumentQuery(int requestId);
 
   // Our login identity. A front transition invalidates it; account-bound order
   // inserts remain fail-closed until a concrete login response supplies the new
@@ -210,6 +222,9 @@ private:
   std::unordered_map<std::string, InstrumentMeta> instruments_;
   // The one instrument query whose rows may be staged (0 = none).
   int instrumentQueryId_ = 0;
+  // The latest query whose final packet ran natively; its response may still
+  // be queued for JS.
+  int finishedInstrumentQueryId_ = 0;
   bool instrumentQueryUnreadable_ = false;
   // multiplier 0 marks an instrument the query clears on publication.
   std::unordered_map<std::string, InstrumentMeta> stagedInstruments_;

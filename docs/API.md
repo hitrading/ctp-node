@@ -601,13 +601,19 @@ returning `0`; only an omitted argument means "query all". Retries through
 cold-start flow control. Returns the count of contracts whose final callback row
 has a usable multiplier.
 
-Starting an instrument refresh invalidates the old multiplier before the request
-is sent, so a failed/empty refresh cannot leave stale metadata active; an enabled
-`maxNotional` check fails closed for that contract until a refresh succeeds.
-The rows of an instrument query are staged natively under its request id and
-take effect together only when that query's final packet arrives without an
-error. An error final packet, a front connect/disconnect, or a newer instrument
-query discards them, and late rows of a superseded query are ignored.
+Starting an instrument refresh invalidates the old multiplier of the queried
+contract (of every contract when the query has no filter at all) before the
+request is sent, so a failed/empty refresh cannot leave stale metadata active;
+an enabled `maxNotional` check fails closed for those contracts until a refresh
+succeeds. A query filtered only by exchange, exchange instrument code or product
+(6.0.1+) invalidates nothing and merges on success, so it never wipes contracts
+outside its scope. The rows of an instrument query are staged natively under its
+request id and take effect together only when that query's final packet arrives
+without an error. An error final packet, the generic `rsp-error` of that
+request, its idle timeout, a front connect/disconnect, a deliberate login/logout
+or a newer instrument query discards them, and late rows of a superseded query
+are ignored. A row whose InstrumentID cannot be read clears every contract on
+success, even for a filtered query.
 
 ```ts
 const n = await td.syncMultipliers();          // all instruments
@@ -627,10 +633,14 @@ relative investor schedule is added to that base. The shared scheduler spaces
 every query. Returns the number of contracts with a usable schedule.
 
 Every row is checked for ownership before use (6.0+): it must carry your
-BrokerID and no InvestUnitID; a single-investor row must name your InvestorID,
-an investor-group row your InvestorGroupID (queried once with `reqQryInvestor`
-only when such a row appears), and an all-investors row is accepted whatever
-wildcard InvestorID it carries. When several ranges cover a contract the most
+BrokerID and no InvestUnitID, and an ExchangeID, when present, must be the
+contract's exchange in the instrument catalog (6.0.1+; both investor and
+exchange-base rows); a single-investor row must name your InvestorID, an
+investor-group row your InvestorGroupID (queried once with `reqQryInvestor`
+only when an otherwise attributable investor-group row appears), and an
+all-investors row is accepted whatever wildcard InvestorID it carries. The
+instrument catalog must give every requested product exactly one non-empty
+exchange (CTP catalogs do); otherwise the sync fails. When several ranges cover a contract the most
 specific wins (single > group > all); disagreeing rows of one range, an
 exchange-base row of another broker or an unavailable investor group fail the
 sync rather than silently taking the last row.
@@ -788,14 +798,18 @@ per-instrument margin, position lots) there, before calling `reqOrderInsert()`:
 
 ```ts
 const acct = { brokerId: "9999", investorId: "id" };
+let ready = false;
+td.on("front-disconnected", () => { ready = false; }); // stop new exposure at once
 td.on("front-connected", async () => {
   await td.session({ brokerId: acct.brokerId, userId: acct.investorId, password: "pw",
     sync: { marginRates: { instrumentIds: ["rb2510"], hedgeFlag: "1" } } });
-  book.reset(
-    await td.reqQryInvestorPosition(acct),
-    await td.reqQryOrder(acct),
-    (await td.reqQryTradingAccount(acct))[0],
-  );
+  // Exactly one funds row of your broker and currency. It carries no InvestorID,
+  // and its AccountID may differ from the InvestorID: keep the one returned.
+  const funds = (await td.reqQryTradingAccount({ ...acct, currencyId: "CNY" }))
+    .filter((f) => f.brokerId === acct.brokerId && f.currencyId === "CNY");
+  if (funds.length !== 1) throw new Error("expected exactly one CNY funds row");
+  book.reset(await td.reqQryInvestorPosition(acct), await td.reqQryOrder(acct), funds[0]);
+  ready = true;
 });
 td.on("rtn-order", (o) => book.onOrder(o));
 td.on("rtn-trade", (t) => book.onTrade(t));
@@ -803,7 +817,7 @@ td.on("rtn-trade", (t) => book.onTrade(t));
 // your own account-level check, then the native per-order gate
 const [rb] = td.readMarginRates(["rb2510"], "1");
 const add = 3500 * 1 * 10 * rb.longMarginRatioByMoney + 1 * rb.longMarginRatioByVolume;
-if (book.marginInUse() + add <= MY_ACCOUNT_MARGIN_CAP && book.longLots("rb2510") + 1 <= MY_LOT_CAP) {
+if (ready && book.marginInUse() + add <= MY_ACCOUNT_MARGIN_CAP && book.longLots("rb2510") + 1 <= MY_LOT_CAP) {
   await td.reqOrderInsert({ instrumentId: "rb2510", direction: "0", combOffsetFlag: "0", limitPrice: 3500, volumeTotalOriginal: 1 });
 }
 ```

@@ -185,13 +185,15 @@ void RiskEngine::resetInstrumentQueryLocked() {
 }
 
 void RiskEngine::beginInstrumentQuery(int requestId,
-                                      const std::string &instrumentId) {
+                                      const std::string &instrumentId,
+                                      bool filtered) {
   std::lock_guard<std::mutex> lk(stateMutex_);
-  if (instrumentId.empty())
-    instruments_.clear();
-  else
+  if (!instrumentId.empty())
     instruments_.erase(instrumentId);
+  else if (!filtered)
+    instruments_.clear();
   resetInstrumentQueryLocked();
+  finishedInstrumentQueryId_ = 0;
   instrumentQueryId_ = requestId > 0 ? requestId : 0;
 }
 
@@ -220,6 +222,7 @@ void RiskEngine::finishInstrumentQuery(int requestId, bool succeeded) {
   std::lock_guard<std::mutex> lk(stateMutex_);
   if (requestId <= 0 || requestId != instrumentQueryId_)
     return;
+  finishedInstrumentQueryId_ = requestId;
   if (succeeded && instrumentQueryUnreadable_) {
     instruments_.clear();
   } else if (succeeded) {
@@ -236,6 +239,16 @@ void RiskEngine::finishInstrumentQuery(int requestId, bool succeeded) {
 void RiskEngine::abandonInstrumentQuery() {
   std::lock_guard<std::mutex> lk(stateMutex_);
   resetInstrumentQueryLocked();
+  finishedInstrumentQueryId_ = 0;
+}
+
+bool RiskEngine::timeoutInstrumentQuery(int requestId) {
+  std::lock_guard<std::mutex> lk(stateMutex_);
+  if (requestId > 0 && requestId == instrumentQueryId_) {
+    resetInstrumentQueryLocked();
+    return true;
+  }
+  return requestId <= 0 || requestId != finishedInstrumentQueryId_;
 }
 
 RiskEngine::AccountScope RiskEngine::accountScopeLocked(

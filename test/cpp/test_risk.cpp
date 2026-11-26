@@ -96,7 +96,7 @@ static int nextInstrumentQuery = 1000;
 static void publishInstrument(RiskEngine &r, const std::string &id, double multiplier,
                               char productClass) {
   const int query = nextInstrumentQuery++;
-  r.beginInstrumentQuery(query, id);
+  r.beginInstrumentQuery(query, id, false);
   r.stageInstrument(query, id, multiplier, productClass);
   r.finishInstrumentQuery(query, true);
 }
@@ -491,7 +491,7 @@ static void testInstrumentMetadata() {
   auto known = [&](const std::string &id) {
     return passed(r, r.check(id, 100, 100, 1));
   };
-  r.beginInstrumentQuery(1, "rb");
+  r.beginInstrumentQuery(1, "rb", false);
   r.stageInstrument(1, "", 10, '1');
   r.finishInstrumentQuery(1, true);
   CHECK(blocked(r, r.check("", 100, 100, 1), unknown),
@@ -502,7 +502,7 @@ static void testInstrumentMetadata() {
   const double badMultipliers[] = {0, -1, NaN, INF, DMAX};
   bool allCleared = true;
   for (double bad : badMultipliers) {
-    r.beginInstrumentQuery(2, "");
+    r.beginInstrumentQuery(2, "", false);
     r.stageInstrument(2, "rb", 10, '1');
     r.stageInstrument(2, "rb", bad, '1');
     r.finishInstrumentQuery(2, true);
@@ -517,12 +517,12 @@ static void testInstrumentMetadata() {
   publishInstrument(r, "ag", 15, '1');
   CHECK(option && known("rb"),
         "a metadata refresh replaces the product class of an instrument");
-  r.beginInstrumentQuery(3, "rb");
+  r.beginInstrumentQuery(3, "rb", false);
   CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown) && known("ag"),
         "a query for one instrument clears only that instrument while it is in flight");
   r.finishInstrumentQuery(3, false);
   publishInstrument(r, "rb", 10, '1');
-  r.beginInstrumentQuery(4, "");
+  r.beginInstrumentQuery(4, "", false);
   CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown) &&
             blocked(r, r.check("ag", 100, 100, 1), unknown),
         "a full-catalog query clears every instrument while it is in flight");
@@ -541,7 +541,7 @@ static void testInstrumentQueryStaging() {
     return passed(r, r.check(id, 100, 100, 1));
   };
   // Success: rows stay staged until the successful final packet.
-  r.beginInstrumentQuery(10, "");
+  r.beginInstrumentQuery(10, "", false);
   r.stageInstrument(10, "rb", 10, '1');
   r.stageInstrument(10, "ag", 15, '1');
   const bool stagedHidden = blocked(r, r.check("rb", 100, 100, 1), unknown);
@@ -549,14 +549,14 @@ static void testInstrumentQueryStaging() {
   CHECK(stagedHidden && known("rb") && known("ag"),
         "staged rows are unusable until the successful final packet publishes them together");
   // Error final packet: the batch is discarded, and its id is closed.
-  r.beginInstrumentQuery(11, "rb");
+  r.beginInstrumentQuery(11, "rb", false);
   r.stageInstrument(11, "rb", 10, '1');
   r.finishInstrumentQuery(11, false);
   r.finishInstrumentQuery(11, true);
   CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown) && known("ag"),
         "an error final packet discards the staged rows; a later packet of that id publishes nothing");
   // Front transition: the staged batch is abandoned.
-  r.beginInstrumentQuery(12, "rb");
+  r.beginInstrumentQuery(12, "rb", false);
   r.stageInstrument(12, "rb", 10, '1');
   r.abandonInstrumentQuery();
   r.stageInstrument(12, "rb", 10, '1');
@@ -564,9 +564,9 @@ static void testInstrumentQueryStaging() {
   CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown),
         "a disconnect abandons the staged rows; late rows and final packets of that query publish nothing");
   // Superseded: a newer query discards the older one and ignores its late rows.
-  r.beginInstrumentQuery(13, "rb");
+  r.beginInstrumentQuery(13, "rb", false);
   r.stageInstrument(13, "rb", 99, '1');
-  r.beginInstrumentQuery(14, "rb");
+  r.beginInstrumentQuery(14, "rb", false);
   r.stageInstrument(13, "rb", 99, '1');
   r.finishInstrumentQuery(13, true);
   const bool lateIgnored = blocked(r, r.check("rb", 100, 100, 1), unknown);
@@ -576,8 +576,42 @@ static void testInstrumentQueryStaging() {
             blocked(r, r.check("rb", 1000, 1000, 100001),
                     "order notional exceeds maxNotional"),
         "a superseded query's late rows are ignored and the newest query publishes its own multiplier");
+  // Filtered only by exchange or product: nothing is cleared, publication merges.
+  publishInstrument(r, "ag", 15, '1');
+  r.beginInstrumentQuery(30, "", true);
+  const bool filteredKeeps = known("rb") && known("ag");
+  r.stageInstrument(30, "cu", 5, '1');
+  r.finishInstrumentQuery(30, true);
+  CHECK(filteredKeeps && known("rb") && known("ag") && known("cu"),
+        "an exchange/product-filtered query neither clears nor wipes instruments outside its scope");
+  r.beginInstrumentQuery(31, "rb", true);
+  CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown) && known("ag"),
+        "a query naming an instrument still clears that instrument even with other filters");
+  r.finishInstrumentQuery(31, false);
+  publishInstrument(r, "rb", 10, '1');
+  // JS idle timeout: a still-staging query is discarded; a finished one waits.
+  r.beginInstrumentQuery(32, "rb", false);
+  r.stageInstrument(32, "rb", 10, '1');
+  const bool discardedByTimeout = r.timeoutInstrumentQuery(32);
+  r.finishInstrumentQuery(32, true);
+  CHECK(discardedByTimeout && blocked(r, r.check("rb", 100, 100, 1), unknown),
+        "a timed-out staging query is discarded and its late final packet publishes nothing");
+  r.beginInstrumentQuery(33, "rb", false);
+  r.stageInstrument(33, "rb", 10, '1');
+  r.finishInstrumentQuery(33, true);
+  CHECK(!r.timeoutInstrumentQuery(33) && known("rb"),
+        "a query whose final packet already ran waits for its queued response instead of timing out");
+  CHECK(r.timeoutInstrumentQuery(34) && r.timeoutInstrumentQuery(0) && r.timeoutInstrumentQuery(-1),
+        "an unknown or invalid instrument query id simply times out");
+  r.beginInstrumentQuery(35, "rb", false);
+  CHECK(r.timeoutInstrumentQuery(33),
+        "a newer query forgets the finished id, so the older request no longer waits");
+  r.abandonInstrumentQuery();
+  CHECK(r.timeoutInstrumentQuery(35),
+        "an abandoned query times out (the front transition already rejected it in JS)");
+  publishInstrument(r, "rb", 10, '1');
   // An unreadable InstrumentID poisons the batch: success clears everything.
-  r.beginInstrumentQuery(15, "cu");
+  r.beginInstrumentQuery(15, "cu", false);
   r.stageInstrument(15, "cu", 5, '1');
   r.stageUnreadableInstrument(15);
   r.stageUnreadableInstrument(99);
@@ -586,7 +620,7 @@ static void testInstrumentQueryStaging() {
             blocked(r, r.check("ag", 100, 100, 1), unknown),
         "a query with an unreadable instrument row publishes nothing and clears every instrument");
   // Request ids <= 0 never open a query, and rows for them are ignored.
-  r.beginInstrumentQuery(0, "rb");
+  r.beginInstrumentQuery(0, "rb", false);
   r.stageInstrument(0, "rb", 10, '1');
   r.finishInstrumentQuery(0, true);
   r.stageUnreadableInstrument(0);

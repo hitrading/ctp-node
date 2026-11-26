@@ -38,9 +38,12 @@
      启用时其他产品类别会 fail-closed。
    - **数据来源：元数据和会话身份直接从 SPI 回调进入 C++。** 在
      `scripts/codegen/generate-trader.mjs` 中特判（生成进 `traderspi.gen.cc` / `traderreq.gen.cc`）：
-     - 合约乘数与产品类别 ← `OnRspQryInstrument`；发送 `reqQryInstrument` 前会先使所查合约（或全部合约）
-       失效，并为该请求号开启暂存区。各行先暂存，只有该查询无错误的末包才一起发布；错误末包、前置连接/断开或
-       更新的合约查询都会丢弃暂存行，因此失败、残缺或被取代的刷新不会留下陈旧或残缺的元数据
+     - 合约乘数与产品类别 ← `OnRspQryInstrument`；发送 `reqQryInstrument` 前会先使所查合约（不带任何
+       过滤条件时为全部合约）失效；只按交易所或品种过滤的查询不使任何合约失效、发布时按合并处理，不会清掉
+       范围外的合约。随后为该请求号开启暂存区。各行先暂存，只有该查询无错误的末包才一起发布；错误末包、该
+       请求号的通用 `OnRspError`、JS 侧空闲超时、前置连接/断开、主动登录/登出或更新的合约查询都会丢弃暂存行，
+       因此失败、超时、残缺或被取代的刷新不会留下陈旧或残缺的元数据。有一行合约代码无法读取时，即便是过滤查询，
+       成功后也会清空全部合约（失败即拒绝）
      - 登录会话（FrontID/SessionID/BrokerID）← `OnRspUserLogin`，按最近一次登录请求的 request id
        关联；随后 `session()` 在结算单确认之后确认交易账户（InvestorID），之后普通报单才会被接受。前置连接/断开以及每次
        登录/登出请求都会撤销该确认。
@@ -72,7 +75,8 @@
 - 配置、模式切换、会话切换与每笔报单共用同一个发送屏障，因此限制/模式/会话的变更与在途发送线性一致：
   不会有报单按旧状态通过检查、却在变更返回后才发出，或以新登录的账户发出。
 - 会写队列或改变测试状态的钩子（`_injectTestTick`、`_injectTestForQuote`、
-  `_injectTestLifecycle`、`_burstTicks`、`_produceTestTicks`、`_burstEvents`）默认禁用，只有显式设置
+  `_injectTestLifecycle`、`_injectTestLogin`、`_injectTestInstrumentRow`、`_injectTestRspError`、
+  `_burstTicks`、`_produceTestTicks`、`_burstEvents`）默认禁用，只有显式设置
   `CTP_NODE_TEST_HOOKS=1` 才可调用。实盘进程绝不能开启：EventChannel 依赖厂商回调流是唯一生产者，
   而生命周期注入还会刻意绕过真实前置。
 

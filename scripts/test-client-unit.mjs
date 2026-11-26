@@ -85,6 +85,15 @@ ok(Array.isArray(r2) && r2.length === 2, "deliver accumulates multi-row, then re
 let e3; const id3 = c.nextRequestId(); c.pending.set(id3, mk(() => {}, (er) => { e3 = er; }, true, 0x1004));
 c.deliver({ evt: 0x1007, value: undefined, options: { requestId: id3, isLast: true, rspInfo: { errorId: 5, errorMsg: "bad" } } });
 ok(e3 && e3.errorId === 5, "deliver rejects on the generic rsp-error callback for this request id");
+let e3b; const id3b = c.nextRequestId();
+c.pending.set(id3b, mk(() => { e3b = "resolved"; }, (er) => { e3b = er; }, false, 0x1006));
+c.deliver({ evt: 0x1007, value: undefined, options: { requestId: id3b, isLast: true } });
+ok(e3b instanceof Error && e3b.errorId === 0 && /without an error code/.test(e3b.message) && !c.pending.has(id3b),
+  "a generic rsp-error without an error code still fails the request, never resolving it as an empty final packet");
+let r3c; const id3c = c.nextRequestId();
+c.pending.set(id3c, mk((v) => { r3c = v; }, () => { r3c = "rejected"; }, false, 0x1006));
+c.deliver({ evt: 0x1006, value: undefined, options: { requestId: id3c, isLast: true } });
+ok(Array.isArray(r3c) && r3c.length === 0, "a response's own empty final packet still resolves with no rows");
 
 let r4; const id4 = c.nextRequestId(); c.pending.set(id4, { ...mk((v) => { r4 = v; }, () => {}, true, 0x1004), zeroId: true });
 c.deliver({ evt: 0x1004, value: { z: 9 }, options: { requestId: undefined, isLast: true } });

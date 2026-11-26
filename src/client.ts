@@ -281,9 +281,10 @@ export abstract class CtpClient extends EventEmitter {
     _options: CallbackOptions
   ): void {}
 
-  /** Linearize a session-request idle timeout with native login/logout state.
-   * Subclasses return false when the final native callback already won the
-   * race and its non-droppable response is merely waiting to be drained. */
+  /** Linearize a request idle timeout with native state the request drives
+   * (login/logout, instrument metadata). Subclasses return false when the final
+   * native callback already won the race and its non-droppable response is
+   * merely waiting to be drained. */
   protected shouldTimeoutRequest(
     _requestId: number,
     _sessionTransition: boolean
@@ -494,13 +495,17 @@ export abstract class CtpClient extends EventEmitter {
           // settles nor feeds it. The request keeps waiting for its own
           // callback; the idle timeout names what was ignored.
           p.ignoredEvent = this.events.get(evt) ?? `event:${evt}`;
-        } else if (rspInfo) {
+        } else if (rspInfo || evt === this.errorEvent) {
+          // The generic rsp-error always fails the request, even without an
+          // error code: it is never a successful (or empty) final packet.
           if (p.timer) clearTimeout(p.timer);
           this.pending.delete(key);
+          const info = rspInfo ?? { errorId: 0, errorMsg: "" };
           p.reject(
             Object.assign(
-              new Error(rspInfo.errorMsg || `CTP error ${rspInfo.errorId}`),
-              rspInfo
+              new Error(info.errorMsg || (rspInfo ? `CTP error ${info.errorId}`
+                : "CTP rsp-error without an error code")),
+              info
             )
           );
         } else {

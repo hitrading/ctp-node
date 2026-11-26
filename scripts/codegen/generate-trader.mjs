@@ -40,7 +40,7 @@ const req = rejectDuplicateNames(reqAll, "Trader request");
 // so fail generation instead.
 const RISK_WIRED_CALLBACKS = [
   "OnFrontConnected", "OnFrontDisconnected", "OnRspUserLogin",
-  "OnRspUserLogout", "OnRspQryInstrument",
+  "OnRspUserLogout", "OnRspQryInstrument", "OnRspError",
 ];
 for (const name of RISK_WIRED_CALLBACKS) {
   if (!spi.some((callback) => callback.name === name))
@@ -141,6 +141,10 @@ for (const s of spi) {
     c += `  if (risk_ && last) {\n    if (!p || eid(e) != 0 || !risk_->acceptLoginSession(id, p->FrontID, p->SessionID, p->BrokerID, p->UserID))\n      risk_->finishSessionTransition(id);\n  }\n`;
   } else if (s.name === "OnRspUserLogout") {
     c += `  if (risk_ && last)\n    risk_->finishSessionTransition(id);\n`;
+  } else if (s.name === "OnRspError") {
+    // The generic error callback fails the request it names; an instrument
+    // query of that id discards its staged rows (other ids are ignored).
+    c += `  if (risk_)\n    risk_->finishInstrumentQuery(id, false);\n`;
   } else if (s.name === "OnRspQryInstrument") {
     // Feed the contract multiplier straight into the risk engine (no JS
     // round-trip) for the maxNotional check. Rows are staged under their
@@ -251,8 +255,10 @@ for (const r of req) {
   // the exact newest request id before send; stale responses are ignored.
   if (SESSION_TRANSITION_REQUESTS.has(r.name))
     rc += `    if (risk) risk->beginSessionTransition(requestId, ${r.name !== "ReqUserLogout" ? "true" : "false"}, f.BrokerID, f.UserID);\n`;
+  // A query filtered only by exchange or product merges instead of clearing the
+  // instruments outside its scope.
   if (r.name === "ReqQryInstrument")
-    rc += `    if (risk) risk->beginInstrumentQuery(requestId, f.InstrumentID);\n`;
+    rc += `    if (risk) risk->beginInstrumentQuery(requestId, f.InstrumentID, f.ExchangeID[0] != '\\0' || f.ExchangeInstID[0] != '\\0' || f.ProductID[0] != '\\0');\n`;
   if (classification === "order") {
     rc += `    if (risk) {\n`;
     rc += `      OrdinaryOrderIdentity identity;\n`;
