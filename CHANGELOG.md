@@ -1,3 +1,10 @@
+# [5.0.0-rc.2](https://github.com/hitrading/ctp-node/compare/v5.0.0-rc.1...v5.0.0-rc.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* **trader:** 会话确认前拒绝不支持的请求并写明原因，文档与测试按审核修正 ([209f8bb](https://github.com/hitrading/ctp-node/commit/209f8bbef963f793ee803f2a0c262b6e36f88064))
+
 # [5.0.0-rc.1](https://github.com/hitrading/ctp-node/compare/v4.3.1-rc.1...v5.0.0-rc.1) (2026-11-26)
 
 
