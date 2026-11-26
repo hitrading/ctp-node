@@ -178,13 +178,21 @@ double RiskEngine::refPrice(const std::string &instrumentId) const {
   return age <= static_cast<uint64_t>(maxAge) ? px : 0.0;
 }
 
+// The one way to mark an InstrumentID ambiguous: the mark and the removal of
+// its published multiplier always happen together, so a marked InstrumentID is
+// never readable, whatever query (filtered, failed, timed out) found it.
+void RiskEngine::markAmbiguousLocked(const std::string &instrumentId) {
+  ambiguousInstruments_.insert(instrumentId);
+  instruments_.erase(instrumentId);
+}
+
 void RiskEngine::resetInstrumentQueryLocked() {
   // However the query ends (published, failed, timed out, abandoned or
   // superseded), the conflicts it observed stay recorded: marks are add-only
   // here and lifted only by finishInstrumentQuery.
   for (const auto &staged : stagedInstruments_)
     if (staged.second.conflicted)
-      ambiguousInstruments_.insert(staged.first);
+      markAmbiguousLocked(staged.first);
   instrumentQueryId_ = 0;
   instrumentQueryUnreadable_ = false;
   instrumentQueryScope_ = InstrumentIdentity{};
@@ -277,7 +285,7 @@ void RiskEngine::finishInstrumentQuery(int requestId, bool succeeded) {
     for (const auto &staged : stagedInstruments_) {
       const std::string &id = staged.first;
       if (staged.second.conflicted)
-        ambiguousInstruments_.insert(id);
+        markAmbiguousLocked(id);
       else if (unfiltered)
         ambiguousInstruments_.erase(id); // consistent rows of an unfiltered answer
       const bool usable = !staged.second.conflicted &&

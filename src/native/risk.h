@@ -161,8 +161,9 @@ public:
   // exchange, product class and multiplier, and an out-of-scope row carrying a
   // staged InstrumentID counts as a disagreement; any disagreement, or an
   // unusable multiplier, clears that instrument on publication. A disagreement
-  // also marks the InstrumentID ambiguous, however the query ends (published,
-  // failed, timed out, abandoned or superseded). Only a successful, readable
+  // also marks the InstrumentID ambiguous and voids its published multiplier at
+  // once, however the query ends (published, failed, timed out, abandoned or
+  // superseded), so even a filtered query that fails leaves no readable value. Only a successful, readable
   // query without exchange/product/code filters (the whole catalog, or that
   // InstrumentID) whose answer carries consistent rows of it lifts the mark; a
   // failed, empty or unreadable answer never does. While marked, the
@@ -280,6 +281,7 @@ private:
   // multiplier 0 marks an instrument the query clears on publication.
   std::unordered_map<std::string, StagedInstrument> stagedInstruments_;
   void resetInstrumentQueryLocked();
+  void markAmbiguousLocked(const std::string &instrumentId);
   int myFrontId_ = 0, mySessionId_ = 0;
   std::string myBrokerId_, myInvestorId_;
   // Standalone RiskEngine unit users can seed a session directly. Once a real

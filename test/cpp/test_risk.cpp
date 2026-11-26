@@ -789,6 +789,25 @@ static void testInstrumentQueryStaging() {
   }
   CHECK(conflictsRecorded,
         "conflicts seen by a failed, timed-out, abandoned or superseded answer still mark the InstrumentID");
+  // A filtered query clears nothing up front; if it sees a conflict and then
+  // fails, the previously published multiplier must stop being readable at
+  // once, not only after the next refresh.
+  bool voidedAtOnce = true;
+  for (int ending = 0; ending < 4; ++ending) {
+    const int q = 110 + ending * 2;
+    publishInstrument(r, "cu", 5, '1');
+    const bool publishedBefore = known("cu");
+    r.beginInstrumentQuery(q, scopeOf("", "SHFE"));
+    r.stageInstrument(q, rowOf("cu", "SHFE"), 5, '1');
+    r.stageInstrument(q, rowOf("cu", "DCE"), 5, '1');
+    if (ending == 0) r.finishInstrumentQuery(q, false);
+    if (ending == 1) r.timeoutInstrumentQuery(q);
+    if (ending == 2) r.abandonInstrumentQuery();
+    if (ending == 3) r.beginInstrumentQuery(q + 1, scopeOf("", "DCE"));
+    voidedAtOnce = publishedBefore && blocked(r, r.check("cu", 100, 100, 1), unknown) && voidedAtOnce;
+  }
+  CHECK(voidedAtOnce,
+        "a filtered query that saw a conflict and then failed voids the old multiplier immediately");
   publishInstrument(r, "cu", 5, '1');
   // The publication count of exactly one finished query.
   r.beginInstrumentQuery(83, scopeOf(""));

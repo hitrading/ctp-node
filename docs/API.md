@@ -618,7 +618,8 @@ not published again by a query filtered by exchange, product or exchange
 instrument code until a query without those filters (the whole catalog, or that
 InstrumentID) succeeds, is readable and carries consistent rows of it; a failed,
 empty, timed-out or unreadable answer leaves the mark in place, and the conflicts
-any answer showed are recorded however that query ends. A refused send, an error final packet,
+any answer showed are recorded however that query ends; recording a mark also
+voids the contract's published multiplier at once (6.0.3+). A refused send, an error final packet,
 the generic `rsp-error` of that request, its idle timeout, anything that rejects
 all in-flight requests (a front connect/disconnect, `session()` starting, a
 deliberate login/logout) or a newer instrument query discards them, and late

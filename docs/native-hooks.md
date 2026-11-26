@@ -66,7 +66,8 @@ an order was refused.
        (InstrumentID, ExchangeID, ProductID, ExchangeInstID) is never staged,
        and rows of one contract that disagree on exchange, product class or
        multiplier (or an out-of-scope row with the same InstrumentID) leave it
-       without a multiplier and mark it ambiguous (however that query ends)
+       without a multiplier and mark it ambiguous (however that query ends; the
+       mark voids any previously published multiplier at once)
        until a successful, readable query without exchange/product/exchange-code
        filters carries consistent rows of it (a failed, empty or unreadable
        answer leaves the mark). A refused send, an error
