@@ -58,17 +58,29 @@ an order was refused.
      (emitted into `traderspi.gen.cc` / `traderreq.gen.cc`):
      - contract multipliers and product classes ← `OnRspQryInstrument`;
        sending a `reqQryInstrument` first invalidates the queried contract (or,
-       with no filter, all contracts; a query filtered only by exchange or
-       product invalidates nothing and its publication merges, so it cannot
-       wipe the contracts outside its scope) and opens a staging area for that
+       with no filter, all contracts; a query filtered only by exchange,
+       product or exchange instrument code invalidates nothing and its
+       publication merges, so it cannot wipe the contracts outside its scope) and opens a staging area for that
        request id. Rows are staged and published together only by the query's
-       error-free final packet; an error final packet, the generic
-       `OnRspError` of that request id, its JS idle timeout, a front
-       connect/disconnect, a deliberate login/logout or a newer instrument
-       query discards them, so a failed, timed-out, partial or superseded
-       refresh cannot leave stale or partial metadata active. A row whose
-       InstrumentID cannot be read makes even a filtered query clear every
-       contract on success (fail closed)
+       error-free final packet. A row outside the query's filter
+       (InstrumentID, ExchangeID, ProductID, ExchangeInstID) is never staged,
+       and rows of one contract that disagree on exchange, product class or
+       multiplier (or an out-of-scope row with the same InstrumentID) leave it
+       without a multiplier and mark it ambiguous (however that query ends)
+       until a successful, readable query without exchange/product/exchange-code
+       filters carries consistent rows of it (a failed, empty or unreadable
+       answer leaves the mark). A refused send, an error
+       final packet, the generic `OnRspError` of that request id, its JS idle
+       timeout, any JS-side rejection of all in-flight requests (front
+       connect/disconnect, `session()` start, a deliberate login/logout) or a
+       newer instrument query discards them, so a failed, timed-out, partial
+       or superseded refresh cannot leave stale or partial metadata active (a
+       rejection after the final packet already ran does not roll that
+       publication back). A row whose identity cannot be read makes even a
+       filtered query clear every contract on success (fail closed).
+       `syncMultipliers()` reports exactly what was published
+       for each request, recorded by request id when that request settles
+       (`_instrumentQueryPublished`)
      - login session (FrontID/SessionID/BrokerID) ← `OnRspUserLogin`, correlated
        with the request id of the latest login request; `session()` then confirms
        the trading account (InvestorID), after the settlement confirmation,

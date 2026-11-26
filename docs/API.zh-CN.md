@@ -528,14 +528,22 @@ const trades = await td.reqQryTrade({ brokerId: "9999", investorId: "id" });
 触发合约查询，使 C++ 风控引擎取到合约乘数与产品类别——它直接从 CTP 的 `OnRspQryInstrument` 响应里取，
 因此本方法不调用任何 JS setter。按乘数精确执行 `maxNotional` 校验所必需。不传参则一次请求查询全部
 合约；传符号列表可限定范围。显式空数组是返回 `0` 的 no-op，只有省略参数才表示“查询全部”。会穿越
-冷启动限频重试，返回最终回调行含可用乘数的合约数量。
+冷启动限频重试，返回所应答合约中原生引擎实际发布了可用乘数的数量，因此计数遵守下面的全部规则（6.0.2 起）。
 
 合约刷新会在请求发出前先使所查合约（不带任何过滤条件时为全部合约）的旧乘数失效，因此失败/空刷新不会
 继续使用陈旧元数据；在刷新成功前，已启用的 `maxNotional` 校验对这些合约 fail-closed。只按交易所、交易所
 合约代码或品种过滤的查询（6.0.1 起）不使任何合约失效，成功后合并发布，不会清掉范围外的合约。一次合约查询的
-各行先按请求号在原生侧暂存，只有该查询的末包无错误到达时才一起生效；错误末包、该请求的通用 `rsp-error`、
-空闲超时、前置连接/断开、主动登录/登出或更新的合约查询都会丢弃暂存行，被取代查询的迟到行也会被忽略。
-有一行合约代码无法读取时，即便是过滤查询，成功后也会清空全部合约。
+各行先按请求号在原生侧暂存，只有该查询的末包无错误到达时才一起生效。查询过滤条件之外的行不会暂存；同一合约的
+多行在交易所、产品类别或乘数上不一致时，该合约不发布乘数；范围外但合约代码相同的行也算作不一致（6.0.2 起）。
+这样被判为身份不明的合约，在不带交易所、品种、交易所合约代码过滤的查询（全部合约或该合约代码）成功、可读且带回
+该合约一致的行之前，过滤查询不会再发布它；失败、空应答、超时或含不可读行的应答都不会解除这一标记；任何应答里看到的冲突，无论该查询以何种方式结束都会记入。发送被拒、错误末包、该请求的通用 `rsp-error`、空闲超时、任何撤销全部在途请求的情形
+（前置连接/断开、`session()` 开始、主动登录/登出）或更新的合约查询都会丢弃暂存行，被取代查询的迟到行也会被忽略；
+若撤销发生在末包已发布之后（例如在其他回调里发起登录、而该应答尚未被取走），已发布的不会回滚。有一行合约代码、
+交易所、品种或交易所合约代码无法读取时，即便是过滤查询，成功后也会清空全部合约。
+
+原始 `reqQryInstrument()` 的 Promise 只保证这些行是本请求完整且无错误的应答；它不会剔除过滤条件之外的行、
+不会处理不一致的重复行、也无法识别不可读字段，这些由原生发布处理。若你用这些行自建合约规格，请按同样规则
+处理（剔除过滤条件之外的行；同一合约多行不一致即作废该合约）。
 
 ```ts
 const n = await td.syncMultipliers();           // 全部合约
@@ -554,13 +562,17 @@ console.log(n, "个合约带有乘数");
 合约目录中的交易所（6.0.1 起，投资者表与交易所基础表都核对）；单一投资者范围的行须是本投资者号，投资者组
 范围的行须是本账户的投资者组号（仅在出现经纪商、投资单元与交易所都归属本账户的投资者组行时，才用
 `reqQryInvestor` 查询一次），
-全部投资者范围的行不核对投资者字段（可能是通配值）。合约目录须给每个所请求品种唯一且非空的交易所
-（CTP 合约目录都会给），否则整次同步失败。同一合约有多个适用范围时取最具体的一种（单一投资者
-＞投资者组＞全部）；同一范围数值冲突、交易所基础表来自其他经纪商或取不到投资者组时，整次同步失败，
-不再静默取最后一行。
+全部投资者范围的行不核对投资者字段（可能是通配值）。合约目录须给每个所请求合约唯一的身份（同一合约的目录行
+在品种或交易所上不一致时整次同步失败，6.0.2 起），并给每个所请求品种唯一且非空的交易所（CTP 合约目录都会给）。
+只有以所请求合约或其品种为键的行参与处理：同品种其他月份的行既不会触发投资者组查询，也不会导致同步失败
+（6.0.2 起）。同一合约有多个适用范围时取最具体的一种（单一投资者
+＞投资者组＞全部）；所适用范围内数值冲突、交易所基础表来自其他经纪商或取不到投资者组时，整次同步失败，
+不再静默取最后一行。所请求品种在合约目录中的全部行还必须是同一个交易所（6.0.2 起）。
 
-刷新过程中会丢弃所请求合约（以及同品种其他合约）此前解析的结果；只有全部所请求合约都解析成功时
-才保留新结果，部分成功的刷新一个都不保留。
+它读取的目录是一次完整的 `reqQryInstrument({})`，按上文会在该目录完成前使全部原生乘数失效；请在放行报单
+之前运行，不要在已启用的 `maxNotional` 校验必须持续通过时运行。所请求合约此前解析的结果在同步一开始就被丢弃，
+同品种其他合约的结果在同步进行到该品种时丢弃；只有全部所请求合约都解析成功时才保留新结果，部分成功的刷新一个都不保留；
+任何重连、登录/登出或 `session()` 都会丢弃全部已解析结果。
 
 ### `td.readMarginRates(instrumentIds, hedgeFlag)` → `CtpResolvedMarginRate[]`
 
@@ -572,8 +584,9 @@ shortMarginRatioByMoney, shortMarginRatioByVolume }`。所请求合约没有完�
 ```ts
 await td.syncMarginRates(["rb2510"], "1");
 const [rb] = td.readMarginRates(["rb2510"], "1");
-// 按你自己的公式：x10 合约、3500 价位的一手多单
-const margin = 3500 * 10 * rb.longMarginRatioByMoney + rb.longMarginRatioByVolume;
+// 按你自己的公式：3500 价位的一手多单；乘数取自你自己核对过的合约目录（这里是 `specs`），不要写常数
+const { volumeMultiple } = specs.get("rb2510");
+const margin = 3500 * volumeMultiple * rb.longMarginRatioByMoney + rb.longMarginRatioByVolume;
 ```
 
 ### 风控配置
@@ -694,7 +707,8 @@ td.on("rtn-trade", (t) => book.onTrade(t));
 
 // 先做你自己的账户级检查，再交给原生逐笔闸门
 const [rb] = td.readMarginRates(["rb2510"], "1");
-const add = 3500 * 1 * 10 * rb.longMarginRatioByMoney + 1 * rb.longMarginRatioByVolume;
+const { volumeMultiple } = specs.get("rb2510"); // 取自你自己核对过的合约目录
+const add = 3500 * 1 * volumeMultiple * rb.longMarginRatioByMoney + 1 * rb.longMarginRatioByVolume;
 if (ready && book.marginInUse() + add <= MY_ACCOUNT_MARGIN_CAP && book.longLots("rb2510") + 1 <= MY_LOT_CAP) {
   await td.reqOrderInsert({ instrumentId: "rb2510", direction: "0", combOffsetFlag: "0", limitPrice: 3500, volumeTotalOriginal: 1 });
 }
@@ -741,8 +755,10 @@ process.on("SIGINT", () => td.close());
 | `err-rtn-order-insert` | `InputOrder` | 报单被交易所拒绝（`options.rspInfo`）。 |
 | `error` | `unknown` | 你注册的某个*处理函数*抛了异常——见下。 |
 
-另外每个请求方法都有对应的 `rsp-*` 事件（如 `rsp-qry-investor-position`），不过你通常通过请求
-Promise 来消费它们。
+另外每个请求方法都有对应的 `rsp-*` 事件（如 `rsp-qry-investor-position`）。原始 `rsp-*` 事件按到达
+原样转发每一个应答回调，包括已失败、已超时、因重连被撤销或被新请求取代的请求的迟到行。它们只适合记日志和
+诊断；合约规格、持仓、资金等状态只能从请求的 Promise 结果或同步助手建立，这些只在本请求完整且无错误的应答到达
+时才完成。
 
 ```ts
 td.on("rtn-order", (o, opts) => {
@@ -892,10 +908,10 @@ interface CallbackOptions {
 ```
 
 ```ts
+// 仅作诊断：原始事件也会带来已失败或被取代请求的迟到行。账本请用 `await td.reqQryInvestorPosition(...)` 建立。
 td.on("rsp-qry-investor-position", (row, options) => {
-  if (options.rspInfo) return console.error(options.rspInfo.errorMsg);
-  collect(row);
-  if (options.isLast) finish(); // 多行响应的最后一行
+  if (options.rspInfo) console.error("请求", options.requestId, options.rspInfo.errorMsg);
+  else if (options.isLast) console.log("请求", options.requestId, "末包");
 });
 ```
 

@@ -1,6 +1,6 @@
 /** CTP product schedules are inherited only through the current instrument
  * catalog. An explicit contract row (even an invalid one) always wins. */
-export interface CtpProductInstrument { instrumentId: string; productId: string; }
+export interface CtpProductInstrument { instrumentId: string; productId: string; exchangeId?: string; }
 export interface CtpResolvedMarginRate {
   instrumentId: string;
   hedgeFlag: '1' | '2' | '3' | '5' | '6' | '7';
@@ -166,10 +166,20 @@ export function ctpMarginRateMissing(kind: string, key: string, excluded: readon
 export function groupCtpInstrumentsByProduct(
   instrumentIds: readonly string[], catalog: readonly CtpProductInstrument[]
 ): Map<string, string[]> {
-  const products = new Map(catalog.map(row => [row.instrumentId, row.productId]));
+  // A requested contract must have one catalog identity: rows of it that
+  // disagree on product or exchange make it ambiguous, never last-row-wins.
+  const requested = new Set(instrumentIds);
+  const products = new Map<string, CtpProductInstrument>();
+  for (const row of catalog) {
+    if (!requested.has(row.instrumentId)) continue;
+    const seen = products.get(row.instrumentId);
+    if (seen && (seen.productId !== row.productId || seen.exchangeId !== row.exchangeId))
+      throw new Error(`CTP instrument identity conflicts in the catalog: ${row.instrumentId}`);
+    products.set(row.instrumentId, row);
+  }
   const groups = new Map<string, string[]>();
-  for (const instrumentId of new Set(instrumentIds)) {
-    const productId = products.get(instrumentId);
+  for (const instrumentId of requested) {
+    const productId = products.get(instrumentId)?.productId;
     if (typeof productId !== 'string' || !productId.trim() || productId.includes('\0'))
       throw new Error(`CTP product identity is missing: ${instrumentId}`);
     const members = groups.get(productId);

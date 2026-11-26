@@ -189,9 +189,9 @@ void TraderSpi::OnRspQryInstrument(CThostFtdcInstrumentField *p, CThostFtdcRspIn
       risk_->finishInstrumentQuery(id, false);
     } else {
       if (p) {
-        std::string instrument;
-        if (boundedCtpField(p->InstrumentID, instrument))
-          risk_->stageInstrument(id, instrument, p->VolumeMultiple, p->ProductClass);
+        InstrumentIdentity row;
+        if (readInstrumentIdentity(*p, row))
+          risk_->stageInstrument(id, row, p->VolumeMultiple, p->ProductClass);
         else
           risk_->stageUnreadableInstrument(id);
       }

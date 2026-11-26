@@ -598,8 +598,9 @@ Trigger the instrument query so the C++ risk engine picks up contract multiplier
 multiplier-accurate `maxNotional` check. No argument queries all instruments in
 one request; pass a symbol list to scope it. An explicit empty list is a no-op
 returning `0`; only an omitted argument means "query all". Retries through
-cold-start flow control. Returns the count of contracts whose final callback row
-has a usable multiplier.
+cold-start flow control. Returns how many of the answered contracts the native
+engine actually published a usable multiplier for, so the count obeys every rule
+below (6.0.2+).
 
 Starting an instrument refresh invalidates the old multiplier of the queried
 contract (of every contract when the query has no filter at all) before the
@@ -609,11 +610,30 @@ succeeds. A query filtered only by exchange, exchange instrument code or product
 (6.0.1+) invalidates nothing and merges on success, so it never wipes contracts
 outside its scope. The rows of an instrument query are staged natively under its
 request id and take effect together only when that query's final packet arrives
-without an error. An error final packet, the generic `rsp-error` of that
-request, its idle timeout, a front connect/disconnect, a deliberate login/logout
-or a newer instrument query discards them, and late rows of a superseded query
-are ignored. A row whose InstrumentID cannot be read clears every contract on
-success, even for a filtered query.
+without an error. A row outside the query's filter is never staged, and rows of
+one contract that disagree on exchange, product class or multiplier leave that
+contract without a multiplier; an out-of-scope row carrying a staged InstrumentID
+counts as such a disagreement (6.0.2+). A contract found ambiguous this way is
+not published again by a query filtered by exchange, product or exchange
+instrument code until a query without those filters (the whole catalog, or that
+InstrumentID) succeeds, is readable and carries consistent rows of it; a failed,
+empty, timed-out or unreadable answer leaves the mark in place, and the conflicts
+any answer showed are recorded however that query ends. A refused send, an error final packet,
+the generic `rsp-error` of that request, its idle timeout, anything that rejects
+all in-flight requests (a front connect/disconnect, `session()` starting, a
+deliberate login/logout) or a newer instrument query discards them, and late
+rows of a superseded query are ignored; a rejection that comes after the final
+packet already published (for example a login started from another callback
+before the reply was drained) does not roll that publication back. A row whose
+InstrumentID, ExchangeID, ProductID or ExchangeInstID cannot be read clears every
+contract on success, even for a filtered query.
+
+A raw `reqQryInstrument()` Promise guarantees only that its rows are this
+request's complete, error-free answer. It does not drop rows outside the filter,
+settle disagreeing duplicates or detect unreadable fields; the native
+publication does. If you build your own specifications from those rows, apply
+the same rules (drop rows outside your filter, void a contract whose rows
+disagree).
 
 ```ts
 const n = await td.syncMultipliers();          // all instruments
@@ -639,16 +659,25 @@ exchange-base rows); a single-investor row must name your InvestorID, an
 investor-group row your InvestorGroupID (queried once with `reqQryInvestor`
 only when an otherwise attributable investor-group row appears), and an
 all-investors row is accepted whatever wildcard InvestorID it carries. The
-instrument catalog must give every requested product exactly one non-empty
-exchange (CTP catalogs do); otherwise the sync fails. When several ranges cover a contract the most
-specific wins (single > group > all); disagreeing rows of one range, an
-exchange-base row of another broker or an unavailable investor group fail the
-sync rather than silently taking the last row.
+instrument catalog must give every requested contract one identity (catalog rows
+of it that disagree on product or exchange fail the sync, 6.0.2+) and every
+requested product exactly one non-empty exchange (CTP catalogs do). Only rows
+keyed by a requested contract or by its product take part: rows of other months
+of the product never trigger the group lookup or fail the sync (6.0.2+). When several ranges cover a contract the most
+specific wins (single > group > all); disagreeing rows within the range that
+applies, an exchange-base row of another broker or an unavailable investor group
+fail the sync rather than silently taking the last row. The requested product
+must also name one exchange across all of its catalog rows (6.0.2+).
 
-Schedules previously resolved for the requested contracts (and for the other
-contracts of the same products) are dropped during the refresh. The new
-results are kept only when every requested contract resolved; a partial refresh
-keeps none of them.
+The catalog it reads is a full `reqQryInstrument({})`, which (see above)
+invalidates every native multiplier until that catalog completes; run it before
+admitting orders, not while an enabled `maxNotional` check must keep passing.
+The requested contracts' previously resolved schedules are dropped as soon as
+the sync starts, and the other contracts of each product as the sync reaches
+that product.
+The new results are kept only when every requested contract resolved; a partial
+refresh keeps none of them, and any reconnect, login/logout or `session()` drops
+every resolved schedule.
 
 ### `td.readMarginRates(instrumentIds, hedgeFlag)` → `CtpResolvedMarginRate[]`
 
@@ -662,8 +691,10 @@ the schedules are synced again; old values are never returned.
 ```ts
 await td.syncMarginRates(["rb2510"], "1");
 const [rb] = td.readMarginRates(["rb2510"], "1");
-// one long lot at 3500 on a x10 contract, by your own formula:
-const margin = 3500 * 10 * rb.longMarginRatioByMoney + rb.longMarginRatioByVolume;
+// one long lot at 3500, by your own formula; take the multiplier from your own
+// checked catalog (here `specs`), never a constant:
+const { volumeMultiple } = specs.get("rb2510");
+const margin = 3500 * volumeMultiple * rb.longMarginRatioByMoney + rb.longMarginRatioByVolume;
 ```
 
 ### Risk configuration
@@ -816,7 +847,8 @@ td.on("rtn-trade", (t) => book.onTrade(t));
 
 // your own account-level check, then the native per-order gate
 const [rb] = td.readMarginRates(["rb2510"], "1");
-const add = 3500 * 1 * 10 * rb.longMarginRatioByMoney + 1 * rb.longMarginRatioByVolume;
+const { volumeMultiple } = specs.get("rb2510"); // from your own checked catalog
+const add = 3500 * 1 * volumeMultiple * rb.longMarginRatioByMoney + 1 * rb.longMarginRatioByVolume;
 if (ready && book.marginInUse() + add <= MY_ACCOUNT_MARGIN_CAP && book.longLots("rb2510") + 1 <= MY_LOT_CAP) {
   await td.reqOrderInsert({ instrumentId: "rb2510", direction: "0", combOffsetFlag: "0", limitPrice: 3500, volumeTotalOriginal: 1 });
 }
@@ -867,8 +899,12 @@ process.on("SIGINT", () => td.close());
 | `err-rtn-order-insert` | `InputOrder` | An order insert was rejected by the exchange (`options.rspInfo`). |
 | `error` | `unknown` | A *handler* you registered threw — see below. |
 
-Plus an `rsp-*` event for every request method (e.g. `rsp-qry-investor-position`),
-though you'll usually consume those via the request Promise.
+Plus an `rsp-*` event for every request method (e.g. `rsp-qry-investor-position`).
+Raw `rsp-*` events carry every response callback as it arrives, including rows of
+requests that already failed, timed out, were cancelled by a reconnect or were
+superseded. Use them for logging and diagnostics only; build state (instrument
+specifications, positions, funds) solely from a request's resolved Promise or the
+sync helpers, which settle only on the request's own complete, error-free answer.
 
 ```ts
 td.on("rtn-order", (o, opts) => {
@@ -1036,10 +1072,11 @@ interface CallbackOptions {
 ```
 
 ```ts
+// Diagnostics only: raw events also carry late rows of failed or superseded
+// requests. Build your book from `await td.reqQryInvestorPosition(...)`.
 td.on("rsp-qry-investor-position", (row, options) => {
-  if (options.rspInfo) return console.error(options.rspInfo.errorMsg);
-  collect(row);
-  if (options.isLast) finish(); // final row of the multi-row response
+  if (options.rspInfo) console.error("request", options.requestId, options.rspInfo.errorMsg);
+  else if (options.isLast) console.log("request", options.requestId, "final packet");
 });
 ```
 

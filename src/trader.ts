@@ -164,6 +164,8 @@ const MARGIN_RATE_SYNC_KEYS = new Set(["instrumentIds", "hedgeFlag"]);
 export class Trader extends TraderBase {
   private readonly resolvedMarginRates = new Map<string, CtpResolvedMarginRate>();
   private resolvedMarginContext = 0;
+  /** Native publication count of each settled instrument-query result. */
+  private readonly instrumentPublications = new WeakMap<object, number>();
   private broker?: string;
   private investor?: string;
   private orderRefSeq = 0;
@@ -175,8 +177,8 @@ export class Trader extends TraderBase {
       native.__layoutData(),
       TRADER_EVENTS
     );
+    // Margin snapshots are dropped by invalidateRequestContext on every front event.
     const clearConfirmedIdentity = () => {
-      this.resolvedMarginRates.clear();
       this.broker = undefined;
       this.investor = undefined;
     };
@@ -194,8 +196,15 @@ export class Trader extends TraderBase {
   protected override onRequestResolved(
     eventName: string | undefined,
     value: unknown,
-    _options: CallbackOptions
+    options: CallbackOptions
   ): void {
+    if (eventName === "rsp-qry-instrument") {
+      // Read the native publication of exactly this request while it settles:
+      // no later instrument query can have begun yet. A catalog query always
+      // settles with its rows array (anything else throws and rejects it).
+      this.instrumentPublications.set(value as unknown[], this.native._instrumentQueryPublished(options.requestId) as number);
+      return;
+    }
     if (eventName === "rsp-user-logout") {
       this.broker = undefined;
       this.investor = undefined;
@@ -243,13 +252,18 @@ export class Trader extends TraderBase {
    * transition boundary, so a concurrent sync helper cannot start with the old
    * identity while native risk state is already fail-closed for the new session. */
   protected override beginRequestContextTransition(reason: string): void {
-    this.resolvedMarginRates.clear();
     this.broker = undefined;
     this.investor = undefined;
-    // The transition rejects every in-flight request, an instrument query
-    // included; its staged rows must not publish when the counter answers late.
-    this.native._abandonInstrumentQuery();
     super.beginRequestContextTransition(reason);
+  }
+
+  /** Every path that rejects all in-flight JS requests (front transitions,
+   * session() start, login/logout) runs through here. The instrument query
+   * among them must not publish its staged rows when the counter answers late. */
+  protected override invalidateRequestContext(reason: string): void {
+    this.native._abandonInstrumentQuery();
+    this.resolvedMarginRates.clear();
+    super.invalidateRequestContext(reason);
   }
 
   protected override shouldTimeoutRequest(
@@ -669,11 +683,13 @@ export class Trader extends TraderBase {
   // Contract multipliers (for the maxNotional check) are NOT fed from JS: the
   // C++ risk engine sources them directly from CTP's OnRspQryInstrument
   // callback (see scripts/codegen/generate-trader.mjs). Sending a
-  // reqQryInstrument clears the queried instruments; its rows are staged per
-  // request id and published together only by the successful final packet of
-  // the newest instrument query (an error packet, a front transition or a newer
-  // query discards them). A missing multiplier fails an enabled notional check
-  // closed.
+  // reqQryInstrument clears the queried instruments (docs/native-hooks.md has
+  // the scope, duplicate, ambiguity and unreadable-row rules); its rows are
+  // staged per request id and published together only by the successful final
+  // packet of the newest instrument query. A refused send, an error packet, the
+  // generic rsp-error, an idle timeout, anything that rejects every in-flight
+  // request or a newer query discards them. A missing multiplier fails an
+  // enabled notional check closed.
 
   /**
    * Run a CTP query for data that must exist (e.g. an instrument), asking again
@@ -709,7 +725,8 @@ export class Trader extends TraderBase {
   /** Query instruments so the C++ risk engine picks up their multipliers (it
    *  sources them directly from OnRspQryInstrument — no JS feed). No args queries
    *  all instruments (one request); otherwise the given symbols. Retries through
-   *  cold-start flow control. Returns the count of contracts with a multiplier. */
+   *  cold-start flow control. Returns how many contracts the native engine
+   *  actually published a usable multiplier for, per answered query. */
   async syncMultipliers(instrumentIds?: string[]): Promise<number> {
     const contextToken = this.requestContextToken();
     if (instrumentIds !== undefined) {
@@ -719,27 +736,26 @@ export class Trader extends TraderBase {
       if (instrumentIds.length === 0)
         return 0; // explicit empty universe; only omitted means "query all"
     }
+    // The count is what the native engine published for each answered query
+    // (scope, duplicate, ambiguity and unreadable-row rules included), recorded
+    // by request id at the moment that request settled. A result without that
+    // record proves nothing and counts 0.
     let count = 0;
-    const apply = (rows: unknown[]) => {
-      const finalByInstrument = new Map<string, { instrumentId: string; volumeMultiple: number }>();
-      for (const r of rows as Array<{ instrumentId: string; volumeMultiple: number }>)
-        finalByInstrument.set(r.instrumentId, r);
-      for (const r of finalByInstrument.values()) {
-        if (r.instrumentId && Number.isFinite(r.volumeMultiple) &&
-            r.volumeMultiple > 0 && r.volumeMultiple < 1e300) count++;
-      }
+    let published = 0;
+    const query = async (request: { instrumentId?: string }) => {
+      const rows = await this.reqQryInstrument(request) as Array<{ instrumentId: string }>;
+      published = this.instrumentPublications.get(rows) ?? 0;
+      return rows;
     };
     if (instrumentIds) {
       for (const instrumentId of new Set(instrumentIds)) {
-        apply(await this.queryWithRetry(async () =>
-          ((await this.reqQryInstrument({ instrumentId })) as Array<{
-            instrumentId: string; volumeMultiple: number;
-          }>).filter((row) => row.instrumentId === instrumentId), contextToken));
+        await this.queryWithRetry(async () =>
+          (await query({ instrumentId })).filter((row) => row.instrumentId === instrumentId), contextToken);
+        count += published;
       }
     } else {
-      apply(await this.queryWithRetry(
-        () => this.reqQryInstrument({}), contextToken
-      ));
+      await this.queryWithRetry(() => query({}), contextToken);
+      count = published;
     }
     return count;
   }
@@ -774,9 +790,10 @@ export class Trader extends TraderBase {
     // group the rate queries below (the same reply also refreshes the native
     // multipliers). It is one request, independent of the number of traded months.
     const catalog = await this.queryWithRetry(() => this.reqQryInstrument({}), contextToken) as Instrument[];
-    const productByInstrument = new Map(catalog.map(row => [row.instrumentId, row.productId]));
-    const exchangeByInstrument = new Map(catalog.map(row => [row.instrumentId, row.exchangeId]));
+    // Rejects a requested contract whose catalog rows disagree on product or
+    // exchange; the maps below are therefore unambiguous for every member.
     const groups = groupCtpInstrumentsByProduct(instrumentIds, catalog);
+    const productByInstrument = new Map(catalog.map(row => [row.instrumentId, row.productId]));
     // Queried once, and only when a reply carries an investor-group row.
     let investorGroupId: string | undefined;
     const loadInvestorGroup = async () => {
@@ -792,10 +809,11 @@ export class Trader extends TraderBase {
     };
     let count = 0;
     for (const [productId, members] of groups) {
-      for (const [contractId, currentProduct] of productByInstrument)
-        if (currentProduct === productId) this.resolvedMarginRates.delete(`${contractId}|${hedgeFlag}`);
-      // Rate rows are attributed to the exchange of the contracts they price.
-      const exchanges = new Set(members.map(id => exchangeByInstrument.get(id)));
+      for (const row of catalog)
+        if (row.productId === productId) this.resolvedMarginRates.delete(`${row.instrumentId}|${hedgeFlag}`);
+      // Rate rows are attributed to the exchange of the product: every catalog
+      // row of the product, not only the requested months, must name it.
+      const exchanges = new Set(catalog.filter(row => row.productId === productId).map(row => row.exchangeId));
       const [exchangeId] = exchanges;
       if (exchanges.size !== 1 || typeof exchangeId !== "string" || !exchangeId)
         throw new Error(`CTP product ${productId} has no single exchange in the instrument catalog`);
@@ -823,10 +841,14 @@ export class Trader extends TraderBase {
           (row) => row.hedgeFlag === hedgeFlag && (row.instrumentId === productId ||
             productByInstrument.get(row.instrumentId) === productId)
         ), contextToken);
-      if (investorGroupId === undefined && ctpInvestorGroupNeeded(investorRows, brokerId, exchangeId))
+      // Only the requested contracts and their product row count: another
+      // month's row can neither trigger the group lookup nor fail the sync.
+      const relevant = new Set([productId, ...members]);
+      const targetRows = investorRows.filter(row => relevant.has(row.instrumentId));
+      if (investorGroupId === undefined && ctpInvestorGroupNeeded(targetRows, brokerId, exchangeId))
         investorGroupId = await loadInvestorGroup();
       const { rates, excluded } = selectCtpInvestorMarginRates(
-        investorRows, { brokerId, investorId, investorGroupId }, exchangeId);
+        targetRows, { brokerId, investorId, investorGroupId }, exchangeId);
       for (const instrumentId of members) {
       const investor = selectCtpProductRate(rates, instrumentId, productId, excluded);
       const relative = investor.isRelative === 1;
@@ -884,6 +906,7 @@ export class Trader extends TraderBase {
       }
       }
     }
+    this.assertRequestContext(contextToken, "margin synchronization");
     if (count === new Set(instrumentIds).size) {
       this.resolvedMarginContext = contextToken;
       for (const rate of completed) this.resolvedMarginRates.set(`${rate.instrumentId}|${hedgeFlag}`, rate);

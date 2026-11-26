@@ -28,7 +28,27 @@ td.queryRetryDelayMs = 0; // the pause itself is covered separately
 delete process.env.CTP_NODE_TEST_HOOKS;
 throws(() => td.native._burstEvents(1), "queue-producing Trader test hooks are disabled by default");
 throws(() => td.native._injectTestRspError(1, 1), "the rsp-error test hook is disabled by default");
+throws(() => td.native._injectTestInstrumentQuery(1, "", "", "", ""), "the instrument-query test hook is disabled by default");
+throws(() => td.native._injectTestInstrumentRow(1, "rb2510", 10, 0, true), "the instrument-row test hook is disabled by default");
+throws(() => td.native._injectTestLogin(1, 7, "9999", "u"), "the login test hook is disabled by default");
 process.env.CTP_NODE_TEST_HOOKS = "1";
+// A catalog stub that answers like the counter AND drives what the real reply
+// would: the native publication, then the request settling with its id (where
+// syncMultipliers records that request's published count).
+let simulatedQueryId = 800000;
+const simulateCatalog = (trader, rows, request = {}) => {
+  const id = ++simulatedQueryId;
+  trader.native._injectTestInstrumentQuery(id, request.instrumentId ?? "", request.exchangeId ?? "",
+    request.productId ?? "", request.exchangeInstId ?? "");
+  for (const row of rows) {
+    trader.native._injectTestInstrumentRow(id, row.instrumentId ?? "", row.volumeMultiple, 0, false, row.exchangeId ?? "",
+      row.productId ?? "", row.exchangeInstId ?? row.instrumentId ?? "", row.productClass ?? "1",
+      ...(row.unterminated ? [row.unterminated] : []));
+  }
+  trader.native._injectTestInstrumentRow(id, null, 0, 0, true);
+  trader.onRequestResolved("rsp-qry-instrument", rows, { requestId: id, isLast: true });
+  return rows;
+};
 throws(() => new Trader("./flow\0evil/", "tcp://127.0.0.1:1"),
   "Trader rejects an embedded NUL flowPath before entering CTP");
 for (const removed of [
@@ -396,15 +416,17 @@ td.trackMarketData(md);
   // OnRspQryInstrument rows are staged per request id inside C++. Only the
   // successful final packet of the newest instrument query publishes them; an
   // error final packet or a superseded query's late rows never become usable.
-  // Offline the vendor refuses the send, but the generated request has already
-  // opened the query under its id, which the injected callbacks then answer.
+  // The test hook opens a query exactly as an accepted send would (offline the
+  // vendor refuses every send, which closes its staging at once).
   tdTrack.queryIntervalMs = 0;
-  const openInstrumentQuery = async () => {
-    await tdTrack.reqQryInstrument({ instrumentId: "rb2510" }).catch(() => {});
-    return tdTrack.reqSeq;
+  let fakeQueryId = 900000;
+  const openQuery = async ({ instrumentId = "", exchangeId = "", productId = "", exchangeInstId = "" } = {}) => {
+    tdTrack.native._injectTestInstrumentQuery(++fakeQueryId, instrumentId, exchangeId, productId, exchangeInstId);
+    return fakeQueryId;
   };
-  const row = (id, instrumentId, multiplier, errorId, isLast) =>
-    tdTrack.native._injectTestInstrumentRow(id, instrumentId, multiplier, errorId, isLast);
+  const openInstrumentQuery = () => openQuery({ instrumentId: "rb2510" });
+  const row = (id, instrumentId, multiplier, errorId, isLast, ...identity) =>
+    tdTrack.native._injectTestInstrumentRow(id, instrumentId, multiplier, errorId, isLast, ...identity);
   const notionalOutcome = async () => {
     const error = await submit("0", "0");
     return refusedByOfflineVendor(error, "order") ? "published"
@@ -428,10 +450,6 @@ td.trackMarketData(md);
   row(newest, "rb2510", 10, 0, true);
   ok(afterLateRow === "unavailable" && await notionalOutcome() === "published",
     "a superseded query's late rows are discarded while the newest query publishes its own");
-  const openQuery = async (request) => {
-    await tdTrack.reqQryInstrument(request).catch(() => {});
-    return tdTrack.reqSeq;
-  };
   const byExchange = await openQuery({ exchangeId: "SHFE" });
   const duringFiltered = await notionalOutcome();
   row(byExchange, "hc2610", 10, 0, true);
@@ -478,7 +496,79 @@ td.trackMarketData(md);
   row(transitioned, null, 0, 0, true);
   ok(await notionalOutcome() === "unavailable",
     "a deliberate login abandons the in-flight instrument query, so its late final packet publishes nothing");
+  // A send the vendor refuses can never be answered: its staging closes at once.
+  const published = await openInstrumentQuery();
+  row(published, "rb2510", 10, 0, true);
+  const beforeRefusal = await notionalOutcome();
+  const sendError = await tdTrack.reqQryInstrument({ instrumentId: "rb2510" }).then(() => null, (error) => error);
+  const refused = tdTrack.reqSeq;
+  const afterRefusal = await notionalOutcome();
+  row(refused, "rb2510", 10, 0, true);
+  ok(beforeRefusal === "published" && refusedByOfflineVendor(sendError, "request") && afterRefusal === "unavailable" &&
+     await notionalOutcome() === "unavailable",
+    `a send the vendor refused still ran its begin (clearing rb2510) and publishes nothing when a final packet of its id arrives (${sendError?.message})`);
+  // Rows outside the query's filter are never staged. rb2510 is the observed
+  // contract (the only one with a market reference price); a targeted rb2510
+  // query answered by an empty final packet makes it unavailable first.
+  const clearRb = async () => { const q = await openInstrumentQuery(); row(q, null, 0, 0, true); };
+  await clearRb();
+  const targeted = await openQuery({ instrumentId: "cu2610" });
+  row(targeted, "rb2510", 10, 0, false, "SHFE", "rb", "rb2510");
+  row(targeted, null, 0, 0, true);
+  ok(await notionalOutcome() === "unavailable",
+    "a row of another contract in a targeted query's reply is never published");
+  const byDce = await openQuery({ exchangeId: "DCE" });
+  row(byDce, "rb2510", 10, 0, true, "SHFE", "rb", "rb2510");
+  const afterDce = await notionalOutcome();
+  const byShfe = await openQuery({ exchangeId: "SHFE" });
+  row(byShfe, "rb2510", 10, 0, true, "SHFE", "rb", "rb2510");
+  ok(afterDce === "unavailable" && await notionalOutcome() === "published",
+    "an exchange-filtered query stages only rows of that exchange");
+  await clearRb();
+  const byCu = await openQuery({ productId: "cu" });
+  row(byCu, "rb2510", 10, 0, true, "SHFE", "rb", "rb2510");
+  const byCode = await openQuery({ exchangeInstId: "cu2610" });
+  row(byCode, "rb2510", 10, 0, true, "SHFE", "rb", "rb2510");
+  ok(await notionalOutcome() === "unavailable",
+    "product- and exchange-code-filtered queries stage only rows matching their filter");
+  // Rows of one contract must agree; any disagreement leaves it unusable.
+  const agree = await openQuery();
+  row(agree, "rb2510", 10, 0, false, "SHFE", "rb", "rb2510");
+  row(agree, "rb2510", 10, 0, true, "SHFE", "rb", "rb2510");
+  ok(await notionalOutcome() === "published", "identical duplicate rows of one contract publish");
+  for (const [label, second] of [
+    ["multiplier", ["rb2510", 15, 0, true, "SHFE", "rb", "rb2510"]],
+    ["exchange", ["rb2510", 10, 0, true, "DCE", "rb", "rb2510"]],
+    ["product class", ["rb2510", 10, 0, true, "SHFE", "rb", "rb2510", "2"]],
+  ]) {
+    const conflict = await openQuery();
+    row(conflict, "rb2510", 10, 0, false, "SHFE", "rb", "rb2510");
+    row(conflict, ...second);
+    ok(await notionalOutcome() === "unavailable",
+      `rows of one contract that disagree on ${label} leave it without a multiplier`);
+    const restore = await openQuery();
+    row(restore, "rb2510", 10, 0, true, "SHFE", "rb", "rb2510");
+  }
+  // session() rejects every in-flight request before authentication: a final
+  // packet arriving while it authenticates must not publish.
+  const duringHandshake = await openInstrumentQuery();
+  row(duringHandshake, "rb2510", 10, 0, false, "SHFE", "rb", "rb2510");
+  const savedAuthenticate = tdTrack.reqAuthenticate;
+  tdTrack.reqAuthenticate = async () => {
+    row(duringHandshake, null, 0, 0, true);
+    throw new Error("authentication stopped by test");
+  };
+  await tdTrack.session({ brokerId: "9999", userId: "u", password: "p", appId: "a", authCode: "c" }).catch(() => {});
+  tdTrack.reqAuthenticate = savedAuthenticate;
+  tdTrack.native._injectTestLogin(1, 7, "9999", "u");
+  tdTrack.broker = "9999"; tdTrack.investor = "u";
+  ok(await notionalOutcome() === "unavailable",
+    "session() abandons the in-flight instrument query before authenticating");
   throws(() => tdTrack.native._injectTestRspError("x", 1), "the rsp-error test hook validates its arguments");
+  throws(() => tdTrack.native._injectTestInstrumentQuery(1, 2, "", "", ""),
+    "the instrument-query test hook validates its arguments");
+  throws(() => tdTrack.native._injectTestInstrumentRow(1, "rb2510", 10, 0, true, "SHFE", "rb", "rb2510", "12"),
+    "the instrument-row test hook validates its optional identity");
   throws(() => tdTrack.native._injectTestInstrumentRow(1, 2, 3, 4, 5),
     "the instrument-row test hook validates its arguments");
   tdTrack.close(); mdTrack.close();
@@ -525,7 +615,8 @@ td.reqUserLogin = async () => {
   return { brokerId: "9999", userId: "u", maxOrderRef: "100", frontId: 1, sessionId: 7 };
 };
 td.reqSettlementInfoConfirm = async () => [];
-td.reqQryInstrument = async () => [{ instrumentId: "rb2510", productId: "rb", exchangeId: "SHFE", volumeMultiple: 10 }, { instrumentId: "x", volumeMultiple: 0 }];
+td.reqQryInstrument = async (request) => simulateCatalog(td, [{ instrumentId: "rb2510", productId: "rb", exchangeId: "SHFE", volumeMultiple: 10 },
+  { instrumentId: "x", volumeMultiple: 0 }], request);
 let exchangeMarginQueries = 0;
 // Rate rows carry the confirmed account's attribution (broker 9999, single
 // investor u, no invest unit); attribution rules live in test-product-rates.
@@ -744,8 +835,9 @@ td.investor = "u";
     { instrumentId: 'hc2610', productId: 'hc', exchangeId: 'SHFE', volumeMultiple: 10 },
     { instrumentId: 'rb2510', productId: 'rb', exchangeId: 'SHFE', volumeMultiple: 10 }];
   await td.syncMarginRates(['rb2510']);
-  ok(td.readMarginRates(['hc2610'], '1')[0].longMarginRatioByMoney === .1,
-    'the last catalog row decides product membership and unrelated product snapshots are preserved');
+  throws(() => td.readMarginRates(['hc2610'], '1'),
+    'a contract whose catalog rows disagree on its product loses its old schedule when either product refreshes');
+  await rejects(td.syncMarginRates(['hc2610']), 'a contract with conflicting catalog identities cannot be synchronized');
   td.reqQryInstrument = oldCatalog; td.reqQryInstrumentMarginRate = oldMargins;
 }
 ok((await td.syncMarginRates(["rb2510"])) === 1,
@@ -894,7 +986,7 @@ td.resume();
   const sentAt = [];
   td.reqQryInstrument = async () => {
     sentAt.push(performance.now());
-    return sentAt.length < 3 ? [] : [{ instrumentId: "rb2510", productId: "rb", volumeMultiple: 10 }];
+    return sentAt.length < 3 ? [] : [{ instrumentId: "rb2510", productId: "rb", exchangeId: "SHFE", productClass: "1", volumeMultiple: 10 }];
   };
   await td.syncMultipliers(["rb2510"]);
   ok(sentAt.length === 3 && sentAt[1] - sentAt[0] >= 240 && sentAt[2] - sentAt[1] >= 240,
@@ -921,19 +1013,80 @@ td.resume();
   td.reqQryInstrument = savedInstrumentQuery;
 }
 
+// The count follows the native rule: rows of one contract must agree.
+{
+  const savedInstrumentQuery = td.reqQryInstrument;
+  const rowOf = (instrumentId, volumeMultiple, extra = {}) =>
+    ({ instrumentId, productId: "rb", exchangeId: "SHFE", productClass: "1", volumeMultiple, ...extra });
+  td.reqQryInstrument = async (request) => simulateCatalog(td, [rowOf("rb2510", 10), rowOf("rb2510", 10), rowOf("rb2601", 10),
+    rowOf("rb2601", 15), rowOf("rb2605", 10), rowOf("rb2605", 10, { exchangeId: "DCE" }), rowOf("rb2609", 10),
+    rowOf("rb2609", 10, { productClass: "2" }), rowOf("", 10)], request);
+  ok(await td.syncMultipliers() === 1,
+    "syncMultipliers counts identical duplicates once, no contract whose rows disagree and no row without an id");
+  for (const field of ["InstrumentID", "ExchangeID", "ProductID", "ExchangeInstID"]) {
+    td.reqQryInstrument = async (request) => simulateCatalog(td, [rowOf("rb2510", 10), rowOf("rb2601", 10, { unterminated: field })], request);
+    ok(await td.syncMultipliers() === 0,
+      `an unreadable ${field} in the reply publishes nothing, and the count says so`);
+  }
+  td.reqQryInstrument = savedInstrumentQuery;
+}
+
+{
+  const savedReq = td.native._req, savedQuery = td.reqQryInstrument, savedInterval = td.queryIntervalMs;
+  let countedId;
+  delete td.reqQryInstrument;
+  td.queryIntervalMs = 0;
+  Object.defineProperty(td.native, "_req", { configurable: true, value: (method, encoded, id) => {
+    if (method !== 40) return savedReq.call(td.native, method, encoded, id);
+    countedId ??= id;
+    td.native._injectTestInstrumentQuery(id, "", "", "", "");
+    setImmediate(() => {
+      td.native._injectTestInstrumentRow(id, "rb2510", 10, 0, false, "SHFE", "rb", "rb2510");
+      td.native._injectTestInstrumentRow(id, "rb2601", 10, 0, false, "SHFE", "rb", "rb2601");
+      td.native._injectTestInstrumentRow(id, null, 0, 0, true);
+    });
+    return 0;
+  } });
+  // Begun synchronously from the final-packet event (it fires right after the
+  // request settles, before any microtask): a count read after an await would
+  // see this begin's cleared table and report 0.
+  // Only this request's own final packet: earlier simulated catalogs left rows
+  // of other request ids queued, which drain in the meantime.
+  let interfered = false;
+  const interfere = (_row, options) => {
+    if (!options.isLast || options.requestId !== countedId || interfered) return;
+    interfered = true;
+    td.native._injectTestInstrumentQuery(700001, "", "", "", "");
+  };
+  td.on("rsp-qry-instrument", interfere);
+  try {
+    const counted = td.syncMultipliers();
+    const behind = td.reqQryInstrument({});
+    const count = await counted;
+    ok(count === 2 && interfered,
+      `through the real scheduler the count is the settled request's own publication, read before anything can interfere (count ${count}, interfered ${interfered})`);
+    await behind;
+  } finally {
+    td.off("rsp-qry-instrument", interfere);
+    delete td.native._req;
+    td.reqQryInstrument = savedQuery;
+    td.queryIntervalMs = savedInterval;
+  }
+}
+
 // queryWithRetry: required data that stays empty, or keeps failing, throws.
 let scopedMultiplierCalls = 0;
-td.reqQryInstrument = async () => ++scopedMultiplierCalls === 1
+td.reqQryInstrument = async (request) => simulateCatalog(td, ++scopedMultiplierCalls === 1
   ? [{ instrumentId: "other", volumeMultiple: 99 }]
-  : [{ instrumentId: "rb2510", productId: "rb", volumeMultiple: 10 }];
+  : [{ instrumentId: "rb2510", productId: "rb", volumeMultiple: 10 }], request);
 ok((await td.syncMultipliers(["rb2510"])) === 1 && scopedMultiplierCalls === 2,
   "scoped multiplier sync retries non-target rows instead of accepting them");
-td.reqQryInstrument = async () => [
+td.reqQryInstrument = async (request) => simulateCatalog(td, [
   { instrumentId: "rb2510", productId: "rb", volumeMultiple: 10 },
-  { instrumentId: "rb2510", productId: "rb", volumeMultiple: Number.MAX_VALUE },
-];
+  { instrumentId: "rb2510", productId: "rb", volumeMultiple: 15 },
+], request);
 ok((await td.syncMultipliers(["rb2510"])) === 0,
-  "syncMultipliers judges only the last row of a duplicated instrument");
+  "a targeted contract whose duplicate rows disagree counts as unpublished");
 td.reqQryInstrument = async () => [];
 await rejects(td.syncMultipliers(["rb2510"]), "syncMultipliers rejects when required instrument data stays empty");
 td.reqQryInstrument = async () => { throw new Error("flow control"); };
@@ -944,7 +1097,7 @@ ok(threw, "syncMultipliers throws after retries when the query keeps failing");
 let transientCalls = 0;
 td.reqQryInstrument = async () => {
   if (++transientCalls === 1) throw Object.assign(new Error("flow limited"), { ctpReturnCode: -3 });
-  return [{ instrumentId: "rb2510", productId: "rb", volumeMultiple: 10 }];
+  return simulateCatalog(td, [{ instrumentId: "rb2510", productId: "rb", volumeMultiple: 10 }], { instrumentId: "rb2510" });
 };
 ok((await td.syncMultipliers(["rb2510"])) === 1 && transientCalls === 2,
   "sync helpers retry only typed transient CTP flow-control failures");

@@ -179,37 +179,82 @@ double RiskEngine::refPrice(const std::string &instrumentId) const {
 }
 
 void RiskEngine::resetInstrumentQueryLocked() {
+  // However the query ends (published, failed, timed out, abandoned or
+  // superseded), the conflicts it observed stay recorded: marks are add-only
+  // here and lifted only by finishInstrumentQuery.
+  for (const auto &staged : stagedInstruments_)
+    if (staged.second.conflicted)
+      ambiguousInstruments_.insert(staged.first);
   instrumentQueryId_ = 0;
   instrumentQueryUnreadable_ = false;
+  instrumentQueryScope_ = InstrumentIdentity{};
+  outOfScopeInstruments_.clear();
   stagedInstruments_.clear();
 }
 
+// A query that names at most an InstrumentID sees every row of what it asks
+// for, so it can settle (or confirm) an InstrumentID's identity.
+static bool unfilteredScope(const InstrumentIdentity &scope) {
+  return scope.exchangeId.empty() && scope.productId.empty() &&
+         scope.exchangeInstId.empty();
+}
+
 void RiskEngine::beginInstrumentQuery(int requestId,
-                                      const std::string &instrumentId,
-                                      bool filtered) {
+                                      const InstrumentIdentity &scope) {
   std::lock_guard<std::mutex> lk(stateMutex_);
-  if (!instrumentId.empty())
-    instruments_.erase(instrumentId);
-  else if (!filtered)
+  // Ambiguity marks change only on a successful answer (finishInstrumentQuery).
+  if (!scope.instrumentId.empty())
+    instruments_.erase(scope.instrumentId);
+  else if (unfilteredScope(scope))
     instruments_.clear();
   resetInstrumentQueryLocked();
   finishedInstrumentQueryId_ = 0;
+  finishedPublishedCount_ = 0;
   instrumentQueryId_ = requestId > 0 ? requestId : 0;
+  instrumentQueryScope_ = scope;
 }
 
-void RiskEngine::stageInstrument(int requestId,
-                                 const std::string &instrumentId, double mult,
-                                 char productClass) {
+static bool withinScope(const std::string &filter, const std::string &value) {
+  return filter.empty() || filter == value;
+}
+
+void RiskEngine::stageInstrument(int requestId, const InstrumentIdentity &row,
+                                 double mult, char productClass) {
   std::lock_guard<std::mutex> lk(stateMutex_);
   if (requestId <= 0 || requestId != instrumentQueryId_ ||
-      instrumentId.empty())
+      row.instrumentId.empty())
     return;
+  const InstrumentIdentity &scope = instrumentQueryScope_;
+  if (!withinScope(scope.instrumentId, row.instrumentId))
+    return;
+  auto staged = stagedInstruments_.find(row.instrumentId);
+  if (!withinScope(scope.exchangeId, row.exchangeId) ||
+      !withinScope(scope.productId, row.productId) ||
+      !withinScope(scope.exchangeInstId, row.exchangeInstId)) {
+    // Same InstrumentID, other exchange/product/code: identity evidence.
+    outOfScopeInstruments_.insert(row.instrumentId);
+    if (staged != stagedInstruments_.end())
+      staged->second.conflicted = true;
+    return;
+  }
   // Futures and TAS use price * volume * multiplier. Options, combinations and
   // spot products require product-specific fields/formulas.
-  stagedInstruments_[instrumentId] =
+  const InstrumentMeta meta =
       sanePositive(mult)
           ? InstrumentMeta{mult, productClass == '1' || productClass == '7'}
           : InstrumentMeta{};
+  if (staged == stagedInstruments_.end()) {
+    stagedInstruments_.emplace(
+        row.instrumentId,
+        StagedInstrument{meta, row.exchangeId, productClass, mult,
+                         outOfScopeInstruments_.count(row.instrumentId) > 0});
+    return;
+  }
+  // Exact comparison: a NaN or any other differing multiplier conflicts.
+  StagedInstrument &first = staged->second;
+  if (first.exchangeId != row.exchangeId || first.productClass != productClass ||
+      !(first.multiplier == mult))
+    first.conflicted = true;
 }
 
 void RiskEngine::stageUnreadableInstrument(int requestId) {
@@ -223,14 +268,27 @@ void RiskEngine::finishInstrumentQuery(int requestId, bool succeeded) {
   if (requestId <= 0 || requestId != instrumentQueryId_)
     return;
   finishedInstrumentQueryId_ = requestId;
+  finishedPublishedCount_ = 0;
   if (succeeded && instrumentQueryUnreadable_) {
+    // Publish nothing and lift no mark (the reset below records the conflicts).
     instruments_.clear();
   } else if (succeeded) {
+    const bool unfiltered = unfilteredScope(instrumentQueryScope_);
     for (const auto &staged : stagedInstruments_) {
-      if (staged.second.multiplier > 0.0)
-        instruments_[staged.first] = staged.second;
-      else
-        instruments_.erase(staged.first);
+      const std::string &id = staged.first;
+      if (staged.second.conflicted)
+        ambiguousInstruments_.insert(id);
+      else if (unfiltered)
+        ambiguousInstruments_.erase(id); // consistent rows of an unfiltered answer
+      const bool usable = !staged.second.conflicted &&
+                          staged.second.meta.multiplier > 0.0 &&
+                          ambiguousInstruments_.count(id) == 0;
+      if (usable) {
+        instruments_[id] = staged.second.meta;
+        ++finishedPublishedCount_;
+      } else {
+        instruments_.erase(id);
+      }
     }
   }
   resetInstrumentQueryLocked();
@@ -239,7 +297,13 @@ void RiskEngine::finishInstrumentQuery(int requestId, bool succeeded) {
 void RiskEngine::abandonInstrumentQuery() {
   std::lock_guard<std::mutex> lk(stateMutex_);
   resetInstrumentQueryLocked();
-  finishedInstrumentQueryId_ = 0;
+}
+
+size_t RiskEngine::instrumentQueryPublished(int requestId) const {
+  std::lock_guard<std::mutex> lk(stateMutex_);
+  return requestId > 0 && requestId == finishedInstrumentQueryId_
+             ? finishedPublishedCount_
+             : 0;
 }
 
 bool RiskEngine::timeoutInstrumentQuery(int requestId) {

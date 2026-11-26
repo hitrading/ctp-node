@@ -148,9 +148,10 @@ for (const s of spi) {
   } else if (s.name === "OnRspQryInstrument") {
     // Feed the contract multiplier straight into the risk engine (no JS
     // round-trip) for the maxNotional check. Rows are staged under their
-    // request id; only the successful final packet of the newest instrument
-    // query publishes them, an error packet discards them.
-    c += `  if (risk_) {\n    if (eid(e) != 0) {\n      risk_->finishInstrumentQuery(id, false);\n    } else {\n      if (p) {\n        std::string instrument;\n        if (boundedCtpField(p->InstrumentID, instrument))\n          risk_->stageInstrument(id, instrument, p->VolumeMultiple, p->ProductClass);\n        else\n          risk_->stageUnreadableInstrument(id);\n      }\n      if (last)\n        risk_->finishInstrumentQuery(id, true);\n    }\n  }\n`;
+    // request id with their full identity (scope and duplicate checks); only
+    // the successful final packet of the newest instrument query publishes
+    // them, an error packet discards them.
+    c += `  if (risk_) {\n    if (eid(e) != 0) {\n      risk_->finishInstrumentQuery(id, false);\n    } else {\n      if (p) {\n        InstrumentIdentity row;\n        if (readInstrumentIdentity(*p, row))\n          risk_->stageInstrument(id, row, p->VolumeMultiple, p->ProductClass);\n        else\n          risk_->stageUnreadableInstrument(id);\n      }\n      if (last)\n        risk_->finishInstrumentQuery(id, true);\n    }\n  }\n`;
   }
   c += `  ch_->push(ET_${member(s.name)}, ${reqId}, ${isLast}, ${errId}, ${errMsg}, ${sid}, ${ptr}, ${len});\n`;
   c += `}\n\n`;
@@ -255,10 +256,13 @@ for (const r of req) {
   // the exact newest request id before send; stale responses are ignored.
   if (SESSION_TRANSITION_REQUESTS.has(r.name))
     rc += `    if (risk) risk->beginSessionTransition(requestId, ${r.name !== "ReqUserLogout" ? "true" : "false"}, f.BrokerID, f.UserID);\n`;
-  // A query filtered only by exchange or product merges instead of clearing the
-  // instruments outside its scope.
-  if (r.name === "ReqQryInstrument")
-    rc += `    if (risk) risk->beginInstrumentQuery(requestId, f.InstrumentID, f.ExchangeID[0] != '\\0' || f.ExchangeInstID[0] != '\\0' || f.ProductID[0] != '\\0');\n`;
+  // The query's filter is its scope: rows outside it never stage, and a query
+  // filtered only by exchange/product/exchange code merges instead of clearing
+  // the instruments outside its scope. An unreadable filter clears everything
+  // and poisons the query (fail closed).
+  if (r.name === "ReqQryInstrument") {
+    rc += `    if (risk) {\n      InstrumentIdentity scope;\n      if (readInstrumentIdentity(f, scope)) {\n        risk->beginInstrumentQuery(requestId, scope);\n      } else {\n        risk->beginInstrumentQuery(requestId, InstrumentIdentity{});\n        risk->stageUnreadableInstrument(requestId);\n      }\n    }\n`;
+  }
   if (classification === "order") {
     rc += `    if (risk) {\n`;
     rc += `      OrdinaryOrderIdentity identity;\n`;
@@ -292,6 +296,11 @@ for (const r of req) {
   if (SESSION_TRANSITION_REQUESTS.has(r.name)) {
     rc += `    int sendRc = api->${r.name}(&f, requestId);\n`;
     rc += `    if (sendRc != 0 && risk) risk->finishSessionTransition(requestId);\n`;
+    rc += `    return sendRc;\n  }\n`;
+  } else if (r.name === "ReqQryInstrument") {
+    // A refused send can never be answered: close its staging at once.
+    rc += `    int sendRc = api->${r.name}(&f, requestId);\n`;
+    rc += `    if (sendRc != 0 && risk) risk->finishInstrumentQuery(requestId, false);\n`;
     rc += `    return sendRc;\n  }\n`;
   } else {
     rc += `    return api->${r.name}(&f, requestId);\n  }\n`;

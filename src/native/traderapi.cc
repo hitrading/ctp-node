@@ -149,6 +149,7 @@ private:
   Napi::Value TimeoutSessionTransition(const Napi::CallbackInfo &info);
   Napi::Value TimeoutInstrumentQuery(const Napi::CallbackInfo &info);
   Napi::Value AbandonInstrumentQuery(const Napi::CallbackInfo &info);
+  Napi::Value InstrumentQueryPublished(const Napi::CallbackInfo &info);
   Napi::Value ConfirmSessionAccount(const Napi::CallbackInfo &info);
   Napi::Value BeginSessionHandshake(const Napi::CallbackInfo &info);
   Napi::Value AttachSnapshot(const Napi::CallbackInfo &info);
@@ -163,6 +164,7 @@ private:
   Napi::Value InjectTestLogin(const Napi::CallbackInfo &info);
   Napi::Value InjectTestInstrumentRow(const Napi::CallbackInfo &info);
   Napi::Value InjectTestRspError(const Napi::CallbackInfo &info);
+  Napi::Value InjectTestInstrumentQuery(const Napi::CallbackInfo &info);
 
   // Non-null only between _start() (CreateFtdcTraderApi + Init) and close():
   // CTP's Release() on an instance that never ran Init() joins a reactor thread
@@ -199,6 +201,8 @@ Napi::Function Trader::Init(Napi::Env env) {
                          &Trader::TimeoutInstrumentQuery),
           InstanceMethod("_abandonInstrumentQuery",
                          &Trader::AbandonInstrumentQuery),
+          InstanceMethod("_instrumentQueryPublished",
+                         &Trader::InstrumentQueryPublished),
           InstanceMethod("_confirmSessionAccount",
                          &Trader::ConfirmSessionAccount),
           InstanceMethod("_beginSessionHandshake",
@@ -207,6 +211,8 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("_injectTestInstrumentRow",
                          &Trader::InjectTestInstrumentRow),
           InstanceMethod("_injectTestRspError", &Trader::InjectTestRspError),
+          InstanceMethod("_injectTestInstrumentQuery",
+                         &Trader::InjectTestInstrumentQuery),
           InstanceMethod("_attachSnapshot", &Trader::AttachSnapshot),
           InstanceMethod("_start", &Trader::Start),
           InstanceMethod("_buffer", &Trader::Buffer),
@@ -506,6 +512,15 @@ Napi::Value Trader::AbandonInstrumentQuery(const Napi::CallbackInfo &info) {
   return info.Env().Undefined();
 }
 
+// How many instruments the instrument query with this request id published.
+Napi::Value Trader::InstrumentQueryPublished(const Napi::CallbackInfo &info) {
+  int requestId = 0;
+  if (!requestIdArg(info, requestId))
+    return Napi::Number::New(info.Env(), 0);
+  return Napi::Number::New(
+      info.Env(), static_cast<double>(risk_.instrumentQueryPublished(requestId)));
+}
+
 Napi::Value Trader::ConfirmSessionAccount(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
   if (info.Length() < 3 || !isInt32Number(info[0]) ||
@@ -603,11 +618,26 @@ Napi::Value Trader::InjectTestInstrumentRow(const Napi::CallbackInfo &info) {
         .ThrowAsJavaScriptException();
     return env.Undefined();
   }
+  // Optional identity: exchangeId, productId, exchangeInstId (strings) and a
+  // one-character productClass (default '1').
+  bool optionalValid = true;
+  for (size_t i = 5; i < 8 && i < info.Length(); ++i)
+    optionalValid = optionalValid && info[i].IsString();
+  if (info.Length() > 8)
+    optionalValid = optionalValid && info[8].IsString() &&
+                    info[8].As<Napi::String>().Utf8Value().size() == 1;
+  std::string unterminated;
+  if (info.Length() > 9) {
+    optionalValid = optionalValid && info[9].IsString();
+    if (optionalValid) unterminated = info[9].As<Napi::String>().Utf8Value();
+    optionalValid = optionalValid && (unterminated == "InstrumentID" || unterminated == "ExchangeID" ||
+                                      unterminated == "ProductID" || unterminated == "ExchangeInstID");
+  }
   if (info.Length() < 5 || !isInt32Number(info[0]) ||
       !(info[1].IsString() || info[1].IsNull()) || !isInt32Number(info[2]) ||
-      !isInt32Number(info[3]) || !info[4].IsBoolean()) {
+      !isInt32Number(info[3]) || !info[4].IsBoolean() || !optionalValid) {
     Napi::TypeError::New(
-        env, "_injectTestInstrumentRow requires requestId, instrumentId|null, multiplier, errorId, isLast")
+        env, "_injectTestInstrumentRow requires requestId, instrumentId|null, multiplier, errorId, isLast[, exchangeId, productId, exchangeInstId, productClass, unterminatedField]")
         .ThrowAsJavaScriptException();
     return env.Undefined();
   }
@@ -617,10 +647,20 @@ Napi::Value Trader::InjectTestInstrumentRow(const Napi::CallbackInfo &info) {
   std::memset(&row, 0, sizeof(row));
   const bool hasRow = info[1].IsString();
   if (hasRow) {
-    const std::string id = info[1].As<Napi::String>().Utf8Value();
-    std::strncpy(row.InstrumentID, id.c_str(), sizeof(row.InstrumentID) - 1);
+    const auto text = [&](size_t i) {
+      return i < info.Length() ? info[i].As<Napi::String>().Utf8Value() : std::string();
+    };
+    std::strncpy(row.InstrumentID, text(1).c_str(), sizeof(row.InstrumentID) - 1);
+    std::strncpy(row.ExchangeID, text(5).c_str(), sizeof(row.ExchangeID) - 1);
+    std::strncpy(row.ProductID, text(6).c_str(), sizeof(row.ProductID) - 1);
+    std::strncpy(row.ExchangeInstID, text(7).c_str(), sizeof(row.ExchangeInstID) - 1);
     row.VolumeMultiple = info[2].As<Napi::Number>().Int32Value();
-    row.ProductClass = '1';
+    row.ProductClass = info.Length() > 8 ? text(8)[0] : '1';
+    // An identity field filled to its full width with no NUL is unreadable.
+    if (unterminated == "InstrumentID") std::memset(row.InstrumentID, 'X', sizeof(row.InstrumentID));
+    if (unterminated == "ExchangeID") std::memset(row.ExchangeID, 'X', sizeof(row.ExchangeID));
+    if (unterminated == "ProductID") std::memset(row.ProductID, 'X', sizeof(row.ProductID));
+    if (unterminated == "ExchangeInstID") std::memset(row.ExchangeInstID, 'X', sizeof(row.ExchangeInstID));
   }
   CThostFtdcRspInfoField rsp;
   std::memset(&rsp, 0, sizeof(rsp));
@@ -628,6 +668,31 @@ Napi::Value Trader::InjectTestInstrumentRow(const Napi::CallbackInfo &info) {
   spi_->OnRspQryInstrument(hasRow ? &row : nullptr, &rsp,
                            info[0].As<Napi::Number>().Int32Value(),
                            info[4].As<Napi::Boolean>().Value());
+  return env.Undefined();
+}
+
+// Test-only (CTP_NODE_TEST_HOOKS=1): open an instrument query exactly as an
+// accepted ReqQryInstrument send would, without reaching the vendor.
+Napi::Value Trader::InjectTestInstrumentQuery(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  if (!testHooksEnabled(env)) {
+    Napi::Error::New(env,
+                     "test hook disabled; set CTP_NODE_TEST_HOOKS=1 explicitly")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  if (info.Length() < 5 || !isInt32Number(info[0]) || !info[1].IsString() ||
+      !info[2].IsString() || !info[3].IsString() || !info[4].IsString()) {
+    Napi::TypeError::New(env, "_injectTestInstrumentQuery requires requestId, instrumentId, exchangeId, productId, exchangeInstId")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  InstrumentIdentity scope;
+  scope.instrumentId = info[1].As<Napi::String>().Utf8Value();
+  scope.exchangeId = info[2].As<Napi::String>().Utf8Value();
+  scope.productId = info[3].As<Napi::String>().Utf8Value();
+  scope.exchangeInstId = info[4].As<Napi::String>().Utf8Value();
+  risk_.beginInstrumentQuery(info[0].As<Napi::Number>().Int32Value(), scope);
   return env.Undefined();
 }
 

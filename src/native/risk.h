@@ -20,10 +20,33 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
+#include "ctp_field.h"
 
 namespace ctp {
 
 using RiskSendMutex = std::recursive_mutex;
+
+// The identifying fields shared by a ReqQryInstrument filter and an
+// OnRspQryInstrument row. An empty filter field does not restrict the query.
+struct InstrumentIdentity {
+  std::string instrumentId;
+  std::string exchangeId;
+  std::string productId;
+  std::string exchangeInstId;
+};
+
+// Read the identity of a CTP instrument filter or row; false when any field is
+// not NUL-terminated within its width (the row or filter is unreadable).
+template <typename Field>
+inline bool readInstrumentIdentity(const Field &f, InstrumentIdentity &out) {
+  return boundedCtpField(f.InstrumentID, out.instrumentId) &&
+         boundedCtpField(f.ExchangeID, out.exchangeId) &&
+         boundedCtpField(f.ProductID, out.productId) &&
+         boundedCtpField(f.ExchangeInstID, out.exchangeInstId);
+}
 
 // A read-only source of latest reference prices (the MarketData snapshot cache
 // implements it). Lets the risk engine read live prices for the deviation check
@@ -117,37 +140,52 @@ public:
   // would misrepresent, say, an option premium. The multiplier is still
   // recorded for every class.
   //
-  // beginInstrumentQuery runs immediately before ReqQryInstrument is sent: a
-  // query naming an InstrumentID clears that instrument and an unfiltered query
-  // clears every instrument, so old values are unusable while the refresh is in
-  // flight. A query filtered only by exchange or product (`filtered`) clears
-  // nothing and its publication merges: it cannot vouch for, nor wipe, the
-  // instruments outside its scope. Each query opens the staging area of exactly
-  // this request id, superseding any earlier query. Rows of the current query
-  // are only staged; the successful final packet (finishInstrumentQuery(id,
-  // true)) publishes them together. An error packet or the generic error
-  // callback of this id (finishInstrumentQuery(id, false)), a front transition
-  // or a deliberate login/logout (abandonInstrumentQuery), a JS idle timeout
-  // (timeoutInstrumentQuery) or a newer query discards them, and rows or final
-  // packets carrying any other request id are ignored. A row whose InstrumentID
-  // cannot be read makes even a filtered query clear every instrument on
-  // success (fail closed).
-  void beginInstrumentQuery(int requestId, const std::string &instrumentId,
-                            bool filtered);
-  // Stage one row; within a query the last row of an instrument wins, and an
-  // unusable multiplier clears that instrument on publication.
-  void stageInstrument(int requestId, const std::string &instrumentId,
+  // beginInstrumentQuery runs immediately before ReqQryInstrument is sent (a
+  // refused send is then finished as failed): a query naming an InstrumentID
+  // clears that instrument and an unfiltered query clears every instrument, so
+  // old values are unusable while the refresh is in flight. A query filtered
+  // only by exchange, product or exchange instrument code clears nothing and
+  // its publication merges: it cannot vouch for, nor wipe, the instruments
+  // outside its scope. Each query opens the staging area of exactly this
+  // request id, superseding any earlier query. Rows of the current query are
+  // only staged; the successful final packet (finishInstrumentQuery(id, true))
+  // publishes them together. An error packet, a refused send or the generic
+  // error callback of this id (finishInstrumentQuery(id, false)), a front
+  // transition or any JS-side rejection of all in-flight requests
+  // (abandonInstrumentQuery), a JS idle timeout (timeoutInstrumentQuery) or a
+  // newer query discards them, and rows or final packets carrying any other
+  // request id are ignored.
+  void beginInstrumentQuery(int requestId, const InstrumentIdentity &scope);
+  // Stage one row. A row outside the query's scope (any non-empty filter field
+  // it does not match) is not staged. Rows of one instrument must agree on the
+  // exchange, product class and multiplier, and an out-of-scope row carrying a
+  // staged InstrumentID counts as a disagreement; any disagreement, or an
+  // unusable multiplier, clears that instrument on publication. A disagreement
+  // also marks the InstrumentID ambiguous, however the query ends (published,
+  // failed, timed out, abandoned or superseded). Only a successful, readable
+  // query without exchange/product/code filters (the whole catalog, or that
+  // InstrumentID) whose answer carries consistent rows of it lifts the mark; a
+  // failed, empty or unreadable answer never does. While marked, the
+  // InstrumentID is published by no filtered query.
+  void stageInstrument(int requestId, const InstrumentIdentity &row,
                        double multiplier, char productClass);
-  // A row whose InstrumentID cannot be read: its successful query publishes
-  // nothing and clears every instrument instead of leaving partial metadata.
+  // A row (or filter) whose identity cannot be read: its successful query
+  // publishes nothing and clears every instrument, even for a filtered query.
   void stageUnreadableInstrument(int requestId);
   void finishInstrumentQuery(int requestId, bool succeeded);
+  // Discards the staging of the current query (a front transition, or JS
+  // rejecting every in-flight request). The id of a query whose final packet
+  // already ran is kept for timeoutInstrumentQuery; that publication stands.
   void abandonInstrumentQuery();
   // JS idle-timeout linearization, as for session transitions: true means this
   // exact query was still staging and is now discarded, so its rows can never
   // publish; false means its final packet already published or discarded them
   // and the queued lossless response should settle the Promise.
   bool timeoutInstrumentQuery(int requestId);
+  // How many instruments the query with this request id published when its
+  // final packet ran (0 for a failed, unreadable or unknown query). Read while
+  // JS settles that request, so no later query can interfere.
+  size_t instrumentQueryPublished(int requestId) const;
 
   // Our login identity. A front transition invalidates it; account-bound order
   // inserts remain fail-closed until a concrete login response supplies the new
@@ -225,9 +263,22 @@ private:
   // The latest query whose final packet ran natively; its response may still
   // be queued for JS.
   int finishedInstrumentQueryId_ = 0;
+  size_t finishedPublishedCount_ = 0;
   bool instrumentQueryUnreadable_ = false;
+  InstrumentIdentity instrumentQueryScope_;
+  // InstrumentIDs seen outside the current query's scope.
+  std::unordered_set<std::string> outOfScopeInstruments_;
+  // InstrumentIDs whose identity a query found ambiguous (see stageInstrument).
+  std::unordered_set<std::string> ambiguousInstruments_;
+  struct StagedInstrument {
+    InstrumentMeta meta;
+    std::string exchangeId;
+    char productClass = 0;
+    double multiplier = 0.0;
+    bool conflicted = false;
+  };
   // multiplier 0 marks an instrument the query clears on publication.
-  std::unordered_map<std::string, InstrumentMeta> stagedInstruments_;
+  std::unordered_map<std::string, StagedInstrument> stagedInstruments_;
   void resetInstrumentQueryLocked();
   int myFrontId_ = 0, mySessionId_ = 0;
   std::string myBrokerId_, myInvestorId_;

@@ -9,6 +9,12 @@ assert.deepEqual([...groupCtpInstrumentsByProduct(['rb2610', 'rb2701', 'IF2610',
 for (const productId of [undefined, null, '', ' ', 'rb\0'])
   assert.throws(() => groupCtpInstrumentsByProduct(['rb2610'], [{ instrumentId: 'rb2610', productId }]));
 assert.throws(() => groupCtpInstrumentsByProduct(['unknown'], catalog));
+// A requested contract needs one catalog identity; unrequested conflicts do not matter.
+assert.deepEqual([...groupCtpInstrumentsByProduct(['rb2610'], [...catalog, { instrumentId: 'rb2610', productId: 'rb' },
+  { instrumentId: 'IF2610', productId: 'rb' }])], [['rb', ['rb2610']]]);
+for (const conflicting of [{ instrumentId: 'rb2610', productId: 'hc' }, { instrumentId: 'rb2610', productId: 'rb', exchangeId: 'DCE' }])
+  assert.throws(() => groupCtpInstrumentsByProduct(['rb2610'], [...catalog, conflicting]),
+    { message: 'CTP instrument identity conflicts in the catalog: rb2610' });
 const rates = new Map([['rb', .1], ['rb2701', .2], ['rb2710', NaN]]);
 assert.equal(selectCtpProductRate(rates, 'rb2610', 'rb'), .1);
 assert.equal(selectCtpProductRate(rates, 'rb2701', 'rb'), .2);
@@ -113,6 +119,7 @@ test('disagreeing rows of one range fail the sync instead of taking the last', a
 });
 test('an unavailable investor group fails the sync', async () => {
   const groupRow = [own('rb2610', .15, { investorRange: '2', investorId: 'G1' })];
+  try {
   for (const reply of [
     [{ brokerId: '9999', investorId: 'other', investorGroupId: 'G1' }],
     [{ brokerId: '8888', investorId: 'u', investorGroupId: 'G1' }],
@@ -124,7 +131,9 @@ test('an unavailable investor group fails the sync', async () => {
   }
   investorReply = [];
   await failsWith(groupRow, [], 'CTP query returned no rows after 5 attempts');
-  investorReply = [{ brokerId: '9999', investorId: 'u', investorGroupId: 'G1' }];
+  } finally {
+    investorReply = [{ brokerId: '9999', investorId: 'u', investorGroupId: 'G1' }];
+  }
 });
 test('rows scoped to an investment unit never apply to an account without one', async () => {
   await failsWith([own('rb2610', .12, { investUnitId: 'U1' }), own('rb2610', .12, { investorRange: '9' })], [],
@@ -168,16 +177,46 @@ test('rows without an ExchangeID are judged by their key alone', async () => {
 });
 test('review: a group row of another broker, unit or exchange does not trigger the group lookup', async () => {
   investorReply = [];
-  for (const foreign of [{ brokerId: '8888' }, { investUnitId: 'U1' }, { exchangeId: 'DCE' }])
-    assert.equal(await longRate([own('rb2610', .12), own('rb2610', .04, { investorRange: '2', investorId: 'G9', ...foreign })]), .12);
-  assert.equal(investorQueries.length, 0);
-  investorReply = [{ brokerId: '9999', investorId: 'u', investorGroupId: 'G1' }];
+  try {
+    for (const foreign of [{ brokerId: '8888' }, { investUnitId: 'U1' }, { exchangeId: 'DCE' }])
+      assert.equal(await longRate([own('rb2610', .12), own('rb2610', .04, { investorRange: '2', investorId: 'G9', ...foreign })]), .12);
+    assert.equal(investorQueries.length, 0);
+  } finally {
+    investorReply = [{ brokerId: '9999', investorId: 'u', investorGroupId: 'G1' }];
+  }
   assert.equal(ctpInvestorGroupNeeded([own('rb2610', .1, { investorRange: '2', investorId: 'G1' })], '9999', 'SHFE'), true);
   assert.equal(ctpInvestorGroupNeeded([own('rb2610', .1, { investorRange: '2', investorId: 'G1', exchangeId: '' })], '9999', 'SHFE'), true);
   assert.equal(ctpInvestorGroupNeeded([own('rb2610', .1)], '9999', 'SHFE'), false);
 });
+test('review: a contract listed under two exchanges fails instead of following row order', async () => {
+  try {
+    for (const order of [['SHFE', 'DCE'], ['DCE', 'SHFE']]) {
+      td.reqQryInstrument = async () => order.map(exchangeId => ({ instrumentId: 'rb2610', productId: 'rb', exchangeId, volumeMultiple: 10 }));
+      stub([own('rb2610', .12), own('rb2610', .04, { exchangeId: 'DCE' })]);
+      await assert.rejects(td.syncMarginRates(['rb2610'], '1'),
+        { message: 'CTP instrument identity conflicts in the catalog: rb2610' });
+    }
+  } finally {
+    td.reqQryInstrument = async () => shfeCatalog;
+  }
+});
+test('review: rows of an unrequested month neither trigger the group lookup nor fail the sync', async () => {
+  investorReply = [];
+  try {
+    assert.equal(await longRate([own('rb2610', .12), own('rb2701', .04, { investorRange: '2', investorId: 'G1' })]), .12);
+    assert.equal(await longRate([own('rb2610', .12), own('rb2701', .04), own('rb2701', .05)]), .12);
+    assert.equal(investorQueries.length, 0);
+  } finally {
+    investorReply = [{ brokerId: '9999', investorId: 'u', investorGroupId: 'G1' }];
+  }
+  assert.equal(await longRate([own('rb', .11, { investorRange: '2', investorId: 'G1' }), own('rb2701', .2)]), .11,
+    'the product row still applies to the requested contract');
+});
 test('a product needs exactly one catalog exchange', async () => {
+  try {
   for (const catalog of [
+    [{ instrumentId: 'rb2610', productId: 'rb', exchangeId: 'SHFE' }, { instrumentId: 'rb2701', productId: 'rb', exchangeId: 'DCE' },
+      { instrumentId: 'rb2705', productId: 'rb', exchangeId: 'SHFE' }],
     [{ instrumentId: 'rb2610', productId: 'rb', exchangeId: 'SHFE' }, { instrumentId: 'rb2701', productId: 'rb', exchangeId: 'DCE' }],
     [{ instrumentId: 'rb2610', productId: 'rb', exchangeId: '' }, { instrumentId: 'rb2701', productId: 'rb', exchangeId: '' }],
   ]) {
@@ -185,8 +224,13 @@ test('a product needs exactly one catalog exchange', async () => {
     stub([own('rb', .1)]);
     await assert.rejects(td.syncMarginRates(['rb2610', 'rb2701'], '1'),
       { message: 'CTP product rb has no single exchange in the instrument catalog' });
+    await assert.rejects(td.syncMarginRates(['rb2610'], '1'),
+      { message: 'CTP product rb has no single exchange in the instrument catalog' },
+      'an unrequested month of another exchange makes the product ambiguous too');
   }
-  td.reqQryInstrument = async () => shfeCatalog;
+  } finally {
+    td.reqQryInstrument = async () => shfeCatalog;
+  }
 });
 
 test('a missing-rate error names at most ten excluded rows and counts the rest', async () => {

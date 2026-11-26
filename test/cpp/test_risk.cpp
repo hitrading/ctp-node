@@ -90,14 +90,33 @@ static bool confirmAccount(RiskEngine &r, int requestId = 1,
          r.confirmSessionAccount(1, 7, broker, investor);
 }
 
+// A query filter naming an instrument and/or an exchange, and a catalog row.
+static InstrumentIdentity scopeOf(const std::string &instrumentId,
+                                  const std::string &exchangeId = "") {
+  InstrumentIdentity scope;
+  scope.instrumentId = instrumentId;
+  scope.exchangeId = exchangeId;
+  return scope;
+}
+static InstrumentIdentity rowOf(const std::string &instrumentId,
+                                const std::string &exchangeId = "SHFE",
+                                const std::string &productId = "") {
+  InstrumentIdentity row;
+  row.instrumentId = instrumentId;
+  row.exchangeId = exchangeId;
+  row.productId = productId;
+  row.exchangeInstId = instrumentId;
+  return row;
+}
+
 // Publish one instrument through a complete, successful instrument query, the
 // only way metadata reaches the engine.
 static int nextInstrumentQuery = 1000;
 static void publishInstrument(RiskEngine &r, const std::string &id, double multiplier,
                               char productClass) {
   const int query = nextInstrumentQuery++;
-  r.beginInstrumentQuery(query, id, false);
-  r.stageInstrument(query, id, multiplier, productClass);
+  r.beginInstrumentQuery(query, scopeOf(id));
+  r.stageInstrument(query, rowOf(id), multiplier, productClass);
   r.finishInstrumentQuery(query, true);
 }
 
@@ -491,8 +510,8 @@ static void testInstrumentMetadata() {
   auto known = [&](const std::string &id) {
     return passed(r, r.check(id, 100, 100, 1));
   };
-  r.beginInstrumentQuery(1, "rb", false);
-  r.stageInstrument(1, "", 10, '1');
+  r.beginInstrumentQuery(1, scopeOf("rb"));
+  r.stageInstrument(1, rowOf(""), 10, '1');
   r.finishInstrumentQuery(1, true);
   CHECK(blocked(r, r.check("", 100, 100, 1), unknown),
         "a staged row with an empty instrument id is ignored");
@@ -502,9 +521,9 @@ static void testInstrumentMetadata() {
   const double badMultipliers[] = {0, -1, NaN, INF, DMAX};
   bool allCleared = true;
   for (double bad : badMultipliers) {
-    r.beginInstrumentQuery(2, "", false);
-    r.stageInstrument(2, "rb", 10, '1');
-    r.stageInstrument(2, "rb", bad, '1');
+    r.beginInstrumentQuery(2, scopeOf(""));
+    r.stageInstrument(2, rowOf("rb"), 10, '1');
+    r.stageInstrument(2, rowOf("rb"), bad, '1');
     r.finishInstrumentQuery(2, true);
     allCleared = blocked(r, r.check("rb", 100, 100, 1), unknown) && allCleared;
   }
@@ -517,18 +536,50 @@ static void testInstrumentMetadata() {
   publishInstrument(r, "ag", 15, '1');
   CHECK(option && known("rb"),
         "a metadata refresh replaces the product class of an instrument");
-  r.beginInstrumentQuery(3, "rb", false);
+  r.beginInstrumentQuery(3, scopeOf("rb"));
   CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown) && known("ag"),
         "a query for one instrument clears only that instrument while it is in flight");
   r.finishInstrumentQuery(3, false);
   publishInstrument(r, "rb", 10, '1');
-  r.beginInstrumentQuery(4, "", false);
+  r.beginInstrumentQuery(4, scopeOf(""));
   CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown) &&
             blocked(r, r.check("ag", 100, 100, 1), unknown),
         "a full-catalog query clears every instrument while it is in flight");
   r.finishInstrumentQuery(4, false);
   publishInstrument(r, "rb", 10, '1');
   CHECK(known("rb"), "metadata can be repopulated after a full invalidation");
+}
+
+// A stand-in for a CTP instrument struct: readInstrumentIdentity only needs the
+// four fixed-width identity fields.
+struct FakeInstrumentField {
+  char InstrumentID[81];
+  char ExchangeID[9];
+  char ProductID[81];
+  char ExchangeInstID[81];
+};
+
+static void testReadInstrumentIdentity() {
+  FakeInstrumentField f{};
+  std::strcpy(f.InstrumentID, "rb2610");
+  std::strcpy(f.ExchangeID, "SHFE");
+  std::strcpy(f.ProductID, "rb");
+  std::strcpy(f.ExchangeInstID, "rb2610");
+  InstrumentIdentity id;
+  CHECK(readInstrumentIdentity(f, id) && id.instrumentId == "rb2610" && id.exchangeId == "SHFE" &&
+            id.productId == "rb" && id.exchangeInstId == "rb2610",
+        "readInstrumentIdentity reads all four identity fields");
+  bool allRejected = true;
+  for (int field = 0; field < 4; ++field) {
+    FakeInstrumentField g = f;
+    if (field == 0) std::memset(g.InstrumentID, 'X', sizeof(g.InstrumentID));
+    if (field == 1) std::memset(g.ExchangeID, 'X', sizeof(g.ExchangeID));
+    if (field == 2) std::memset(g.ProductID, 'X', sizeof(g.ProductID));
+    if (field == 3) std::memset(g.ExchangeInstID, 'X', sizeof(g.ExchangeInstID));
+    InstrumentIdentity out;
+    allRejected = !readInstrumentIdentity(g, out) && allRejected;
+  }
+  CHECK(allRejected, "any identity field without a NUL makes the row or filter unreadable");
 }
 
 static void testInstrumentQueryStaging() {
@@ -541,36 +592,36 @@ static void testInstrumentQueryStaging() {
     return passed(r, r.check(id, 100, 100, 1));
   };
   // Success: rows stay staged until the successful final packet.
-  r.beginInstrumentQuery(10, "", false);
-  r.stageInstrument(10, "rb", 10, '1');
-  r.stageInstrument(10, "ag", 15, '1');
+  r.beginInstrumentQuery(10, scopeOf(""));
+  r.stageInstrument(10, rowOf("rb"), 10, '1');
+  r.stageInstrument(10, rowOf("ag"), 15, '1');
   const bool stagedHidden = blocked(r, r.check("rb", 100, 100, 1), unknown);
   r.finishInstrumentQuery(10, true);
   CHECK(stagedHidden && known("rb") && known("ag"),
         "staged rows are unusable until the successful final packet publishes them together");
   // Error final packet: the batch is discarded, and its id is closed.
-  r.beginInstrumentQuery(11, "rb", false);
-  r.stageInstrument(11, "rb", 10, '1');
+  r.beginInstrumentQuery(11, scopeOf("rb"));
+  r.stageInstrument(11, rowOf("rb"), 10, '1');
   r.finishInstrumentQuery(11, false);
   r.finishInstrumentQuery(11, true);
   CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown) && known("ag"),
         "an error final packet discards the staged rows; a later packet of that id publishes nothing");
   // Front transition: the staged batch is abandoned.
-  r.beginInstrumentQuery(12, "rb", false);
-  r.stageInstrument(12, "rb", 10, '1');
+  r.beginInstrumentQuery(12, scopeOf("rb"));
+  r.stageInstrument(12, rowOf("rb"), 10, '1');
   r.abandonInstrumentQuery();
-  r.stageInstrument(12, "rb", 10, '1');
+  r.stageInstrument(12, rowOf("rb"), 10, '1');
   r.finishInstrumentQuery(12, true);
   CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown),
         "a disconnect abandons the staged rows; late rows and final packets of that query publish nothing");
   // Superseded: a newer query discards the older one and ignores its late rows.
-  r.beginInstrumentQuery(13, "rb", false);
-  r.stageInstrument(13, "rb", 99, '1');
-  r.beginInstrumentQuery(14, "rb", false);
-  r.stageInstrument(13, "rb", 99, '1');
+  r.beginInstrumentQuery(13, scopeOf("rb"));
+  r.stageInstrument(13, rowOf("rb"), 99, '1');
+  r.beginInstrumentQuery(14, scopeOf("rb"));
+  r.stageInstrument(13, rowOf("rb"), 99, '1');
   r.finishInstrumentQuery(13, true);
   const bool lateIgnored = blocked(r, r.check("rb", 100, 100, 1), unknown);
-  r.stageInstrument(14, "rb", 10, '1');
+  r.stageInstrument(14, rowOf("rb"), 10, '1');
   r.finishInstrumentQuery(14, true);
   CHECK(lateIgnored && passed(r, r.check("rb", 1000, 1000, 100000)) &&
             blocked(r, r.check("rb", 1000, 1000, 100001),
@@ -578,41 +629,232 @@ static void testInstrumentQueryStaging() {
         "a superseded query's late rows are ignored and the newest query publishes its own multiplier");
   // Filtered only by exchange or product: nothing is cleared, publication merges.
   publishInstrument(r, "ag", 15, '1');
-  r.beginInstrumentQuery(30, "", true);
+  r.beginInstrumentQuery(30, scopeOf("", "SHFE"));
   const bool filteredKeeps = known("rb") && known("ag");
-  r.stageInstrument(30, "cu", 5, '1');
+  r.stageInstrument(30, rowOf("cu"), 5, '1');
   r.finishInstrumentQuery(30, true);
   CHECK(filteredKeeps && known("rb") && known("ag") && known("cu"),
         "an exchange/product-filtered query neither clears nor wipes instruments outside its scope");
-  r.beginInstrumentQuery(31, "rb", true);
+  r.beginInstrumentQuery(31, scopeOf("rb", "SHFE"));
   CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown) && known("ag"),
         "a query naming an instrument still clears that instrument even with other filters");
   r.finishInstrumentQuery(31, false);
   publishInstrument(r, "rb", 10, '1');
   // JS idle timeout: a still-staging query is discarded; a finished one waits.
-  r.beginInstrumentQuery(32, "rb", false);
-  r.stageInstrument(32, "rb", 10, '1');
+  r.beginInstrumentQuery(32, scopeOf("rb"));
+  r.stageInstrument(32, rowOf("rb"), 10, '1');
   const bool discardedByTimeout = r.timeoutInstrumentQuery(32);
   r.finishInstrumentQuery(32, true);
   CHECK(discardedByTimeout && blocked(r, r.check("rb", 100, 100, 1), unknown),
         "a timed-out staging query is discarded and its late final packet publishes nothing");
-  r.beginInstrumentQuery(33, "rb", false);
-  r.stageInstrument(33, "rb", 10, '1');
+  r.beginInstrumentQuery(33, scopeOf("rb"));
+  r.stageInstrument(33, rowOf("rb"), 10, '1');
   r.finishInstrumentQuery(33, true);
   CHECK(!r.timeoutInstrumentQuery(33) && known("rb"),
         "a query whose final packet already ran waits for its queued response instead of timing out");
   CHECK(r.timeoutInstrumentQuery(34) && r.timeoutInstrumentQuery(0) && r.timeoutInstrumentQuery(-1),
         "an unknown or invalid instrument query id simply times out");
-  r.beginInstrumentQuery(35, "rb", false);
+  r.beginInstrumentQuery(35, scopeOf("rb"));
   CHECK(r.timeoutInstrumentQuery(33),
         "a newer query forgets the finished id, so the older request no longer waits");
   r.abandonInstrumentQuery();
   CHECK(r.timeoutInstrumentQuery(35),
         "an abandoned query times out (the front transition already rejected it in JS)");
+  r.beginInstrumentQuery(36, scopeOf("rb"));
+  r.stageInstrument(36, rowOf("rb"), 10, '1');
+  r.finishInstrumentQuery(36, true);
+  r.abandonInstrumentQuery();
+  CHECK(!r.timeoutInstrumentQuery(36) && known("rb"),
+        "a front transition after the final packet keeps the finished id: the queued response still settles it");
+  // Identity evidence: an out-of-scope row with a staged InstrumentID conflicts.
+  for (int order = 0; order < 2; ++order) {
+    const int q = 37 + order;
+    r.beginInstrumentQuery(q, scopeOf("", "SHFE"));
+    if (order == 0) {
+      r.stageInstrument(q, rowOf("rb", "DCE"), 10, '1');
+      r.stageInstrument(q, rowOf("rb", "SHFE"), 10, '1');
+    } else {
+      r.stageInstrument(q, rowOf("rb", "SHFE"), 10, '1');
+      r.stageInstrument(q, rowOf("rb", "DCE"), 10, '1');
+    }
+    r.finishInstrumentQuery(q, true);
+    CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown),
+          order == 0 ? "an out-of-scope row before the in-scope row of the same InstrumentID voids it"
+                     : "an out-of-scope row after the in-scope row of the same InstrumentID voids it");
+    // Lift the mark so the next round's filtered query can only fail on its own evidence.
+    if (order == 0)
+      publishInstrument(r, "rb", 10, '1');
+  }
+  // The ambiguity outlives the query until an unfiltered answer resolves it.
+  r.beginInstrumentQuery(45, scopeOf("", "SHFE"));
+  r.stageInstrument(45, rowOf("rb", "SHFE"), 10, '1');
+  r.finishInstrumentQuery(45, true);
+  const bool filteredStillBlocked = blocked(r, r.check("rb", 100, 100, 1), unknown);
+  r.beginInstrumentQuery(46, scopeOf("rb"));
+  r.stageInstrument(46, rowOf("rb", "SHFE"), 10, '1');
+  r.finishInstrumentQuery(46, true);
+  const bool resolvedByTargeted = known("rb");
+  r.beginInstrumentQuery(47, scopeOf("", "SHFE"));
+  r.stageInstrument(47, rowOf("rb", "SHFE"), 10, '1');
+  r.finishInstrumentQuery(47, true);
+  CHECK(filteredStillBlocked && resolvedByTargeted && known("rb"),
+        "a filtered query cannot republish an ambiguous InstrumentID; an unfiltered targeted answer resolves it");
+  r.beginInstrumentQuery(48, scopeOf(""));
+  r.stageInstrument(48, rowOf("rb", "SHFE"), 10, '1');
+  r.stageInstrument(48, rowOf("rb", "DCE"), 10, '1');
+  r.finishInstrumentQuery(48, true);
+  r.beginInstrumentQuery(49, scopeOf(""));
+  r.stageInstrument(49, rowOf("rb", "SHFE"), 10, '1');
+  r.finishInstrumentQuery(49, true);
+  CHECK(known("rb"), "a consistent full catalog clears an ambiguity a previous full catalog found");
+  // A failed, empty, unreadable, timed-out or abandoned answer never lifts the
+  // mark: a filtered query after it still cannot publish the InstrumentID.
+  const auto markAmbiguous = [&](int q) {
+    r.beginInstrumentQuery(q, scopeOf(""));
+    r.stageInstrument(q, rowOf("rb", "SHFE"), 10, '1');
+    r.stageInstrument(q, rowOf("rb", "DCE"), 5, '1');
+    r.finishInstrumentQuery(q, true);
+  };
+  const auto filteredPublishes = [&](int q) {
+    r.beginInstrumentQuery(q, scopeOf("", "SHFE"));
+    r.stageInstrument(q, rowOf("rb", "SHFE"), 10, '1');
+    r.finishInstrumentQuery(q, true);
+    return known("rb");
+  };
+  markAmbiguous(60);
+  r.beginInstrumentQuery(61, scopeOf(""));
+  r.stageInstrument(61, rowOf("rb"), 10, '1');
+  r.finishInstrumentQuery(61, false);
+  const bool afterFailedFull = !filteredPublishes(62);
+  markAmbiguous(63);
+  r.beginInstrumentQuery(64, scopeOf("rb"));
+  r.stageInstrument(64, rowOf("rb"), 10, '1');
+  r.finishInstrumentQuery(64, false);
+  const bool afterFailedTargeted = !filteredPublishes(65);
+  markAmbiguous(66);
+  r.beginInstrumentQuery(67, scopeOf("rb"));
+  r.finishInstrumentQuery(67, true);
+  const bool afterEmptyTargeted = !filteredPublishes(68);
+  markAmbiguous(69);
+  r.beginInstrumentQuery(70, scopeOf(""));
+  r.finishInstrumentQuery(70, true);
+  const bool afterEmptyFull = !filteredPublishes(71);
+  markAmbiguous(72);
+  r.beginInstrumentQuery(73, scopeOf(""));
+  r.stageInstrument(73, rowOf("rb"), 10, '1');
+  r.stageUnreadableInstrument(73);
+  r.finishInstrumentQuery(73, true);
+  const bool afterUnreadable = !filteredPublishes(74);
+  markAmbiguous(75);
+  r.beginInstrumentQuery(76, scopeOf("rb"));
+  r.stageInstrument(76, rowOf("rb"), 10, '1');
+  r.timeoutInstrumentQuery(76);
+  r.finishInstrumentQuery(76, true);
+  const bool afterTimeout = !filteredPublishes(77);
+  markAmbiguous(78);
+  r.beginInstrumentQuery(79, scopeOf("rb"));
+  r.stageInstrument(79, rowOf("rb"), 10, '1');
+  r.abandonInstrumentQuery();
+  r.finishInstrumentQuery(79, true);
+  const bool afterAbandon = !filteredPublishes(80);
+  CHECK(afterFailedFull && afterFailedTargeted && afterEmptyTargeted && afterEmptyFull &&
+            afterUnreadable && afterTimeout && afterAbandon,
+        "only a successful readable unfiltered answer with consistent rows lifts an ambiguity mark");
+  r.beginInstrumentQuery(81, scopeOf(""));
+  r.stageInstrument(81, rowOf("ag", "SHFE"), 15, '1');
+  r.stageInstrument(81, rowOf("ag", "DCE"), 15, '1');
+  r.stageUnreadableInstrument(81);
+  r.finishInstrumentQuery(81, true);
+  r.beginInstrumentQuery(82, scopeOf("", "SHFE"));
+  r.stageInstrument(82, rowOf("ag", "SHFE"), 15, '1');
+  r.finishInstrumentQuery(82, true);
+  CHECK(blocked(r, r.check("ag", 100, 100, 1), unknown),
+        "an unreadable answer still records the conflicts it observed");
+  // A failed, timed-out, abandoned or superseded answer records them too.
+  bool conflictsRecorded = true;
+  for (int ending = 0; ending < 4; ++ending) {
+    const int q = 90 + ending * 2;
+    publishInstrument(r, "cu", 5, '1');
+    r.beginInstrumentQuery(q, scopeOf(""));
+    r.stageInstrument(q, rowOf("cu", "SHFE"), 5, '1');
+    r.stageInstrument(q, rowOf("cu", "DCE"), 5, '1');
+    if (ending == 0) r.finishInstrumentQuery(q, false);
+    if (ending == 1) r.timeoutInstrumentQuery(q);
+    if (ending == 2) r.abandonInstrumentQuery();
+    if (ending == 3) r.beginInstrumentQuery(q + 100, scopeOf("au"));
+    r.beginInstrumentQuery(q + 1, scopeOf("", "SHFE"));
+    r.stageInstrument(q + 1, rowOf("cu", "SHFE"), 5, '1');
+    r.finishInstrumentQuery(q + 1, true);
+    conflictsRecorded = blocked(r, r.check("cu", 100, 100, 1), unknown) && conflictsRecorded;
+  }
+  CHECK(conflictsRecorded,
+        "conflicts seen by a failed, timed-out, abandoned or superseded answer still mark the InstrumentID");
+  publishInstrument(r, "cu", 5, '1');
+  // The publication count of exactly one finished query.
+  r.beginInstrumentQuery(83, scopeOf(""));
+  r.stageInstrument(83, rowOf("rb"), 10, '1');
+  r.stageInstrument(83, rowOf("ag"), 15, '1');
+  r.stageInstrument(83, rowOf("cu"), 5, '1');
+  r.stageInstrument(83, rowOf("cu"), 6, '1');
+  r.finishInstrumentQuery(83, true);
+  const size_t publishedBy83 = r.instrumentQueryPublished(83);
+  const bool otherIds = r.instrumentQueryPublished(82) == 0 && r.instrumentQueryPublished(0) == 0 &&
+                   r.instrumentQueryPublished(-1) == 0;
+  r.abandonInstrumentQuery();
+  const bool keptAfterAbandon = r.instrumentQueryPublished(83) == 2;
+  r.beginInstrumentQuery(84, scopeOf("au"));
+  CHECK(publishedBy83 == 2 && otherIds && keptAfterAbandon && r.instrumentQueryPublished(83) == 0,
+        "instrumentQueryPublished reports only the finished query's own publication");
+  r.finishInstrumentQuery(84, false);
   publishInstrument(r, "rb", 10, '1');
+  publishInstrument(r, "ag", 15, '1');
+  // Scope: rows outside the query's filter never stage.
+  r.beginInstrumentQuery(40, scopeOf("rb"));
+  r.stageInstrument(40, rowOf("ag"), 99, '1');
+  r.stageInstrument(40, rowOf("rb"), 10, '1');
+  r.finishInstrumentQuery(40, true);
+  CHECK(known("rb") && known("ag") &&
+            passed(r, r.check("ag", 1000, 1000, 66666)) &&
+            blocked(r, r.check("ag", 1000, 1000, 66667),
+                    "order notional exceeds maxNotional"),
+        "a targeted query ignores another contract's row (ag keeps its own multiplier 15)");
+  r.beginInstrumentQuery(41, scopeOf("", "SHFE"));
+  r.stageInstrument(41, rowOf("au", "DCE"), 1000, '1');
+  r.finishInstrumentQuery(41, true);
+  CHECK(blocked(r, r.check("au", 100, 100, 1), unknown),
+        "an exchange-filtered query ignores rows of another exchange");
+  InstrumentIdentity byProduct;
+  byProduct.productId = "au";
+  r.beginInstrumentQuery(42, byProduct);
+  r.stageInstrument(42, rowOf("au", "SHFE", "ag"), 1000, '1');
+  r.finishInstrumentQuery(42, true);
+  InstrumentIdentity byCode;
+  byCode.exchangeInstId = "au2612";
+  r.beginInstrumentQuery(43, byCode);
+  r.stageInstrument(43, rowOf("au", "SHFE", "au"), 1000, '1');
+  r.finishInstrumentQuery(43, true);
+  CHECK(blocked(r, r.check("au", 100, 100, 1), unknown),
+        "product- and exchange-code-filtered queries ignore rows outside their filter");
+  // Duplicates: identical rows publish; any disagreement clears the contract.
+  r.beginInstrumentQuery(44, scopeOf(""));
+  r.stageInstrument(44, rowOf("rb"), 10, '1');
+  r.stageInstrument(44, rowOf("rb"), 10, '1');
+  r.stageInstrument(44, rowOf("ag"), 15, '1');
+  r.stageInstrument(44, rowOf("ag"), 15, '1');
+  r.stageInstrument(44, rowOf("ag", "DCE"), 15, '1');
+  r.stageInstrument(44, rowOf("cu"), 5, '1');
+  r.stageInstrument(44, rowOf("cu"), 5, '2');
+  r.stageInstrument(44, rowOf("au"), 1000, '1');
+  r.stageInstrument(44, rowOf("au"), 100, '1');
+  r.finishInstrumentQuery(44, true);
+  CHECK(known("rb") && blocked(r, r.check("ag", 100, 100, 1), unknown) &&
+            blocked(r, r.check("cu", 100, 100, 1), unknown) &&
+            blocked(r, r.check("au", 100, 100, 1), unknown),
+        "identical duplicate rows publish; rows disagreeing on exchange, product class or multiplier clear the contract");
+  publishInstrument(r, "ag", 15, '1');
   // An unreadable InstrumentID poisons the batch: success clears everything.
-  r.beginInstrumentQuery(15, "cu", false);
-  r.stageInstrument(15, "cu", 5, '1');
+  r.beginInstrumentQuery(15, scopeOf("cu"));
+  r.stageInstrument(15, rowOf("cu"), 5, '1');
   r.stageUnreadableInstrument(15);
   r.stageUnreadableInstrument(99);
   r.finishInstrumentQuery(15, true);
@@ -620,8 +862,8 @@ static void testInstrumentQueryStaging() {
             blocked(r, r.check("ag", 100, 100, 1), unknown),
         "a query with an unreadable instrument row publishes nothing and clears every instrument");
   // Request ids <= 0 never open a query, and rows for them are ignored.
-  r.beginInstrumentQuery(0, "rb", false);
-  r.stageInstrument(0, "rb", 10, '1');
+  r.beginInstrumentQuery(0, scopeOf("rb"));
+  r.stageInstrument(0, rowOf("rb"), 10, '1');
   r.finishInstrumentQuery(0, true);
   r.stageUnreadableInstrument(0);
   CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown),
@@ -1043,6 +1285,7 @@ static void testUnsupportedRequests() {
 }
 
 int main() {
+  testReadInstrumentIdentity();
   testRateLimiter();
   testConfigure();
   testCheck();
