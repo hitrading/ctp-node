@@ -1,3 +1,19 @@
+# [6.0.0](https://github.com/hitrading/ctp-node/compare/v5.0.1...v6.0.0) (2026-11-26)
+
+
+### Features
+
+* **trader:** 保证金率按账户归属挑选，合约目录整批发布，结算回执全部核对 ([a62d163](https://github.com/hitrading/ctp-node/commit/a62d163608781315732b34712d26637020cb4ed1))
+
+
+### BREAKING CHANGES
+
+* **trader:** reqSettlementInfoConfirm 现在解析为全部回执行的数组而不是单行；
+CtpClient 的 request/queryRequest 须传入预期回执事件名（send, responseEvent）；
+原始 reqUserLogin 不再发布报单账户身份，报单与 syncMarginRates 须先经 session()。
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 ## [5.0.1](https://github.com/hitrading/ctp-node/compare/v5.0.0...v5.0.1) (2026-11-26)
 
 
