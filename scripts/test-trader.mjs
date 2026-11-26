@@ -8,15 +8,14 @@ import { mkdirSync } from "node:fs";
 
 mkdirSync("flow-td", { recursive: true });
 const td = new Trader("./flow-td/", "tcp://127.0.0.1:1");
-// This offline harness has no real login callback. Seed the JS identity via the
-// same post-correlation hook CtpClient uses, then establish the confirmed NATIVE
-// session with the gated test hook, which drives the same beginSessionTransition
-// -> acceptLoginSession -> confirmSessionAccount handshake the live SPI login +
+// This offline harness has no real login callback. Seed the confirmed JS account
+// that session() would publish, then establish the confirmed NATIVE session with
+// the gated test hook, which drives the same beginSessionTransition ->
+// acceptLoginSession -> confirmSessionAccount handshake the live SPI login +
 // session() would. The native gate keeps no position/order ledger, so nothing
 // else has to be synchronized before an order reaches the vendor API.
-td.onRequestResolved("rsp-user-login", {
-  brokerId: "9999", userId: "test", frontId: 1, sessionId: 1, maxOrderRef: "0",
-}, {});
+td.broker = "9999";
+td.investor = "test";
 process.env.CTP_NODE_TEST_HOOKS = "1";
 td.native._injectTestLogin(1, 1, "9999", "test");
 console.log("Trader api version:", td.apiVersion);
@@ -130,31 +129,98 @@ const describe = (...outcomes) => outcomes.map((o) => `${o.code} ${o.message}`).
   fresh.close();
 }
 
-// 4b) The settlement confirmation must echo the confirmed account. A mismatched
-//     echo, a refused confirmation or a failed step after it fails the handshake
-//     and revokes both the JS identity and the native confirmed account.
+// 4b) The order account is confirmed only after the settlement confirmation.
+//     Login is the protocol step; until the settlement echo (every row with a
+//     payload) names this account and the connection epoch is unchanged, neither
+//     the native gate nor the JS identity accepts account-bound sends. A failed
+//     step after the confirmation still revokes both.
 {
   mkdirSync("flow-td-settle", { recursive: true });
   const settle = new Trader("./flow-td-settle/", "tcp://127.0.0.1:1");
   settle.reqUserLogin = async () => {
-    settle.native._injectTestLogin(1, 7, "9999", "u");
+    // As the SPI does: accept the protocol login without confirming the account.
+    settle.native._injectTestLogin(1, 7, "9999", "u", false);
     return { brokerId: "9999", userId: "u", frontId: 1, sessionId: 7 };
   };
-  const session = (sync = { multipliers: false }) =>
-    settle.session({ brokerId: "9999", userId: "u", password: "p", sync }).then(() => null, (e) => e);
+  const session = (sync = { multipliers: false }, extra = {}) =>
+    settle.session({ brokerId: "9999", userId: "u", password: "p", sync, ...extra }).then(() => null, (e) => e);
   const UNCONFIRMED = {
     code: -10006,
     message: "request is unavailable in the current risk mode or cannot be fully covered by configured local risk controls: session account not confirmed",
   };
+  // The JS identity check throws synchronously, before any promise exists.
+  const orderOutcome = () => {
+    try {
+      return outcomeOf(settle.reqOrderInsert({
+        instrumentId: "rb2510", direction: "0", combOffsetFlag: "0", limitPrice: 3500, volumeTotalOriginal: 1,
+      }));
+    } catch (e) {
+      return Promise.resolve({ code: e.ctpReturnCode, message: e.message });
+    }
+  };
+  const NO_JS_ACCOUNT = { code: undefined, message: "reqOrderInsert: a confirmed Trader login is required" };
   const expectRevoked = async (label) => {
     const outcome = await outcomeOf(settle.reqCombActionInsert({}));
     check(settle.broker === undefined && settle.investor === undefined && same(outcome, UNCONFIRMED),
       `${label} leaves no JS or native session identity (${describe(outcome)})`);
   };
-  for (const [label, confirm, expected] of [
-    ["an echo naming another broker", async () => ({ brokerId: "8888", investorId: "u" }),
+  // The real generated request accumulates every settlement callback row, so a
+  // later row naming another account fails even when the first row is correct.
+  const settlementEvent = [...settle.events].find(([, name]) => name === "rsp-settlement-info-confirm")[0];
+  const instrumentEvent = [...settle.events].find(([, name]) => name === "rsp-qry-instrument")[0];
+  const realNative = settle.native;
+  const answerSettlement = (records) => {
+    settle.native = new Proxy(realNative, {
+      get(target, prop) {
+        if (prop === "_req") return (_method, _bytes, requestId) => {
+          queueMicrotask(() => {
+            for (const [evt, value, isLast] of records)
+              settle.deliver({ evt, value, options: { requestId, isLast } });
+          });
+          return 0;
+        };
+        const value = Reflect.get(target, prop, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+  };
+  for (const [label, records, expected] of [
+    ["a later settlement row naming another investor",
+      [[settlementEvent, { brokerId: "9999", investorId: "u" }, false],
+        [settlementEvent, { brokerId: "9999", investorId: "other" }, true]],
       "settlement confirmation names a different broker or investor"],
-    ["an echo naming another investor", async () => ({ brokerId: "9999", investorId: "other" }),
+    ["a later settlement row naming another broker",
+      [[settlementEvent, { brokerId: "9999", investorId: "u" }, false],
+        [settlementEvent, { brokerId: "8888", investorId: "u" }, true]],
+      "settlement confirmation names a different broker or investor"],
+  ]) {
+    answerSettlement(records);
+    const error = await session();
+    settle.native = realNative;
+    check(error?.message === expected, `${label} fails the handshake (${error?.message})`);
+    await expectRevoked(label);
+  }
+  answerSettlement([[settlementEvent, { brokerId: "9999", investorId: "u" }, false],
+    [settlementEvent, undefined, true]]);
+  const emptyFinal = await session();
+  settle.native = realNative;
+  check(emptyFinal === null && settle.broker === "9999" && settle.investor === "u",
+    `matching rows ending in a legal empty final packet complete the handshake (${emptyFinal?.message ?? "ok"})`);
+  // A success callback of another type that reuses the request id cannot
+  // complete the confirmation: it keeps waiting for its own callback.
+  settle.requestTimeoutMs = 50;
+  answerSettlement([[instrumentEvent, { brokerId: "9999", investorId: "u" }, true]]);
+  const foreign = await session();
+  settle.native = realNative;
+  settle.requestTimeoutMs = 30000;
+  check(/timed out/.test(foreign?.message ?? "") && /rsp-qry-instrument/.test(foreign?.message ?? ""),
+    `another callback type with the same request id does not complete the confirmation (${foreign?.message})`);
+  await expectRevoked("a confirmation answered only by another callback type");
+
+  for (const [label, confirm, expected] of [
+    ["an echo naming another broker", async () => [{ brokerId: "8888", investorId: "u" }],
+      "settlement confirmation names a different broker or investor"],
+    ["an echo naming another investor", async () => [{ brokerId: "9999", investorId: "other" }],
       "settlement confirmation names a different broker or investor"],
     ["a refused confirmation", async () => { throw new Error("CTP refused the settlement confirmation"); },
       "CTP refused the settlement confirmation"],
@@ -164,14 +230,54 @@ const describe = (...outcomes) => outcomes.map((o) => `${o.code} ${o.message}`).
     check(error?.message === expected, `${label} fails the handshake (${error?.message})`);
     await expectRevoked(label);
   }
-  for (const [label, echo] of [["a matching echo", { brokerId: "9999", investorId: "u" }],
-    ["an empty echo", undefined], ["an echo without account fields", {}]]) {
-    settle.reqSettlementInfoConfirm = async () => echo;
+  for (const [label, rows] of [["a matching echo", [{ brokerId: "9999", investorId: "u" }]],
+    ["an empty response", []], ["an echo without account fields", [{}]]]) {
+    settle.reqSettlementInfoConfirm = async () => rows;
     const error = await session();
     check(error === null && settle.broker === "9999" && settle.investor === "u",
       `${label} completes the handshake (${error?.message ?? "ok"})`);
   }
-  settle.reqSettlementInfoConfirm = async () => ({});
+
+  // While the settlement confirmation is pending, the account is not usable.
+  let releaseSettlement;
+  settle.reqSettlementInfoConfirm = () => new Promise((resolve) => { releaseSettlement = resolve; });
+  const pending = session();
+  await new Promise((resolve) => setImmediate(resolve));
+  const pendingNative = await outcomeOf(settle.reqCombActionInsert({}));
+  const pendingOrder = await orderOutcome();
+  check(typeof releaseSettlement === "function" && settle.broker === undefined && settle.investor === undefined &&
+    same(pendingNative, UNCONFIRMED) && same(pendingOrder, NO_JS_ACCOUNT),
+    `while settlement is pending neither the native gate nor the JS identity accepts the account (${describe(pendingNative, pendingOrder)})`);
+  releaseSettlement([{ brokerId: "9999", investorId: "u" }]);
+  const released = await pending;
+  const afterRelease = await outcomeOf(settle.reqCombActionInsert({}));
+  check(released === null && settle.broker === "9999" && same(afterRelease, OFFLINE_VENDOR),
+    `the confirmed settlement then confirms the native and JS account together (${describe(afterRelease)})`);
+
+  // A settlement echo arriving after the connection epoch changed confirms nothing.
+  settle.reqSettlementInfoConfirm = () => new Promise((resolve) => { releaseSettlement = resolve; });
+  const late = session();
+  await new Promise((resolve) => setImmediate(resolve));
+  settle.emit("front-connected", undefined, {});
+  releaseSettlement([{ brokerId: "9999", investorId: "u" }]);
+  const lateError = await late;
+  check(/invalidated/.test(lateError?.message ?? ""),
+    `a settlement echo delivered after a new connection fails the handshake (${lateError?.message})`);
+  await expectRevoked("a late settlement echo after a new connection");
+
+  // confirmSettlement:false confirms the account right after login, before the
+  // metadata synchronization, without sending a settlement confirmation.
+  let settlementSends = 0, identityDuringSync;
+  settle.reqSettlementInfoConfirm = async () => { settlementSends++; return []; };
+  settle.reqQryInstrument = async () => {
+    identityDuringSync = { broker: settle.broker, native: await outcomeOf(settle.reqCombActionInsert({})) };
+    return [{ instrumentId: "rb2510", volumeMultiple: 10 }];
+  };
+  const skipped = await session({ multipliers: ["rb2510"] }, { confirmSettlement: false });
+  check(skipped === null && settlementSends === 0 && identityDuringSync?.broker === "9999" &&
+    same(identityDuringSync.native, OFFLINE_VENDOR),
+    `confirmSettlement:false confirms the account before synchronization without a settlement send (${describe(identityDuringSync?.native ?? {})})`);
+
   settle.reqQryInstrument = async () => { throw new Error("instrument catalog unavailable"); };
   const syncError = await session({ multipliers: true });
   check(syncError?.message === "instrument catalog unavailable",
@@ -185,9 +291,8 @@ const describe = (...outcomes) => outcomes.map((o) => `${o.code} ${o.message}`).
 {
   mkdirSync("flow-td-gates", { recursive: true });
   const gates = new Trader("./flow-td-gates/", "tcp://127.0.0.1:1");
-  gates.onRequestResolved("rsp-user-login", {
-    brokerId: "9999", userId: "test", frontId: 1, sessionId: 1, maxOrderRef: "0",
-  }, {});
+  gates.broker = "9999";
+  gates.investor = "test";
   gates.native._injectTestLogin(1, 1, "9999", "test");
   const insert = (direction, combOffsetFlag) => outcomeOf(gates.reqOrderInsert({
     instrumentId: "rb2510", direction, combOffsetFlag, limitPrice: 3500, volumeTotalOriginal: 1,

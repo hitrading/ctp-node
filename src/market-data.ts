@@ -160,8 +160,9 @@ export class MarketData extends CtpClient {
       this.beginRequestContextTransition("market-data login started");
       return this.request<RspUserLogin | undefined>(
         (id) => (this.native as { reqUserLogin(r: Uint8Array, id: number): number }).reqUserLogin(encoded, id),
-        true,
         MD_BASE + 4,
+        true,
+        true,
         true
       );
     });
@@ -177,8 +178,9 @@ export class MarketData extends CtpClient {
       this.beginRequestContextTransition("market-data logout started");
       return this.request<UserLogout | undefined>(
         (id) => (this.native as { reqUserLogout(r: Uint8Array, id: number): number }).reqUserLogout(encoded, id),
-        true,
         MD_BASE + 5,
+        true,
+        true,
         true
       );
     });
@@ -239,7 +241,8 @@ export class MarketData extends CtpClient {
     return this.queryRequest<MulticastInstrument[]>((id) =>
       (this.native as {
         reqQryMulticastInstrument(r: Partial<QryMulticastInstrument>, id: number): number;
-      }).reqQryMulticastInstrument(clean, id)
+      }).reqQryMulticastInstrument(clean, id),
+      MD_BASE + 6
     );
   }
 

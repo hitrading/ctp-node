@@ -178,27 +178,64 @@ double RiskEngine::refPrice(const std::string &instrumentId) const {
   return age <= static_cast<uint64_t>(maxAge) ? px : 0.0;
 }
 
-void RiskEngine::setInstrument(const std::string &instrumentId, double mult,
-                               char productClass) {
-  if (instrumentId.empty())
-    return;
-  std::lock_guard<std::mutex> lk(stateMutex_);
-  if (!sanePositive(mult)) {
-    instruments_.erase(instrumentId);
-    return;
-  }
-  // Futures and TAS use price * volume * multiplier. Options, combinations and
-  // spot products require product-specific fields/formulas.
-  instruments_[instrumentId] =
-      InstrumentMeta{mult, productClass == '1' || productClass == '7'};
+void RiskEngine::resetInstrumentQueryLocked() {
+  instrumentQueryId_ = 0;
+  instrumentQueryUnreadable_ = false;
+  stagedInstruments_.clear();
 }
 
-void RiskEngine::invalidateInstrument(const std::string &instrumentId) {
+void RiskEngine::beginInstrumentQuery(int requestId,
+                                      const std::string &instrumentId) {
   std::lock_guard<std::mutex> lk(stateMutex_);
   if (instrumentId.empty())
     instruments_.clear();
   else
     instruments_.erase(instrumentId);
+  resetInstrumentQueryLocked();
+  instrumentQueryId_ = requestId > 0 ? requestId : 0;
+}
+
+void RiskEngine::stageInstrument(int requestId,
+                                 const std::string &instrumentId, double mult,
+                                 char productClass) {
+  std::lock_guard<std::mutex> lk(stateMutex_);
+  if (requestId <= 0 || requestId != instrumentQueryId_ ||
+      instrumentId.empty())
+    return;
+  // Futures and TAS use price * volume * multiplier. Options, combinations and
+  // spot products require product-specific fields/formulas.
+  stagedInstruments_[instrumentId] =
+      sanePositive(mult)
+          ? InstrumentMeta{mult, productClass == '1' || productClass == '7'}
+          : InstrumentMeta{};
+}
+
+void RiskEngine::stageUnreadableInstrument(int requestId) {
+  std::lock_guard<std::mutex> lk(stateMutex_);
+  if (requestId > 0 && requestId == instrumentQueryId_)
+    instrumentQueryUnreadable_ = true;
+}
+
+void RiskEngine::finishInstrumentQuery(int requestId, bool succeeded) {
+  std::lock_guard<std::mutex> lk(stateMutex_);
+  if (requestId <= 0 || requestId != instrumentQueryId_)
+    return;
+  if (succeeded && instrumentQueryUnreadable_) {
+    instruments_.clear();
+  } else if (succeeded) {
+    for (const auto &staged : stagedInstruments_) {
+      if (staged.second.multiplier > 0.0)
+        instruments_[staged.first] = staged.second;
+      else
+        instruments_.erase(staged.first);
+    }
+  }
+  resetInstrumentQueryLocked();
+}
+
+void RiskEngine::abandonInstrumentQuery() {
+  std::lock_guard<std::mutex> lk(stateMutex_);
+  resetInstrumentQueryLocked();
 }
 
 RiskEngine::AccountScope RiskEngine::accountScopeLocked(

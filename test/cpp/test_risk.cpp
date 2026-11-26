@@ -90,6 +90,17 @@ static bool confirmAccount(RiskEngine &r, int requestId = 1,
          r.confirmSessionAccount(1, 7, broker, investor);
 }
 
+// Publish one instrument through a complete, successful instrument query, the
+// only way metadata reaches the engine.
+static int nextInstrumentQuery = 1000;
+static void publishInstrument(RiskEngine &r, const std::string &id, double multiplier,
+                              char productClass) {
+  const int query = nextInstrumentQuery++;
+  r.beginInstrumentQuery(query, id);
+  r.stageInstrument(query, id, multiplier, productClass);
+  r.finishInstrumentQuery(query, true);
+}
+
 static int countAcquired(RateLimiter &rl, int attempts) {
   int allowed = 0;
   for (int i = 0; i < attempts; ++i)
@@ -375,7 +386,7 @@ static void testCheck() {
     CHECK(blocked(r, r.check("rb", 3500, 3500, 1),
                   "instrument multiplier unavailable"),
           "maxNotional: an unknown multiplier fails closed");
-    r.setInstrument("rb", 10, '1');
+    publishInstrument(r, "rb", 10, '1');
     CHECK(passed(r, r.check("rb", 3500, 3500, 28)),
           "maxNotional: 3500*28*10 = 0.98M under 1M is allowed (multiplier-aware)");
     CHECK(passed(r, r.check("rb", 1000, 1000, 100)),
@@ -387,14 +398,14 @@ static void testCheck() {
           "maxNotional: a low limit is valued at the higher market reference");
     CHECK(blocked(r, r.check("rb", 3600, 3400, 28), over),
           "maxNotional: a limit above the reference is valued at the limit");
-    r.setInstrument("tas", 10, '7');
+    publishInstrument(r, "tas", 10, '7');
     CHECK(passed(r, r.check("tas", 3500, 3500, 1)),
           "maxNotional: TAS products use the futures notional formula");
     const char *unsupported = "instrument product class unsupported for maxNotional";
-    r.setInstrument("opt", 10, '2');
+    publishInstrument(r, "opt", 10, '2');
     CHECK(blocked(r, r.check("opt", 100, 100, 1), unsupported),
           "maxNotional: an option premium cannot masquerade as futures notional");
-    r.setInstrument("combo", 10, '3');
+    publishInstrument(r, "combo", 10, '3');
     CHECK(blocked(r, r.check("combo", 100, 100, 1), unsupported),
           "maxNotional: a combination product fails closed");
   }
@@ -480,37 +491,107 @@ static void testInstrumentMetadata() {
   auto known = [&](const std::string &id) {
     return passed(r, r.check(id, 100, 100, 1));
   };
-  r.setInstrument("", 10, '1');
+  r.beginInstrumentQuery(1, "rb");
+  r.stageInstrument(1, "", 10, '1');
+  r.finishInstrumentQuery(1, true);
   CHECK(blocked(r, r.check("", 100, 100, 1), unknown),
-        "setInstrument ignores an empty instrument id");
-  r.setInstrument("rb", 10, '1');
-  r.setInstrument("ag", 15, '1');
-  CHECK(known("rb") && known("ag"), "setInstrument records per-instrument multipliers");
+        "a staged row with an empty instrument id is ignored");
+  publishInstrument(r, "rb", 10, '1');
+  publishInstrument(r, "ag", 15, '1');
+  CHECK(known("rb") && known("ag"), "instrument queries record per-instrument multipliers");
   const double badMultipliers[] = {0, -1, NaN, INF, DMAX};
   bool allCleared = true;
   for (double bad : badMultipliers) {
-    r.setInstrument("rb", 10, '1');
-    r.setInstrument("rb", bad, '1');
+    r.beginInstrumentQuery(2, "");
+    r.stageInstrument(2, "rb", 10, '1');
+    r.stageInstrument(2, "rb", bad, '1');
+    r.finishInstrumentQuery(2, true);
     allCleared = blocked(r, r.check("rb", 100, 100, 1), unknown) && allCleared;
   }
   CHECK(allCleared,
-        "an unusable multiplier (0 / negative / NaN / Inf / DBL_MAX) clears the old value instead of retaining it");
-  r.setInstrument("rb", 10, '2');
+        "the last row of an instrument wins: an unusable multiplier (0 / negative / NaN / Inf / DBL_MAX) clears it");
+  publishInstrument(r, "rb", 10, '2');
   const bool option = blocked(r, r.check("rb", 100, 100, 1),
                               "instrument product class unsupported for maxNotional");
-  r.setInstrument("rb", 10, '1');
+  publishInstrument(r, "rb", 10, '1');
+  publishInstrument(r, "ag", 15, '1');
   CHECK(option && known("rb"),
         "a metadata refresh replaces the product class of an instrument");
-  r.invalidateInstrument("rb");
+  r.beginInstrumentQuery(3, "rb");
   CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown) && known("ag"),
-        "invalidateInstrument(id) clears only that instrument before its query result arrives");
-  r.setInstrument("rb", 10, '1');
-  r.invalidateInstrument("");
+        "a query for one instrument clears only that instrument while it is in flight");
+  r.finishInstrumentQuery(3, false);
+  publishInstrument(r, "rb", 10, '1');
+  r.beginInstrumentQuery(4, "");
   CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown) &&
             blocked(r, r.check("ag", 100, 100, 1), unknown),
-        "invalidateInstrument(\"\") clears every instrument");
-  r.setInstrument("rb", 10, '1');
+        "a full-catalog query clears every instrument while it is in flight");
+  r.finishInstrumentQuery(4, false);
+  publishInstrument(r, "rb", 10, '1');
   CHECK(known("rb"), "metadata can be repopulated after a full invalidation");
+}
+
+static void testInstrumentQueryStaging() {
+  RiskEngine r;
+  RiskLimits c;
+  c.maxNotional = 1e9;
+  r.configure(c);
+  const char *unknown = "instrument multiplier unavailable";
+  auto known = [&](const std::string &id) {
+    return passed(r, r.check(id, 100, 100, 1));
+  };
+  // Success: rows stay staged until the successful final packet.
+  r.beginInstrumentQuery(10, "");
+  r.stageInstrument(10, "rb", 10, '1');
+  r.stageInstrument(10, "ag", 15, '1');
+  const bool stagedHidden = blocked(r, r.check("rb", 100, 100, 1), unknown);
+  r.finishInstrumentQuery(10, true);
+  CHECK(stagedHidden && known("rb") && known("ag"),
+        "staged rows are unusable until the successful final packet publishes them together");
+  // Error final packet: the batch is discarded, and its id is closed.
+  r.beginInstrumentQuery(11, "rb");
+  r.stageInstrument(11, "rb", 10, '1');
+  r.finishInstrumentQuery(11, false);
+  r.finishInstrumentQuery(11, true);
+  CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown) && known("ag"),
+        "an error final packet discards the staged rows; a later packet of that id publishes nothing");
+  // Front transition: the staged batch is abandoned.
+  r.beginInstrumentQuery(12, "rb");
+  r.stageInstrument(12, "rb", 10, '1');
+  r.abandonInstrumentQuery();
+  r.stageInstrument(12, "rb", 10, '1');
+  r.finishInstrumentQuery(12, true);
+  CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown),
+        "a disconnect abandons the staged rows; late rows and final packets of that query publish nothing");
+  // Superseded: a newer query discards the older one and ignores its late rows.
+  r.beginInstrumentQuery(13, "rb");
+  r.stageInstrument(13, "rb", 99, '1');
+  r.beginInstrumentQuery(14, "rb");
+  r.stageInstrument(13, "rb", 99, '1');
+  r.finishInstrumentQuery(13, true);
+  const bool lateIgnored = blocked(r, r.check("rb", 100, 100, 1), unknown);
+  r.stageInstrument(14, "rb", 10, '1');
+  r.finishInstrumentQuery(14, true);
+  CHECK(lateIgnored && passed(r, r.check("rb", 1000, 1000, 100000)) &&
+            blocked(r, r.check("rb", 1000, 1000, 100001),
+                    "order notional exceeds maxNotional"),
+        "a superseded query's late rows are ignored and the newest query publishes its own multiplier");
+  // An unreadable InstrumentID poisons the batch: success clears everything.
+  r.beginInstrumentQuery(15, "cu");
+  r.stageInstrument(15, "cu", 5, '1');
+  r.stageUnreadableInstrument(15);
+  r.stageUnreadableInstrument(99);
+  r.finishInstrumentQuery(15, true);
+  CHECK(blocked(r, r.check("cu", 100, 100, 1), unknown) &&
+            blocked(r, r.check("ag", 100, 100, 1), unknown),
+        "a query with an unreadable instrument row publishes nothing and clears every instrument");
+  // Request ids <= 0 never open a query, and rows for them are ignored.
+  r.beginInstrumentQuery(0, "rb");
+  r.stageInstrument(0, "rb", 10, '1');
+  r.finishInstrumentQuery(0, true);
+  r.stageUnreadableInstrument(0);
+  CHECK(blocked(r, r.check("rb", 100, 100, 1), unknown),
+        "request id 0 never opens an instrument query");
 }
 
 static void testModesAndSendBarrier() {
@@ -933,6 +1014,7 @@ int main() {
   testCheck();
   testReferencePrice();
   testInstrumentMetadata();
+  testInstrumentQueryStaging();
   testModesAndSendBarrier();
   testLoginLifecycle();
   testAccountConfirmation();

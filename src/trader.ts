@@ -7,7 +7,14 @@
  */
 
 import { native } from "./native-binding.js";
-import { groupCtpInstrumentsByProduct, selectCtpProductRate } from "./product-rates.js";
+import {
+  CTP_INVESTOR_RANGE_GROUP,
+  ctpMarginRateMissing,
+  groupCtpInstrumentsByProduct,
+  selectCtpExchangeMarginRates,
+  selectCtpInvestorMarginRates,
+  selectCtpProductRate,
+} from "./product-rates.js";
 import type { CtpResolvedMarginRate } from "./product-rates.js";
 import { isTransientQueryFailure, queryIntervalMs, QUERY_RETRY_DELAY_MS } from "./query-pacing.js";
 import { TraderBase, TRADER_EVENTS, TraderEvent } from "./generated/trader.gen.js";
@@ -129,15 +136,22 @@ function assertObjectKeys(
     if (!allowed.has(key)) throw new TypeError(`${label}: unknown field ${key}`);
 }
 
-/** CTP echoes the confirmed statement's account. An echo naming another broker
- *  or investor does not confirm this session's account; an empty echo (a legal
- *  successful response) proves nothing either way and is accepted. */
-function assertSettlementEcho(echo: unknown, account: { brokerId: string; investorId: string }): void {
-  const row = (echo ?? {}) as { brokerId?: unknown; investorId?: unknown };
+/** CTP echoes the confirmed statement's account on every response row. Any row
+ *  naming another broker or investor means the confirmation did not confirm
+ *  this session's account, even when an earlier row matched. Empty account
+ *  fields, and a legal empty final packet (which contributes no row), prove
+ *  nothing either way and are accepted. */
+function assertSettlementEchoes(
+  rows: readonly unknown[],
+  account: { brokerId: string; investorId: string }
+): void {
   const differs = (value: unknown, expected: string) =>
     typeof value === "string" && value !== "" && value !== expected;
-  if (differs(row.brokerId, account.brokerId) || differs(row.investorId, account.investorId))
-    throw new Error("settlement confirmation names a different broker or investor");
+  for (const echo of rows) {
+    const row = echo as { brokerId?: unknown; investorId?: unknown };
+    if (differs(row.brokerId, account.brokerId) || differs(row.investorId, account.investorId))
+      throw new Error("settlement confirmation names a different broker or investor");
+  }
 }
 
 const SESSION_KEYS = new Set([
@@ -171,10 +185,12 @@ export class Trader extends TraderBase {
     this.start();
   }
 
-  /** A raw login Promise may resolve only with a structurally usable session.
-   * Account confirmation itself happens in session(), after request-vs-response
-   * identity validation; merely observing a protocol event never grants order
-   * authority. */
+  /** A matched login response is the protocol login only. It never publishes
+   * the order account: RspUserLogin names the operator UserID (not necessarily
+   * the InvestorID), and the account becomes usable only in session(), after
+   * the settlement confirmation, together with the native confirmation. Direct
+   * reqUserLogin callers therefore get no JS identity and stay fail-closed
+   * natively via acceptsOrderAccount. */
   protected override onRequestResolved(
     eventName: string | undefined,
     value: unknown,
@@ -186,18 +202,10 @@ export class Trader extends TraderBase {
       return;
     }
     if (eventName !== "rsp-user-login") return;
-    // A matched login response updates the confirmed identity, but only from a
-    // row carrying the COMPLETE, usable identity (FrontID > 0, non-zero signed
-    // SessionID, plus
-    // BrokerID/UserID) — the same acceptance condition the generated login
-    // validator enforces before it resolves. A partial/abnormal success row
-    // (e.g. FrontID 0) is rejected downstream, so caching broker/investor from
-    // it would strand a stale identity after the login promise rejects, breaking
-    // the invariant "broker/investor set ⟺ a confirmed login". We still never
-    // throw here (that would reject an otherwise successful login); the
-    // authoritative account-match + session-identity validation lives in
-    // session() / _confirmSessionAccount, and direct callers stay fail-closed
-    // natively via acceptsOrderAccount.
+    // Account-independent login facts only: the front's query limits (from a
+    // row carrying the complete session identity the generated login validator
+    // also requires) and the OrderRef high-water mark. We never throw here;
+    // that would reject an otherwise successful login.
     const r = value as
       | {
           brokerId?: string;
@@ -218,8 +226,6 @@ export class Trader extends TraderBase {
       Number.isInteger(r.sessionId) &&
       Number(r.sessionId) !== 0
     ) {
-      this.broker = r.brokerId;
-      this.investor = r.userId;
       // The limits are valid only now that this session is logged in.
       this.queryIntervalMs = queryIntervalMs(this.frontInfo);
     }
@@ -402,23 +408,28 @@ export class Trader extends TraderBase {
       throw new Error("trader login response has an invalid MaxOrderRef");
     }
     const maxRef = maxOrderRef === "" ? 0 : Number(maxOrderRef);
-    // A successful CTP response may legally end with an empty payload. The
-    // request identity is still authoritative for the synchronization calls
-    // below; never retain a previous session's broker/investor in that case.
+    // The protocol login is not yet an order account. Real accounts must first
+    // confirm the settlement statement; until every echoed row names this
+    // account (or the caller explicitly skips the step), neither the native
+    // gate nor the JS identity accepts it.
+    const account = { brokerId, investorId };
+    if (cleanOpts.confirmSettlement ?? true) {
+      // idempotent: confirming an already-confirmed statement is fine
+      const echoes = await this.reqSettlementInfoConfirm(account);
+      this.assertRequestContext(contextToken, "trader session settlement confirmation");
+      assertSettlementEchoes(echoes, account);
+    }
+    // Still the same connection epoch (asserted above, with no await since):
+    // confirm the native account and publish the JS identity together.
     const confirmed = this.native._confirmSessionAccount(
       login.frontId, login.sessionId, encodedAccount
     ) as boolean;
-    if (!confirmed) {
-      this.broker = undefined;
-      this.investor = undefined;
-      throw new Error("native Trader session/account confirmation failed");
-    }
+    if (!confirmed) throw new Error("native Trader session/account confirmation failed");
     this.broker = brokerId;
     this.investor = investorId;
     if (maxRef > this.orderRefSeq) this.orderRefSeq = maxRef;
     try {
-      return await this.finishSession(cleanOpts.confirmSettlement ?? true, cleanSync,
-        { brokerId, investorId }, login, maxRef, contextToken);
+      return await this.finishSession(cleanSync, login, maxRef, contextToken);
     } catch (error) {
       // Any failure after the native account confirmation leaves no usable
       // session: revoke the JS identity and the native confirmed account,
@@ -432,21 +443,13 @@ export class Trader extends TraderBase {
     }
   }
 
-  /** The handshake steps that follow the native account confirmation. */
+  /** The handshake steps that follow the account confirmation. */
   private async finishSession(
-    confirmSettlement: boolean,
     sync: NonNullable<SessionOptions["sync"]>,
-    account: { brokerId: string; investorId: string },
     login: RspUserLogin,
     maxRef: number,
     contextToken: number
   ): Promise<TraderSessionResult> {
-    if (confirmSettlement) {
-      // idempotent: confirming an already-confirmed statement is fine
-      const echo = await this.reqSettlementInfoConfirm(account);
-      this.assertRequestContext(contextToken, "trader session settlement confirmation");
-      assertSettlementEcho(echo, account);
-    }
     const mul = sync.multipliers ?? true;
     const result: TraderSessionResult = {
       identity: Object.freeze({
@@ -660,8 +663,11 @@ export class Trader extends TraderBase {
 
   // Contract multipliers (for the maxNotional check) are NOT fed from JS: the
   // C++ risk engine sources them directly from CTP's OnRspQryInstrument
-  // callback (see scripts/codegen/generate-trader.mjs), so any reqQryInstrument
-  // keeps them current. A missing multiplier fails an enabled notional check
+  // callback (see scripts/codegen/generate-trader.mjs). Sending a
+  // reqQryInstrument clears the queried instruments; its rows are staged per
+  // request id and published together only by the successful final packet of
+  // the newest instrument query (an error packet, a front transition or a newer
+  // query discards them). A missing multiplier fails an enabled notional check
   // closed.
 
   /**
@@ -735,7 +741,11 @@ export class Trader extends TraderBase {
 
   /** Query investor margin schedules for a bounded universe. The exchange-base
    *  query is issued only when the investor row is relative; the shared query
-   *  scheduler enforces spacing. Returns the number of usable schedules. */
+   *  scheduler enforces spacing. Returns the number of usable schedules.
+   *  Only rows attributed to the confirmed account count: the investor row's
+   *  BrokerID, InvestorRange/InvestorID and an empty InvestUnitID, and the
+   *  exchange base row's BrokerID. Single investor overrides investor group,
+   *  which overrides all investors; disagreeing rows of one range fail the sync. */
   async syncMarginRates(
     instrumentIds: string[],
     hedgeFlag: "1" | "2" | "3" | "5" | "6" | "7" = "1"
@@ -758,6 +768,19 @@ export class Trader extends TraderBase {
     const catalog = await this.queryWithRetry(() => this.reqQryInstrument({}), contextToken) as Instrument[];
     const productByInstrument = new Map(catalog.map(row => [row.instrumentId, row.productId]));
     const groups = groupCtpInstrumentsByProduct(instrumentIds, catalog);
+    // Queried once, and only when a reply carries an investor-group row.
+    let investorGroupId: string | undefined;
+    const loadInvestorGroup = async () => {
+      const rows = (await this.queryWithRetry(
+        () => this.reqQryInvestor({ brokerId, investorId }), contextToken
+      ) as Array<{ brokerId: string; investorId: string; investorGroupId: string }>)
+        .filter(row => row.brokerId === brokerId && row.investorId === investorId);
+      const groupIds = new Set(rows.map(row => row.investorGroupId));
+      const [groupId] = groupIds;
+      if (groupIds.size !== 1 || !groupId)
+        throw new Error(`CTP investor group is unavailable for ${brokerId}/${investorId}`);
+      return groupId;
+    };
     let count = 0;
     for (const [productId, members] of groups) {
       for (const [contractId, currentProduct] of productByInstrument)
@@ -765,6 +788,10 @@ export class Trader extends TraderBase {
       type InvestorMarginRow = {
         instrumentId: string;
         hedgeFlag: string;
+        investorRange: string;
+        brokerId: string;
+        investorId: string;
+        investUnitId: string;
         isRelative: number;
         longMarginRatioByMoney: number;
         longMarginRatioByVolume: number;
@@ -781,15 +808,18 @@ export class Trader extends TraderBase {
           (row) => row.hedgeFlag === hedgeFlag && (row.instrumentId === productId ||
             productByInstrument.get(row.instrumentId) === productId)
         ), contextToken);
-      // Keyed by instrument: when CTP returns several rows for one instrument,
-      // the last row decides its schedule, not "any usable row".
-      const rates = new Map(investorRows.map(row => [row.instrumentId, row]));
+      if (investorGroupId === undefined &&
+          investorRows.some(row => row.investorRange === CTP_INVESTOR_RANGE_GROUP))
+        investorGroupId = await loadInvestorGroup();
+      const { rates, excluded } = selectCtpInvestorMarginRates(
+        investorRows, { brokerId, investorId, investorGroupId });
       for (const instrumentId of members) {
-      const investor = selectCtpProductRate(rates, instrumentId, productId);
+      const investor = selectCtpProductRate(rates, instrumentId, productId, excluded);
       const relative = investor.isRelative === 1;
       type ExchangeMarginRow = {
         instrumentId: string;
         hedgeFlag: string;
+        brokerId: string;
         longMarginRatioByMoney: number;
         longMarginRatioByVolume: number;
         shortMarginRatioByMoney: number;
@@ -805,7 +835,10 @@ export class Trader extends TraderBase {
               (row) => row.instrumentId === instrumentId && row.hedgeFlag === hedgeFlag
             ), contextToken)
         : [];
-      const base = baseRows.at(-1);
+      const baseRates = selectCtpExchangeMarginRates(baseRows, brokerId);
+      const base = baseRates.rates.get(instrumentId);
+      if (relative && !base)
+        throw ctpMarginRateMissing("exchange margin", `${instrumentId}/${hedgeFlag}`, baseRates.excluded);
       const component = (value: number) =>
         Number.isFinite(value) && value >= 0 && value < 1e300;
       const scheduleUsable = (row: {

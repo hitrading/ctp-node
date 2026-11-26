@@ -62,8 +62,8 @@ await rejects(c.submit(() => -1), "code -1", "submit rejects on non-zero rc");
 await rejects(c.submit(() => { throw new Error("submit boom"); }), "submit boom", "submit rejects when send() throws");
 
 // --- deliver(): request/response correlation ---
-const mk = (resolve, reject, single) => ({ rows: [], resolve, reject, single });
-let r1; const id1 = c.nextRequestId(); c.pending.set(id1, mk((v) => { r1 = v; }, () => {}, true));
+const mk = (resolve, reject, single, responseEvent) => ({ rows: [], resolve, reject, single, responseEvent });
+let r1; const id1 = c.nextRequestId(); c.pending.set(id1, mk((v) => { r1 = v; }, () => {}, true, 0x1004));
 c.deliver({ evt: 0x1004, value: { a: 1 }, options: { requestId: id1, isLast: true } });
 ok(r1 && r1.a === 1, "deliver resolves a single-row request by id");
 
@@ -71,43 +71,43 @@ const originalResolvedHook = c.onRequestResolved.bind(c);
 let hookError;
 c.onRequestResolved = () => { throw new Error("resolved hook failed"); };
 const hookId = c.nextRequestId();
-c.pending.set(hookId, mk(() => {}, (error) => { hookError = error; }, true));
+c.pending.set(hookId, mk(() => {}, (error) => { hookError = error; }, true, 0x1004));
 c.deliver({ evt: 0x1004, value: {}, options: { requestId: hookId, isLast: true } });
 c.onRequestResolved = originalResolvedHook;
 ok(/resolved hook failed/.test(msgOf(hookError)),
   "an internal resolved-response hook failure rejects instead of stranding its request");
 
-let r2; const id2 = c.nextRequestId(); c.pending.set(id2, mk((v) => { r2 = v; }, () => {}, false));
+let r2; const id2 = c.nextRequestId(); c.pending.set(id2, mk((v) => { r2 = v; }, () => {}, false, 0x1006));
 c.deliver({ evt: 0x1006, value: { n: 1 }, options: { requestId: id2, isLast: false } });
 c.deliver({ evt: 0x1006, value: { n: 2 }, options: { requestId: id2, isLast: true } });
 ok(Array.isArray(r2) && r2.length === 2, "deliver accumulates multi-row, then resolves on isLast");
 
-let e3; const id3 = c.nextRequestId(); c.pending.set(id3, mk(() => {}, (er) => { e3 = er; }, true));
+let e3; const id3 = c.nextRequestId(); c.pending.set(id3, mk(() => {}, (er) => { e3 = er; }, true, 0x1004));
 c.deliver({ evt: 0x1007, value: undefined, options: { requestId: id3, isLast: true, rspInfo: { errorId: 5, errorMsg: "bad" } } });
-ok(e3 && e3.errorId === 5, "deliver rejects on an rspInfo error response");
+ok(e3 && e3.errorId === 5, "deliver rejects on the generic rsp-error callback for this request id");
 
-let r4; const id4 = c.nextRequestId(); c.pending.set(id4, { ...mk((v) => { r4 = v; }, () => {}, true), zeroIdEvent: 0x1004 });
+let r4; const id4 = c.nextRequestId(); c.pending.set(id4, { ...mk((v) => { r4 = v; }, () => {}, true, 0x1004), zeroId: true });
 c.deliver({ evt: 0x1004, value: { z: 9 }, options: { requestId: undefined, isLast: true } });
 ok(r4 && r4.z === 9, "deliver zero-id fallback resolves the matching MD login");
 
 let loginResolved = false, logoutResolved = false;
 const loginId = c.nextRequestId(), logoutId = c.nextRequestId();
-c.pending.set(loginId, { ...mk(() => { loginResolved = true; }, () => {}, true), zeroIdEvent: 0x1004 });
-c.pending.set(logoutId, { ...mk(() => { logoutResolved = true; }, () => {}, true), zeroIdEvent: 0x1005 });
+c.pending.set(loginId, { ...mk(() => { loginResolved = true; }, () => {}, true, 0x1004), zeroId: true });
+c.pending.set(logoutId, { ...mk(() => { logoutResolved = true; }, () => {}, true, 0x1005), zeroId: true });
 c.deliver({ evt: 0x1005, value: {}, options: { requestId: undefined, isLast: true } });
 ok(!loginResolved && logoutResolved,
   "zero-id fallback cannot let a concurrent logout consume the login request");
 c.pending.delete(loginId);
 
 const unmatchedId = c.nextRequestId();
-c.pending.set(unmatchedId, mk(() => {}, () => {}, true));
+c.pending.set(unmatchedId, mk(() => {}, () => {}, true, 0x1004));
 c.deliver({ evt: 0x1004, value: {}, options: { requestId: unmatchedId + 1, isLast: true } });
 ok(c.pending.has(unmatchedId), "an unmatched response cannot settle another pending request");
 c.pending.delete(unmatchedId);
 
 let fallbackError; const fallbackId = c.nextRequestId();
 c.pending.set(fallbackId, {
-  ...mk(() => {}, (e) => { fallbackError = e; }, true),
+  ...mk(() => {}, (e) => { fallbackError = e; }, true, 0x1004),
   timer: setTimeout(() => {}, 1000),
 });
 c.deliver({ evt: 0x1007, value: undefined, options: {
@@ -115,6 +115,41 @@ c.deliver({ evt: 0x1007, value: undefined, options: {
 } });
 ok(/CTP error 77/.test(msgOf(fallbackError)),
   "an empty response error message uses the numeric CTP fallback and clears its timer");
+
+// Only the callback a request expects (or the generic rsp-error) may settle it.
+// A different success callback that happens to carry the same non-zero request
+// id must neither resolve nor reject it, nor contribute rows.
+{
+  let resolvedWith, rejectedWith;
+  const id = c.nextRequestId();
+  c.pending.set(id, mk((v) => { resolvedWith = v; }, (e) => { rejectedWith = e; }, true, 0x1004));
+  c.deliver({ evt: 0x1006, value: { foreign: true }, options: { requestId: id, isLast: true } });
+  c.deliver({ evt: 0x1008, value: undefined, options: {
+    requestId: id, isLast: true, rspInfo: { errorId: 9, errorMsg: "foreign failure" },
+  } });
+  ok(resolvedWith === undefined && rejectedWith === undefined && c.pending.has(id),
+    "a different callback type reusing the request id neither resolves nor rejects it");
+  c.deliver({ evt: 0x9998, value: {}, options: { requestId: id, isLast: true } });
+  ok(c.pending.get(id)?.ignoredEvent === "event:39320" && c.pending.get(id).rows.length === 0,
+    "an unmapped callback code reusing the request id is recorded for the timeout diagnostic only");
+  c.deliver({ evt: 0x1004, value: { own: true }, options: { requestId: id, isLast: true } });
+  ok(resolvedWith?.own === true && !c.pending.has(id),
+    "the expected callback type then settles the request with only its own rows");
+  let zeroResolved = false;
+  const zeroIdRequest = c.nextRequestId();
+  c.pending.set(zeroIdRequest, mk(() => { zeroResolved = true; }, () => {}, true, 0x1004));
+  c.deliver({ evt: 0x1004, value: {}, options: { requestId: undefined, isLast: true } });
+  ok(!zeroResolved && c.pending.has(zeroIdRequest),
+    "an id-0 response matches only a request that explicitly accepts id 0");
+  c.pending.delete(zeroIdRequest);
+}
+c.requestTimeoutMs = 10;
+await rejects(c.request((id) => {
+  queueMicrotask(() => c.deliver({ evt: 0x1006, value: {}, options: { requestId: id, isLast: true } }));
+  return 0;
+}, 0x1004, true), "ignored rsp-qry-multicast-instrument",
+"a request answered only by another callback type times out and names the ignored callback");
+c.requestTimeoutMs = 30000;
 
 let emitted = false; c.on("rtn-depth-market-data", () => { emitted = true; });
 c.deliver({ evt: 0x100c, value: { t: 1 }, options: { requestId: undefined, isLast: undefined } });
@@ -132,7 +167,7 @@ c.armRequestTimer = (...args) => { inlineTimerArms++; return realArmRequestTimer
 const inline = await c.request((id) => {
   c.deliver({ evt: 0x1004, value: { inline: true }, options: { requestId: id, isLast: true } });
   return 0;
-}, true);
+}, 0x1004, true);
 c.armRequestTimer = realArmRequestTimer;
 ok(inline?.inline === true && inlineTimerArms === 0,
   "an inline response settles without arming a dead request timeout");
@@ -193,7 +228,7 @@ const scheduledQuery = () => c.queryRequest((id) => {
     evt: 0x1006, value: { id }, options: { requestId: id, isLast: true },
   }));
   return 0;
-});
+}, 0x1006);
 const t0 = Date.now();
 await Promise.all([scheduledQuery(), scheduledQuery()]);
 ok(querySent.length === 2 && querySent[1] - querySent[0] >= 1000,

@@ -111,16 +111,31 @@ public:
   // none/unknown/older than maxReferenceAgeMs.
   double refPrice(const std::string &instrumentId) const;
 
-  // Instrument metadata from reqQryInstrument. Only futures/TAS carry the
-  // futures notional formula; other product classes (e.g. options) fail closed
-  // for the maxNotional cap, because a futures notional would misrepresent, say,
-  // an option premium. The multiplier is still recorded for every class.
-  void setInstrument(const std::string &instrumentId, double multiplier,
-                     char productClass);
-  // Called immediately before the corresponding CTP metadata query is sent.
-  // Old values must not remain usable while a refresh is in flight or when the
-  // refresh comes back empty/invalid. An empty id clears every instrument.
-  void invalidateInstrument(const std::string &instrumentId);
+  // Instrument metadata from reqQryInstrument, published per query. Only
+  // futures/TAS carry the futures notional formula; other product classes (e.g.
+  // options) fail closed for the maxNotional cap, because a futures notional
+  // would misrepresent, say, an option premium. The multiplier is still
+  // recorded for every class.
+  //
+  // beginInstrumentQuery runs immediately before ReqQryInstrument is sent: it
+  // clears the queried instrument (an empty id clears every instrument), so old
+  // values are unusable while the refresh is in flight, and opens the staging
+  // area of exactly this request id, superseding any earlier query. Rows of
+  // the current query are only staged; the successful final packet
+  // (finishInstrumentQuery(id, true)) publishes them together. An error packet
+  // (finishInstrumentQuery(id, false)), a front transition
+  // (abandonInstrumentQuery) or a newer query discards them, and rows or final
+  // packets carrying any other request id are ignored.
+  void beginInstrumentQuery(int requestId, const std::string &instrumentId);
+  // Stage one row; within a query the last row of an instrument wins, and an
+  // unusable multiplier clears that instrument on publication.
+  void stageInstrument(int requestId, const std::string &instrumentId,
+                       double multiplier, char productClass);
+  // A row whose InstrumentID cannot be read: its successful query publishes
+  // nothing and clears every instrument instead of leaving partial metadata.
+  void stageUnreadableInstrument(int requestId);
+  void finishInstrumentQuery(int requestId, bool succeeded);
+  void abandonInstrumentQuery();
 
   // Our login identity. A front transition invalidates it; account-bound order
   // inserts remain fail-closed until a concrete login response supplies the new
@@ -193,6 +208,12 @@ private:
     bool futuresNotional = false; // futures/TAS: price * volume * multiplier
   };
   std::unordered_map<std::string, InstrumentMeta> instruments_;
+  // The one instrument query whose rows may be staged (0 = none).
+  int instrumentQueryId_ = 0;
+  bool instrumentQueryUnreadable_ = false;
+  // multiplier 0 marks an instrument the query clears on publication.
+  std::unordered_map<std::string, InstrumentMeta> stagedInstruments_;
+  void resetInstrumentQueryLocked();
   int myFrontId_ = 0, mySessionId_ = 0;
   std::string myBrokerId_, myInvestorId_;
   // Standalone RiskEngine unit users can seed a session directly. Once a real

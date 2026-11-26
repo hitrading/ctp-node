@@ -370,14 +370,14 @@ export const TRADER_EVENTS: Map<number, string> = new Map([
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export abstract class TraderBase extends CtpClient {
   reqAuthenticate(req: Partial<S.ReqAuthenticate> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(1, this.encode(STRUCT_ID.ReqAuthenticate, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(1, this.encode(STRUCT_ID.ReqAuthenticate, req as Record<string, unknown>), id), 8192 + 4, true);
   }
   reqUserLogin(req: Partial<S.ReqUserLogin> = {}): Promise<unknown> {
     let cleanReq: Record<string, unknown>;
     let encoded: Uint8Array;
     try { cleanReq = copyOwnRecord(req, "reqUserLogin request"); encoded = this.encode(STRUCT_ID.ReqUserLogin, cleanReq); } catch (error) { return Promise.reject(error); }
     this.beginRequestContextTransition("trader session transition started");
-    return this.request((id) => this.native._req(2, encoded, id), true, undefined, true).then((value) => {
+    return this.request((id) => this.native._req(2, encoded, id), 8192 + 6, true, false, true).then((value) => {
       const row = value as { brokerId?: unknown; userId?: unknown; frontId?: unknown; sessionId?: unknown } | undefined;
       if (!row || typeof row.brokerId !== "string" || !row.brokerId || typeof row.userId !== "string" || !row.userId || !Number.isInteger(row.frontId) || Number(row.frontId) <= 0 || !Number.isInteger(row.sessionId) || Number(row.sessionId) === 0 || (typeof cleanReq.brokerId === "string" && cleanReq.brokerId && row.brokerId !== cleanReq.brokerId) || (typeof cleanReq.userId === "string" && cleanReq.userId && row.userId !== cleanReq.userId)) throw new Error("trader login response has missing or mismatched session identity");
       return value;
@@ -388,29 +388,29 @@ export abstract class TraderBase extends CtpClient {
     let encoded: Uint8Array;
     try { cleanReq = copyOwnRecord(req, "reqUserLogout request"); encoded = this.encode(STRUCT_ID.UserLogout, cleanReq); } catch (error) { return Promise.reject(error); }
     this.beginRequestContextTransition("trader session transition started");
-    return this.request((id) => this.native._req(3, encoded, id), true, undefined, true);
+    return this.request((id) => this.native._req(3, encoded, id), 8192 + 7, true, false, true);
   }
   reqUserPasswordUpdate(req: Partial<S.UserPasswordUpdate> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(4, this.encode(STRUCT_ID.UserPasswordUpdate, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(4, this.encode(STRUCT_ID.UserPasswordUpdate, req as Record<string, unknown>), id), 8192 + 8, true);
   }
   reqTradingAccountPasswordUpdate(req: Partial<S.TradingAccountPasswordUpdate> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(5, this.encode(STRUCT_ID.TradingAccountPasswordUpdate, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(5, this.encode(STRUCT_ID.TradingAccountPasswordUpdate, req as Record<string, unknown>), id), 8192 + 9, true);
   }
   reqUserAuthMethod(req: Partial<S.ReqUserAuthMethod> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(6, this.encode(STRUCT_ID.ReqUserAuthMethod, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(6, this.encode(STRUCT_ID.ReqUserAuthMethod, req as Record<string, unknown>), id), 8192 + 10, true);
   }
   reqGenUserCaptcha(req: Partial<S.ReqGenUserCaptcha> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(7, this.encode(STRUCT_ID.ReqGenUserCaptcha, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(7, this.encode(STRUCT_ID.ReqGenUserCaptcha, req as Record<string, unknown>), id), 8192 + 11, true);
   }
   reqGenUserText(req: Partial<S.ReqGenUserText> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(8, this.encode(STRUCT_ID.ReqGenUserText, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(8, this.encode(STRUCT_ID.ReqGenUserText, req as Record<string, unknown>), id), 8192 + 12, true);
   }
   reqUserLoginWithCaptcha(req: Partial<S.ReqUserLoginWithCaptcha> = {}): Promise<unknown> {
     let cleanReq: Record<string, unknown>;
     let encoded: Uint8Array;
     try { cleanReq = copyOwnRecord(req, "reqUserLoginWithCaptcha request"); encoded = this.encode(STRUCT_ID.ReqUserLoginWithCaptcha, cleanReq); } catch (error) { return Promise.reject(error); }
     this.beginRequestContextTransition("trader session transition started");
-    return this.request((id) => this.native._req(9, encoded, id), true, undefined, true).then((value) => {
+    return this.request((id) => this.native._req(9, encoded, id), 8192 + 6, true, false, true).then((value) => {
       const row = value as { brokerId?: unknown; userId?: unknown; frontId?: unknown; sessionId?: unknown } | undefined;
       if (!row || typeof row.brokerId !== "string" || !row.brokerId || typeof row.userId !== "string" || !row.userId || !Number.isInteger(row.frontId) || Number(row.frontId) <= 0 || !Number.isInteger(row.sessionId) || Number(row.sessionId) === 0 || (typeof cleanReq.brokerId === "string" && cleanReq.brokerId && row.brokerId !== cleanReq.brokerId) || (typeof cleanReq.userId === "string" && cleanReq.userId && row.userId !== cleanReq.userId)) throw new Error("trader login response has missing or mismatched session identity");
       return value;
@@ -421,7 +421,7 @@ export abstract class TraderBase extends CtpClient {
     let encoded: Uint8Array;
     try { cleanReq = copyOwnRecord(req, "reqUserLoginWithText request"); encoded = this.encode(STRUCT_ID.ReqUserLoginWithText, cleanReq); } catch (error) { return Promise.reject(error); }
     this.beginRequestContextTransition("trader session transition started");
-    return this.request((id) => this.native._req(10, encoded, id), true, undefined, true).then((value) => {
+    return this.request((id) => this.native._req(10, encoded, id), 8192 + 6, true, false, true).then((value) => {
       const row = value as { brokerId?: unknown; userId?: unknown; frontId?: unknown; sessionId?: unknown } | undefined;
       if (!row || typeof row.brokerId !== "string" || !row.brokerId || typeof row.userId !== "string" || !row.userId || !Number.isInteger(row.frontId) || Number(row.frontId) <= 0 || !Number.isInteger(row.sessionId) || Number(row.sessionId) === 0 || (typeof cleanReq.brokerId === "string" && cleanReq.brokerId && row.brokerId !== cleanReq.brokerId) || (typeof cleanReq.userId === "string" && cleanReq.userId && row.userId !== cleanReq.userId)) throw new Error("trader login response has missing or mismatched session identity");
       return value;
@@ -432,7 +432,7 @@ export abstract class TraderBase extends CtpClient {
     let encoded: Uint8Array;
     try { cleanReq = copyOwnRecord(req, "reqUserLoginWithOtp request"); encoded = this.encode(STRUCT_ID.ReqUserLoginWithOTP, cleanReq); } catch (error) { return Promise.reject(error); }
     this.beginRequestContextTransition("trader session transition started");
-    return this.request((id) => this.native._req(11, encoded, id), true, undefined, true).then((value) => {
+    return this.request((id) => this.native._req(11, encoded, id), 8192 + 6, true, false, true).then((value) => {
       const row = value as { brokerId?: unknown; userId?: unknown; frontId?: unknown; sessionId?: unknown } | undefined;
       if (!row || typeof row.brokerId !== "string" || !row.brokerId || typeof row.userId !== "string" || !row.userId || !Number.isInteger(row.frontId) || Number(row.frontId) <= 0 || !Number.isInteger(row.sessionId) || Number(row.sessionId) === 0 || (typeof cleanReq.brokerId === "string" && cleanReq.brokerId && row.brokerId !== cleanReq.brokerId) || (typeof cleanReq.userId === "string" && cleanReq.userId && row.userId !== cleanReq.userId)) throw new Error("trader login response has missing or mismatched session identity");
       return value;
@@ -442,10 +442,10 @@ export abstract class TraderBase extends CtpClient {
     return this.submit((id) => this.native._req(12, this.encode(STRUCT_ID.InputOrder, req as Record<string, unknown>), id));
   }
   reqParkedOrderInsert(req: Partial<S.ParkedOrder> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(13, this.encode(STRUCT_ID.ParkedOrder, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(13, this.encode(STRUCT_ID.ParkedOrder, req as Record<string, unknown>), id), 8192 + 14, true);
   }
   reqParkedOrderAction(req: Partial<S.ParkedOrderAction> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(14, this.encode(STRUCT_ID.ParkedOrderAction, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(14, this.encode(STRUCT_ID.ParkedOrderAction, req as Record<string, unknown>), id), 8192 + 15, true);
   }
   reqOrderAction(req: Partial<S.InputOrderAction> = {}): Promise<void> {
     return this.submit((id) => this.native._req(15, this.encode(STRUCT_ID.InputOrderAction, req as Record<string, unknown>), id));
@@ -453,16 +453,16 @@ export abstract class TraderBase extends CtpClient {
   reqQryMaxOrderVolume(req: Partial<S.QryMaxOrderVolume> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryMaxOrderVolume, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(16, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(16, encoded, id), 8192 + 17, false);
   }
-  reqSettlementInfoConfirm(req: Partial<S.SettlementInfoConfirm> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(17, this.encode(STRUCT_ID.SettlementInfoConfirm, req as Record<string, unknown>), id), true);
+  reqSettlementInfoConfirm(req: Partial<S.SettlementInfoConfirm> = {}): Promise<unknown[]> {
+    return this.request((id) => this.native._req(17, this.encode(STRUCT_ID.SettlementInfoConfirm, req as Record<string, unknown>), id), 8192 + 18, false);
   }
   reqRemoveParkedOrder(req: Partial<S.RemoveParkedOrder> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(18, this.encode(STRUCT_ID.RemoveParkedOrder, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(18, this.encode(STRUCT_ID.RemoveParkedOrder, req as Record<string, unknown>), id), 8192 + 19, true);
   }
   reqRemoveParkedOrderAction(req: Partial<S.RemoveParkedOrderAction> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(19, this.encode(STRUCT_ID.RemoveParkedOrderAction, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(19, this.encode(STRUCT_ID.RemoveParkedOrderAction, req as Record<string, unknown>), id), 8192 + 20, true);
   }
   reqExecOrderInsert(req: Partial<S.InputExecOrder> = {}): Promise<void> {
     return this.submit((id) => this.native._req(20, this.encode(STRUCT_ID.InputExecOrder, req as Record<string, unknown>), id));
@@ -494,468 +494,468 @@ export abstract class TraderBase extends CtpClient {
   reqQryOrder(req: Partial<S.QryOrder> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryOrder, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(29, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(29, encoded, id), 8192 + 30, false);
   }
   reqQryTrade(req: Partial<S.QryTrade> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryTrade, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(30, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(30, encoded, id), 8192 + 31, false);
   }
   reqQryInvestorPosition(req: Partial<S.QryInvestorPosition> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInvestorPosition, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(31, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(31, encoded, id), 8192 + 32, false);
   }
   reqQryTradingAccount(req: Partial<S.QryTradingAccount> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryTradingAccount, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(32, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(32, encoded, id), 8192 + 33, false);
   }
   reqQryInvestor(req: Partial<S.QryInvestor> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInvestor, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(33, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(33, encoded, id), 8192 + 34, false);
   }
   reqQryTradingCode(req: Partial<S.QryTradingCode> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryTradingCode, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(34, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(34, encoded, id), 8192 + 35, false);
   }
   reqQryInstrumentMarginRate(req: Partial<S.QryInstrumentMarginRate> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInstrumentMarginRate, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(35, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(35, encoded, id), 8192 + 36, false);
   }
   reqQryInstrumentCommissionRate(req: Partial<S.QryInstrumentCommissionRate> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInstrumentCommissionRate, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(36, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(36, encoded, id), 8192 + 37, false);
   }
   reqQryUserSession(req: Partial<S.QryUserSession> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryUserSession, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(37, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(37, encoded, id), 8192 + 38, false);
   }
   reqQryExchange(req: Partial<S.QryExchange> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryExchange, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(38, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(38, encoded, id), 8192 + 39, false);
   }
   reqQryProduct(req: Partial<S.QryProduct> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryProduct, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(39, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(39, encoded, id), 8192 + 40, false);
   }
   reqQryInstrument(req: Partial<S.QryInstrument> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInstrument, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(40, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(40, encoded, id), 8192 + 41, false);
   }
   reqQryDepthMarketData(req: Partial<S.QryDepthMarketData> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryDepthMarketData, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(41, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(41, encoded, id), 8192 + 42, false);
   }
   reqQryTraderOffer(req: Partial<S.QryTraderOffer> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryTraderOffer, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(42, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(42, encoded, id), 8192 + 43, false);
   }
   reqQrySettlementInfo(req: Partial<S.QrySettlementInfo> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QrySettlementInfo, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(43, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(43, encoded, id), 8192 + 44, false);
   }
   reqQryTransferBank(req: Partial<S.QryTransferBank> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryTransferBank, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(44, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(44, encoded, id), 8192 + 45, false);
   }
   reqQryInvestorPositionDetail(req: Partial<S.QryInvestorPositionDetail> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInvestorPositionDetail, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(45, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(45, encoded, id), 8192 + 46, false);
   }
   reqQryNotice(req: Partial<S.QryNotice> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryNotice, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(46, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(46, encoded, id), 8192 + 47, false);
   }
   reqQrySettlementInfoConfirm(req: Partial<S.QrySettlementInfoConfirm> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QrySettlementInfoConfirm, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(47, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(47, encoded, id), 8192 + 48, false);
   }
   reqQryInvestorPositionCombineDetail(req: Partial<S.QryInvestorPositionCombineDetail> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInvestorPositionCombineDetail, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(48, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(48, encoded, id), 8192 + 49, false);
   }
   reqQryCfmmcTradingAccountKey(req: Partial<S.QryCFMMCTradingAccountKey> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryCFMMCTradingAccountKey, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(49, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(49, encoded, id), 8192 + 50, false);
   }
   reqQryEWarrantOffset(req: Partial<S.QryEWarrantOffset> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryEWarrantOffset, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(50, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(50, encoded, id), 8192 + 51, false);
   }
   reqQryInvestorProductGroupMargin(req: Partial<S.QryInvestorProductGroupMargin> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInvestorProductGroupMargin, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(51, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(51, encoded, id), 8192 + 52, false);
   }
   reqQryExchangeMarginRate(req: Partial<S.QryExchangeMarginRate> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryExchangeMarginRate, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(52, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(52, encoded, id), 8192 + 53, false);
   }
   reqQryExchangeMarginRateAdjust(req: Partial<S.QryExchangeMarginRateAdjust> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryExchangeMarginRateAdjust, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(53, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(53, encoded, id), 8192 + 54, false);
   }
   reqQryExchangeRate(req: Partial<S.QryExchangeRate> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryExchangeRate, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(54, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(54, encoded, id), 8192 + 55, false);
   }
   reqQrySecAgentAcidMap(req: Partial<S.QrySecAgentACIDMap> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QrySecAgentACIDMap, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(55, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(55, encoded, id), 8192 + 56, false);
   }
   reqQryProductExchRate(req: Partial<S.QryProductExchRate> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryProductExchRate, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(56, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(56, encoded, id), 8192 + 57, false);
   }
   reqQryProductGroup(req: Partial<S.QryProductGroup> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryProductGroup, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(57, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(57, encoded, id), 8192 + 58, false);
   }
   reqQryMmInstrumentCommissionRate(req: Partial<S.QryMMInstrumentCommissionRate> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryMMInstrumentCommissionRate, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(58, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(58, encoded, id), 8192 + 59, false);
   }
   reqQryMmOptionInstrCommRate(req: Partial<S.QryMMOptionInstrCommRate> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryMMOptionInstrCommRate, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(59, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(59, encoded, id), 8192 + 60, false);
   }
   reqQryInstrumentOrderCommRate(req: Partial<S.QryInstrumentOrderCommRate> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInstrumentOrderCommRate, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(60, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(60, encoded, id), 8192 + 61, false);
   }
   reqQrySecAgentTradingAccount(req: Partial<S.QryTradingAccount> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryTradingAccount, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(61, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(61, encoded, id), 8192 + 62, false);
   }
   reqQrySecAgentCheckMode(req: Partial<S.QrySecAgentCheckMode> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QrySecAgentCheckMode, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(62, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(62, encoded, id), 8192 + 63, false);
   }
   reqQrySecAgentTradeInfo(req: Partial<S.QrySecAgentTradeInfo> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QrySecAgentTradeInfo, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(63, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(63, encoded, id), 8192 + 64, false);
   }
   reqQryOptionInstrTradeCost(req: Partial<S.QryOptionInstrTradeCost> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryOptionInstrTradeCost, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(64, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(64, encoded, id), 8192 + 65, false);
   }
   reqQryOptionInstrCommRate(req: Partial<S.QryOptionInstrCommRate> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryOptionInstrCommRate, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(65, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(65, encoded, id), 8192 + 66, false);
   }
   reqQryExecOrder(req: Partial<S.QryExecOrder> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryExecOrder, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(66, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(66, encoded, id), 8192 + 67, false);
   }
   reqQryForQuote(req: Partial<S.QryForQuote> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryForQuote, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(67, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(67, encoded, id), 8192 + 68, false);
   }
   reqQryQuote(req: Partial<S.QryQuote> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryQuote, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(68, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(68, encoded, id), 8192 + 69, false);
   }
   reqQryOptionSelfClose(req: Partial<S.QryOptionSelfClose> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryOptionSelfClose, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(69, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(69, encoded, id), 8192 + 70, false);
   }
   reqQryInvestUnit(req: Partial<S.QryInvestUnit> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInvestUnit, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(70, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(70, encoded, id), 8192 + 71, false);
   }
   reqQryCombInstrumentGuard(req: Partial<S.QryCombInstrumentGuard> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryCombInstrumentGuard, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(71, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(71, encoded, id), 8192 + 72, false);
   }
   reqQryCombAction(req: Partial<S.QryCombAction> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryCombAction, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(72, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(72, encoded, id), 8192 + 73, false);
   }
   reqQryTransferSerial(req: Partial<S.QryTransferSerial> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryTransferSerial, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(73, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(73, encoded, id), 8192 + 74, false);
   }
   reqQryAccountregister(req: Partial<S.QryAccountregister> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryAccountregister, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(74, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(74, encoded, id), 8192 + 75, false);
   }
   reqQryContractBank(req: Partial<S.QryContractBank> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryContractBank, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(75, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(75, encoded, id), 8192 + 100, false);
   }
   reqQryParkedOrder(req: Partial<S.QryParkedOrder> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryParkedOrder, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(76, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(76, encoded, id), 8192 + 101, false);
   }
   reqQryParkedOrderAction(req: Partial<S.QryParkedOrderAction> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryParkedOrderAction, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(77, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(77, encoded, id), 8192 + 102, false);
   }
   reqQryTradingNotice(req: Partial<S.QryTradingNotice> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryTradingNotice, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(78, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(78, encoded, id), 8192 + 103, false);
   }
   reqQryBrokerTradingParams(req: Partial<S.QryBrokerTradingParams> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryBrokerTradingParams, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(79, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(79, encoded, id), 8192 + 104, false);
   }
   reqQryBrokerTradingAlgos(req: Partial<S.QryBrokerTradingAlgos> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryBrokerTradingAlgos, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(80, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(80, encoded, id), 8192 + 105, false);
   }
   reqQueryCfmmcTradingAccountToken(req: Partial<S.QueryCFMMCTradingAccountToken> = {}): Promise<unknown> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QueryCFMMCTradingAccountToken, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(81, encoded, id), true);
+    return this.queryRequest((id) => this.native._req(81, encoded, id), 8192 + 106, true);
   }
   reqFromBankToFutureByFuture(req: Partial<S.ReqTransfer> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(82, this.encode(STRUCT_ID.ReqTransfer, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(82, this.encode(STRUCT_ID.ReqTransfer, req as Record<string, unknown>), id), 8192 + 123, true);
   }
   reqFromFutureToBankByFuture(req: Partial<S.ReqTransfer> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(83, this.encode(STRUCT_ID.ReqTransfer, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(83, this.encode(STRUCT_ID.ReqTransfer, req as Record<string, unknown>), id), 8192 + 124, true);
   }
   reqQueryBankAccountMoneyByFuture(req: Partial<S.ReqQueryAccount> = {}): Promise<unknown> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.ReqQueryAccount, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(84, encoded, id), true);
+    return this.queryRequest((id) => this.native._req(84, encoded, id), 8192 + 125, true);
   }
   reqQryClassifiedInstrument(req: Partial<S.QryClassifiedInstrument> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryClassifiedInstrument, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(85, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(85, encoded, id), 8192 + 129, false);
   }
   reqQryCombPromotionParam(req: Partial<S.QryCombPromotionParam> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryCombPromotionParam, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(86, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(86, encoded, id), 8192 + 130, false);
   }
   reqQryRiskSettleInvstPosition(req: Partial<S.QryRiskSettleInvstPosition> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryRiskSettleInvstPosition, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(87, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(87, encoded, id), 8192 + 131, false);
   }
   reqQryRiskSettleProductStatus(req: Partial<S.QryRiskSettleProductStatus> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryRiskSettleProductStatus, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(88, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(88, encoded, id), 8192 + 132, false);
   }
   reqQrySpbmFutureParameter(req: Partial<S.QrySPBMFutureParameter> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QrySPBMFutureParameter, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(89, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(89, encoded, id), 8192 + 133, false);
   }
   reqQrySpbmOptionParameter(req: Partial<S.QrySPBMOptionParameter> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QrySPBMOptionParameter, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(90, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(90, encoded, id), 8192 + 134, false);
   }
   reqQrySpbmIntraParameter(req: Partial<S.QrySPBMIntraParameter> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QrySPBMIntraParameter, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(91, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(91, encoded, id), 8192 + 135, false);
   }
   reqQrySpbmInterParameter(req: Partial<S.QrySPBMInterParameter> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QrySPBMInterParameter, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(92, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(92, encoded, id), 8192 + 136, false);
   }
   reqQrySpbmPortfDefinition(req: Partial<S.QrySPBMPortfDefinition> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QrySPBMPortfDefinition, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(93, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(93, encoded, id), 8192 + 137, false);
   }
   reqQrySpbmInvestorPortfDef(req: Partial<S.QrySPBMInvestorPortfDef> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QrySPBMInvestorPortfDef, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(94, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(94, encoded, id), 8192 + 138, false);
   }
   reqQryInvestorPortfMarginRatio(req: Partial<S.QryInvestorPortfMarginRatio> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInvestorPortfMarginRatio, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(95, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(95, encoded, id), 8192 + 139, false);
   }
   reqQryInvestorProdSpbmDetail(req: Partial<S.QryInvestorProdSPBMDetail> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInvestorProdSPBMDetail, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(96, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(96, encoded, id), 8192 + 140, false);
   }
   reqQryInvestorCommoditySpmmMargin(req: Partial<S.QryInvestorCommoditySPMMMargin> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInvestorCommoditySPMMMargin, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(97, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(97, encoded, id), 8192 + 141, false);
   }
   reqQryInvestorCommodityGroupSpmmMargin(req: Partial<S.QryInvestorCommodityGroupSPMMMargin> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInvestorCommodityGroupSPMMMargin, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(98, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(98, encoded, id), 8192 + 142, false);
   }
   reqQrySpmmInstParam(req: Partial<S.QrySPMMInstParam> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QrySPMMInstParam, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(99, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(99, encoded, id), 8192 + 143, false);
   }
   reqQrySpmmProductParam(req: Partial<S.QrySPMMProductParam> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QrySPMMProductParam, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(100, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(100, encoded, id), 8192 + 144, false);
   }
   reqQrySpbmAddOnInterParameter(req: Partial<S.QrySPBMAddOnInterParameter> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QrySPBMAddOnInterParameter, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(101, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(101, encoded, id), 8192 + 145, false);
   }
   reqQryRcamsCombProductInfo(req: Partial<S.QryRCAMSCombProductInfo> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryRCAMSCombProductInfo, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(102, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(102, encoded, id), 8192 + 146, false);
   }
   reqQryRcamsInstrParameter(req: Partial<S.QryRCAMSInstrParameter> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryRCAMSInstrParameter, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(103, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(103, encoded, id), 8192 + 147, false);
   }
   reqQryRcamsIntraParameter(req: Partial<S.QryRCAMSIntraParameter> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryRCAMSIntraParameter, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(104, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(104, encoded, id), 8192 + 148, false);
   }
   reqQryRcamsInterParameter(req: Partial<S.QryRCAMSInterParameter> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryRCAMSInterParameter, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(105, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(105, encoded, id), 8192 + 149, false);
   }
   reqQryRcamsShortOptAdjustParam(req: Partial<S.QryRCAMSShortOptAdjustParam> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryRCAMSShortOptAdjustParam, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(106, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(106, encoded, id), 8192 + 150, false);
   }
   reqQryRcamsInvestorCombPosition(req: Partial<S.QryRCAMSInvestorCombPosition> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryRCAMSInvestorCombPosition, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(107, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(107, encoded, id), 8192 + 151, false);
   }
   reqQryInvestorProdRcamsMargin(req: Partial<S.QryInvestorProdRCAMSMargin> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInvestorProdRCAMSMargin, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(108, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(108, encoded, id), 8192 + 152, false);
   }
   reqQryRuleInstrParameter(req: Partial<S.QryRULEInstrParameter> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryRULEInstrParameter, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(109, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(109, encoded, id), 8192 + 153, false);
   }
   reqQryRuleIntraParameter(req: Partial<S.QryRULEIntraParameter> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryRULEIntraParameter, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(110, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(110, encoded, id), 8192 + 154, false);
   }
   reqQryRuleInterParameter(req: Partial<S.QryRULEInterParameter> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryRULEInterParameter, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(111, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(111, encoded, id), 8192 + 155, false);
   }
   reqQryInvestorProdRuleMargin(req: Partial<S.QryInvestorProdRULEMargin> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInvestorProdRULEMargin, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(112, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(112, encoded, id), 8192 + 156, false);
   }
   reqQryInvestorPortfSetting(req: Partial<S.QryInvestorPortfSetting> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInvestorPortfSetting, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(113, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(113, encoded, id), 8192 + 157, false);
   }
   reqQryInvestorInfoCommRec(req: Partial<S.QryInvestorInfoCommRec> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryInvestorInfoCommRec, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(114, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(114, encoded, id), 8192 + 158, false);
   }
   reqQryCombLeg(req: Partial<S.QryCombLeg> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryCombLeg, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(115, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(115, encoded, id), 8192 + 159, false);
   }
   reqOffsetSetting(req: Partial<S.InputOffsetSetting> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(116, this.encode(STRUCT_ID.InputOffsetSetting, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(116, this.encode(STRUCT_ID.InputOffsetSetting, req as Record<string, unknown>), id), 8192 + 160, true);
   }
   reqCancelOffsetSetting(req: Partial<S.InputOffsetSetting> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(117, this.encode(STRUCT_ID.InputOffsetSetting, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(117, this.encode(STRUCT_ID.InputOffsetSetting, req as Record<string, unknown>), id), 8192 + 161, true);
   }
   reqQryOffsetSetting(req: Partial<S.QryOffsetSetting> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryOffsetSetting, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(118, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(118, encoded, id), 8192 + 165, false);
   }
   reqGenSmsCode(req: Partial<S.ReqGenSMSCode> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(119, this.encode(STRUCT_ID.ReqGenSMSCode, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(119, this.encode(STRUCT_ID.ReqGenSMSCode, req as Record<string, unknown>), id), 8192 + 166, true);
   }
   reqSpdApply(req: Partial<S.InputSpdApply> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(120, this.encode(STRUCT_ID.InputSpdApply, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(120, this.encode(STRUCT_ID.InputSpdApply, req as Record<string, unknown>), id), 8192 + 167, true);
   }
   reqSpdApplyAction(req: Partial<S.InputSpdApplyAction> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(121, this.encode(STRUCT_ID.InputSpdApplyAction, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(121, this.encode(STRUCT_ID.InputSpdApplyAction, req as Record<string, unknown>), id), 8192 + 168, true);
   }
   reqQrySpdApply(req: Partial<S.QrySpdApply> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QrySpdApply, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(122, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(122, encoded, id), 8192 + 169, false);
   }
   reqHedgeCfm(req: Partial<S.InputHedgeCfm> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(123, this.encode(STRUCT_ID.InputHedgeCfm, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(123, this.encode(STRUCT_ID.InputHedgeCfm, req as Record<string, unknown>), id), 8192 + 173, true);
   }
   reqHedgeCfmAction(req: Partial<S.InputHedgeCfmAction> = {}): Promise<unknown> {
-    return this.request((id) => this.native._req(124, this.encode(STRUCT_ID.InputHedgeCfmAction, req as Record<string, unknown>), id), true);
+    return this.request((id) => this.native._req(124, this.encode(STRUCT_ID.InputHedgeCfmAction, req as Record<string, unknown>), id), 8192 + 174, true);
   }
   reqQryHedgeCfm(req: Partial<S.QryHedgeCfm> = {}): Promise<unknown[]> {
     let encoded: Uint8Array;
     try { encoded = this.encode(STRUCT_ID.QryHedgeCfm, req as Record<string, unknown>); } catch (error) { return Promise.reject(error); }
-    return this.queryRequest((id) => this.native._req(125, encoded, id), false);
+    return this.queryRequest((id) => this.native._req(125, encoded, id), 8192 + 175, false);
   }
 }

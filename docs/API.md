@@ -408,7 +408,13 @@ automatic allocator may retain a higher process-local high-water mark.
 `session()` is also what binds the native order gate to the trading account. At
 handshake start the previous session's order authority is revoked; ordinary
 order inserts are accepted again only after this handshake has confirmed the new
-login's `frontId` / `sessionId` and the trading account (`investorId`). A newly
+login's `frontId` / `sessionId` and the trading account (`investorId`). The
+login itself is only the protocol step: the account is confirmed — natively and
+in JS together — after the settlement confirmation has succeeded (or right after
+login with `confirmSettlement: false`), and only if the connection has not
+changed meanwhile. While the confirmation is pending no account-bound send is
+accepted; if a later step (multiplier or margin-rate sync) fails, the
+confirmation is revoked again. A newly
 created Trader starts unconfirmed, and every front connect/disconnect and every
 login/logout request revokes the confirmation, so run `session()` on every
 `front-connected`. It does not query positions or working orders: keep those in
@@ -430,7 +436,7 @@ orders go out under a stale identity.
 | `password` | `string` | Password (required). |
 | `appId` | `string?` | Terminal app id for authentication. SimNow: `"simnow_client_test"`. |
 | `authCode` | `string?` | Terminal auth code. SimNow: 16 zeros. Omit both `appId`/`authCode` to skip authentication. |
-| `confirmSettlement` | `boolean?` | Confirm the settlement statement after login (real accounts must, or orders are rejected). Default `true`. |
+| `confirmSettlement` | `boolean?` | Confirm the settlement statement after login (real accounts must, or orders are rejected). Every echoed row that carries a broker or investor must name this account, otherwise the handshake fails; a legal empty final packet is accepted. Default `true`. |
 | `sync` | `object?` | `{ multipliers?: boolean \| string[], marginRates?: { instrumentIds: string[], hedgeFlag: "1" \| "2" \| "3" \| "5" \| "6" \| "7" } }`. Multipliers default on (all instruments; pass a list to scope it, `false` to skip); margin rates require an explicit bounded contract list and hedge flag because CTP needs one query per contract and keeps separate schedules per hedge flag. |
 
 ```ts
@@ -458,10 +464,13 @@ await td.session({ brokerId: "9999", userId: "id", password: "pw", confirmSettle
 
 > Each step wraps the matching request/sync method: `reqAuthenticate(...)` →
 > `reqUserLogin(...)` → `reqSettlementInfoConfirm(...)` → `syncMultipliers()` →
-> `syncMarginRates([...])`. A hand-rolled flow can query, but only `session()`
-> confirms the trading account to the native order gate: ordinary order inserts
-> after a hand-rolled login are refused with `-10001`
-> (`order account does not match confirmed session`).
+> `syncMarginRates([...])`. A hand-rolled flow can run raw queries and
+> `syncMultipliers()`, but a bare `reqUserLogin()` publishes no order account:
+> only `session()` confirms the trading account, natively and in JS.
+> `reqOrderInsert()` and `syncMarginRates()` after a hand-rolled login are
+> refused (`a confirmed Trader login is required` /
+> `syncMarginRates requires a successful trader login first`), and the native
+> gate refuses other account-bound sends (`session account not confirmed`).
 
 ### `td.reqOrderInsert(req?)` → `Promise<void>`
 
@@ -595,6 +604,10 @@ has a usable multiplier.
 Starting an instrument refresh invalidates the old multiplier before the request
 is sent, so a failed/empty refresh cannot leave stale metadata active; an enabled
 `maxNotional` check fails closed for that contract until a refresh succeeds.
+The rows of an instrument query are staged natively under its request id and
+take effect together only when that query's final packet arrives without an
+error. An error final packet, a front connect/disconnect, or a newer instrument
+query discards them, and late rows of a superseded query are ignored.
 
 ```ts
 const n = await td.syncMultipliers();          // all instruments
@@ -612,6 +625,15 @@ takes precedence over the product row even when it is invalid. A second
 exchange-base query is issued only for a relative (`IsRelative`) row, and the
 relative investor schedule is added to that base. The shared scheduler spaces
 every query. Returns the number of contracts with a usable schedule.
+
+Every row is checked for ownership before use (6.0+): it must carry your
+BrokerID and no InvestUnitID; a single-investor row must name your InvestorID,
+an investor-group row your InvestorGroupID (queried once with `reqQryInvestor`
+only when such a row appears), and an all-investors row is accepted whatever
+wildcard InvestorID it carries. When several ranges cover a contract the most
+specific wins (single > group > all); disagreeing rows of one range, an
+exchange-base row of another broker or an unavailable investor group fail the
+sync rather than silently taking the last row.
 
 Schedules previously resolved for the requested contracts (and for the other
 contracts of the same products) are dropped during the refresh. The new
@@ -738,7 +760,8 @@ td.trackMarketData(md);
 
 > Contract multipliers and product classes (for `maxNotional`) are **not** fed
 > from JS: the C++ risk engine sources them directly from CTP's
-> `OnRspQryInstrument` callback, so any `reqQryInstrument` keeps them current
+> `OnRspQryInstrument` callback; a `reqQryInstrument` refreshes them when its
+> final packet arrives without an error
 > (see [`syncMultipliers`](#tdsyncmultipliersinstrumentids--promisenumber)).
 > Margin schedules are not used by the native gate at all;
 > [`syncMarginRates()`](#tdsyncmarginratesinstrumentids-hedgeflag--promisenumber)
@@ -919,8 +942,15 @@ Every CTP request maps to a camelCase method on `Trader` taking a
   cancels) → `Promise<void>`, resolving on **submission** (CTP returns no success
   response; outcomes arrive via `rtn-*` events). They reject if the send is
   refused.
-- **All other requests** → `Promise<...>` resolving with the single `OnRsp*`
-  response row.
+- **All other requests** → `Promise<...>` resolving with the first row of their
+  own `OnRsp*` response; `reqSettlementInfoConfirm` resolves every echoed row
+  (`Promise<unknown[]>`) so the caller can check the account on each.
+
+A request is settled only by its own response callback (`ReqXxx` → `OnRspXxx`;
+every login variant → `OnRspUserLogin`) or by the generic `rsp-error`. Another
+callback type that carries the same request id is still emitted as an event but
+neither resolves, rejects nor feeds the request; if nothing else arrives, the
+request times out and the error names the ignored callback.
 
 ```ts
 // authenticate / login / confirm manually (what session() automates)

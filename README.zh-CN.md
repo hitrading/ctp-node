@@ -111,11 +111,12 @@ td.on("front-connected", async () => {
     },
   });
 
-  // ……或在需要更细控制时手写各步。手写登录可以查询，但只有 session() 会为普通报单确认账户：
+  // ……或在需要更细控制时手写各步。裸登录不会发布报单账户：可以查询（原始 reqQry*、syncMultipliers），
+  // 但只有 session() 会在结算单确认之后为报单与 syncMarginRates() 确认账户：
   //   await td.reqAuthenticate({ brokerId, userId, appId, authCode });
   //   await td.reqUserLogin({ brokerId, userId, password });
-  //   await td.reqSettlementInfoConfirm({ brokerId, investorId }); // 实盘账户
-  //   await td.syncMultipliers(); await td.syncMarginRates(["rb2510"]);
+  //   await td.reqSettlementInfoConfirm({ brokerId, investorId }); // 实盘账户；返回全部回执行
+  //   await td.syncMultipliers(); // 查询成功完成时乘数才生效
 
   // 基于 Promise 的查询返回所有行。你自己的账本从这里建立，此后用 rtn-order / rtn-trade 保持最新：
   const positions = await td.reqQryInvestorPosition({ brokerId, investorId });

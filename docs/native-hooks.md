@@ -56,14 +56,17 @@ an order was refused.
    - **Data sourcing: metadata and the session identity flow directly from SPI
      callbacks into C++.** Special-cased in `scripts/codegen/generate-trader.mjs`
      (emitted into `traderspi.gen.cc` / `traderreq.gen.cc`):
-     - contract multipliers and product classes ← `OnRspQryInstrument`
-       (internal `setInstrument`); sending a `reqQryInstrument` first
-       invalidates the queried contract (or all contracts), so a failed or empty
-       refresh cannot leave stale metadata active
+     - contract multipliers and product classes ← `OnRspQryInstrument`;
+       sending a `reqQryInstrument` first invalidates the queried contract (or
+       all contracts) and opens a staging area for that request id. Rows are
+       staged and published together only by the query's error-free final
+       packet; an error final packet, a front connect/disconnect or a newer
+       instrument query discards them, so a failed, partial or superseded
+       refresh cannot leave stale or partial metadata active
      - login session (FrontID/SessionID/BrokerID) ← `OnRspUserLogin`, correlated
        with the request id of the latest login request; `session()` then confirms
-       the trading account (InvestorID) before any ordinary order insert is
-       accepted. Front connect/disconnect and every login/logout request revoke
+       the trading account (InvestorID), after the settlement confirmation,
+       before any ordinary order insert is accepted. Front connect/disconnect and every login/logout request revoke
        the confirmation.
 
      So any `reqQryInstrument` keeps multipliers current — there is no JS

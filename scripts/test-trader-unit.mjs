@@ -54,44 +54,40 @@ for (const removed of [
   ok(typeof td.native[removed] === "undefined", `native ${removed} is absent`);
 }
 
-// Only a response correlated to a currently pending request may update the
-// confirmed JS identity. Public stale protocol events remain observable but
-// have no identity side effect.
+// A matched login response is only the protocol login: it advances the
+// automatic OrderRef high-water mark (and, with a complete identity, the query
+// pacing) but never publishes the order account. Only session() confirms the
+// account, after the settlement confirmation. Stale protocol events have no
+// side effect at all.
 const resolveSession = (event, value) => td.onRequestResolved(event, value, {});
+const seedConfirmedIdentity = () => { td.broker = "9999"; td.investor = "u"; };
 resolveSession("rsp-user-login", { brokerId: "9999", userId: "u", maxOrderRef: "100", frontId: 1, sessionId: 7 });
+ok(td.broker === undefined && td.investor === undefined && td.orderRefSeq === 100,
+  "a matched complete login advances the OrderRef high-water mark but publishes no order account");
 resolveSession("rsp-unrelated", { brokerId: "bad", userId: "bad" });
 td.emit("rsp-user-login", { brokerId: "bad", userId: "bad", maxOrderRef: "999" },
   { rspInfo: { errorId: 7, errorMsg: "rejected" } });
 resolveSession("rsp-user-login", {});
 resolveSession("rsp-user-login", undefined);
 resolveSession("rsp-user-login", { maxOrderRef: "  101  " });
-ok(td.broker === "9999" && td.investor === "u" && td.orderRefSeq === 101,
-  "matched login caches partial/empty payloads and trims padded maxOrderRef while stale events are ignored");
+resolveSession("rsp-user-login", { brokerId: "7777", userId: "z", maxOrderRef: "5", frontId: 0, sessionId: 7 });
+resolveSession("rsp-user-login", { brokerId: "7777", userId: "z", frontId: 1, sessionId: 0 });
+resolveSession("rsp-user-login", { brokerId: "7777", userId: "z" });
+ok(td.broker === undefined && td.investor === undefined && td.orderRefSeq === 101,
+  "partial/empty login payloads trim a padded maxOrderRef and stale events are ignored, still without an order account");
+seedConfirmedIdentity();
+resolveSession("rsp-user-login", {
+  brokerId: "7777", userId: "z", maxOrderRef: "6", frontId: 1, sessionId: -2147483647,
+});
+ok(td.broker === "9999" && td.investor === "u",
+  "a matched login response (operator UserID) never overwrites the confirmed order account");
 td.emit("rsp-user-logout", undefined, { rspInfo: { errorId: 7, errorMsg: "rejected" } });
 ok(td.broker === "9999" && td.investor === "u",
   "an unmatched/rejected logout event preserves the confirmed session identity");
 resolveSession("rsp-user-logout", undefined);
 ok(td.broker === undefined && td.investor === undefined,
   "a matched successful logout revokes the confirmed session identity");
-// A login row lacking a usable FrontID/SessionID is rejected by the generated
-// login validator; onRequestResolved must NOT cache broker/investor from it,
-// otherwise a rejected login would strand a stale confirmed identity.
-resolveSession("rsp-user-login", { brokerId: "7777", userId: "z", maxOrderRef: "5", frontId: 0, sessionId: 7 });
-ok(td.broker === undefined && td.investor === undefined,
-  "a login row with FrontID 0 does not cache a confirmed identity (matches the login validator)");
-resolveSession("rsp-user-login", { brokerId: "7777", userId: "z", frontId: 1, sessionId: 0 });
-ok(td.broker === undefined && td.investor === undefined,
-  "a login row with SessionID 0 does not cache a confirmed identity");
-resolveSession("rsp-user-login", {
-  brokerId: "7777", userId: "z", maxOrderRef: "6", frontId: 1, sessionId: -2147483647,
-});
-ok(td.broker === "7777" && td.investor === "z",
-  "a non-zero negative signed SessionID caches the confirmed identity");
-resolveSession("rsp-user-logout", undefined);
-resolveSession("rsp-user-login", { brokerId: "7777", userId: "z" });
-ok(td.broker === undefined && td.investor === undefined,
-  "a login row without FrontID/SessionID at all does not cache a confirmed identity");
-resolveSession("rsp-user-login", { brokerId: "9999", userId: "u", maxOrderRef: "101", frontId: 1, sessionId: 7 });
+seedConfirmedIdentity();
 await rejects(td.reqUserLogout({ brokerId: 1 }),
   "a malformed logout is rejected before changing the confirmed identity");
 ok(td.broker === "9999" && td.investor === "u",
@@ -112,7 +108,7 @@ td.native = nativeForIdentityTransition;
 identityRevokingLogout.catch(() => {});
 ok(td.broker === undefined && td.investor === undefined,
   "a valid login/logout transition revokes confirmed identity immediately");
-resolveSession("rsp-user-login", { brokerId: "9999", userId: "u", maxOrderRef: "101", frontId: 1, sessionId: 7 });
+seedConfirmedIdentity();
 
 // The generated login validator must preserve CTP's signed 32-bit SessionID.
 // SimNow can return a negative non-zero value; only zero means no session.
@@ -196,7 +192,7 @@ const snapshottedQuery = td.reqQryInstrument(delayedQueryRequest);
 ok(queryAccessorReads === 1, "generated query parameters are encoded at invocation");
 td.emit("front-disconnected", 1, {});
 await rejects(snapshottedQuery, "queued query is revoked on a front transition");
-resolveSession("rsp-user-login", { brokerId: "9999", userId: "u", maxOrderRef: "101", frontId: 1, sessionId: 7 });
+seedConfirmedIdentity();
 
 // risk config + finite guards.
 td.setRiskLimits({ maxOrderVolume: 10, maxNotional: 1e6, maxPriceDeviation: 0.02, maxOrdersPerSec: 5, orderBurst: 10, maxCloseOrdersPerSec: 2, closeOrderBurst: 2, maxReferenceAgeMs: 5000 });
@@ -396,6 +392,43 @@ td.trackMarketData(md);
   const closing = await submit("1", "1");
   ok(refusedByOfflineVendor(closing, "order"),
     `a risk-reducing close passes every native gate while the multiplier is missing (${closing?.message ?? "sent"})`);
+  // OnRspQryInstrument rows are staged per request id inside C++. Only the
+  // successful final packet of the newest instrument query publishes them; an
+  // error final packet or a superseded query's late rows never become usable.
+  // Offline the vendor refuses the send, but the generated request has already
+  // opened the query under its id, which the injected callbacks then answer.
+  tdTrack.queryIntervalMs = 0;
+  const openInstrumentQuery = async () => {
+    await tdTrack.reqQryInstrument({ instrumentId: "rb2510" }).catch(() => {});
+    return tdTrack.reqSeq;
+  };
+  const row = (id, instrumentId, multiplier, errorId, isLast) =>
+    tdTrack.native._injectTestInstrumentRow(id, instrumentId, multiplier, errorId, isLast);
+  const notionalOutcome = async () => {
+    const error = await submit("0", "0");
+    return refusedByOfflineVendor(error, "order") ? "published"
+      : /instrument multiplier unavailable/.test(error?.message ?? "") ? "unavailable" : String(error?.message);
+  };
+  const failed = await openInstrumentQuery();
+  row(failed, "rb2510", 10, 0, false);
+  row(failed, null, 0, 90, true);
+  ok(await notionalOutcome() === "unavailable",
+    "rows of an instrument query that ends in an error packet never publish a multiplier");
+  const succeeded = await openInstrumentQuery();
+  row(succeeded, "rb2510", 10, 0, false);
+  const beforeLast = await notionalOutcome();
+  row(succeeded, null, 0, 0, true);
+  ok(beforeLast === "unavailable" && await notionalOutcome() === "published",
+    "a multiplier stays staged until the query's successful final packet publishes it");
+  const superseded = await openInstrumentQuery();
+  const newest = await openInstrumentQuery();
+  row(superseded, "rb2510", 10, 0, true);
+  const afterLateRow = await notionalOutcome();
+  row(newest, "rb2510", 10, 0, true);
+  ok(afterLateRow === "unavailable" && await notionalOutcome() === "published",
+    "a superseded query's late rows are discarded while the newest query publishes its own");
+  throws(() => tdTrack.native._injectTestInstrumentRow(1, 2, 3, 4, 5),
+    "the instrument-row test hook validates its arguments");
   tdTrack.close(); mdTrack.close();
 }
 
@@ -439,11 +472,14 @@ td.reqUserLogin = async () => {
   td.native._injectTestLogin(1, 7, "9999", "u");
   return { brokerId: "9999", userId: "u", maxOrderRef: "100", frontId: 1, sessionId: 7 };
 };
-td.reqSettlementInfoConfirm = async () => ({});
+td.reqSettlementInfoConfirm = async () => [];
 td.reqQryInstrument = async () => [{ instrumentId: "rb2510", productId: "rb", volumeMultiple: 10 }, { instrumentId: "x", volumeMultiple: 0 }];
 let exchangeMarginQueries = 0;
+// Rate rows carry the confirmed account's attribution (broker 9999, single
+// investor u, no invest unit); attribution rules live in test-product-rates.
+const ownMarginRow = { investorRange: "3", brokerId: "9999", investorId: "u", investUnitId: "" };
 td.reqQryExchangeMarginRate = async (request) => { exchangeMarginQueries++; return [{
-  instrumentId: "rb2510", hedgeFlag: request.hedgeFlag,
+  instrumentId: "rb2510", hedgeFlag: request.hedgeFlag, brokerId: "9999",
   longMarginRatioByMoney: 0.08, longMarginRatioByVolume: 0,
   shortMarginRatioByMoney: 0.08, shortMarginRatioByVolume: 0,
 }]; };
@@ -451,6 +487,7 @@ const sessionMarginHedgeFlags = [];
 td.reqQryInstrumentMarginRate = async (request) => {
   sessionMarginHedgeFlags.push(request.hedgeFlag);
   return [{
+  ...ownMarginRow,
   instrumentId: "rb2510", hedgeFlag: request.hedgeFlag,
   isRelative: 0,
   longMarginRatioByMoney: 0.1, longMarginRatioByVolume: 0,
@@ -557,7 +594,7 @@ td.reqUserLogin = () => new Promise((resolve) => {
   resolve({ brokerId: "9999", userId: "u", frontId: 1, sessionId: 7 });
   td.emit("front-disconnected", 123, {});
 });
-td.reqSettlementInfoConfirm = async () => { staleSettlementCalls++; return {}; };
+td.reqSettlementInfoConfirm = async () => { staleSettlementCalls++; return []; };
 await rejects(td.session({
   brokerId: "9999", userId: "u", password: "p",
   sync: { multipliers: false },
@@ -635,7 +672,7 @@ td.investor = "u";
   const requests = [];
   td.reqQryInstrument = async () => [{ instrumentId: 'rb2510', productId: 'rb', volumeMultiple: 10 },
     { instrumentId: 'rb2601', productId: 'rb', volumeMultiple: 10 }, { instrumentId: 'hc2610', productId: 'hc', volumeMultiple: 10 }];
-  const rate = (instrumentId, isRelative = 0) => ({ instrumentId, hedgeFlag: '1', isRelative,
+  const rate = (instrumentId, isRelative = 0) => ({ ...ownMarginRow, instrumentId, hedgeFlag: '1', isRelative,
     longMarginRatioByMoney: .1, longMarginRatioByVolume: 0, shortMarginRatioByMoney: .1, shortMarginRatioByVolume: 0 });
   td.reqQryInstrumentMarginRate = async q => { requests.push(q.instrumentId); return [rate('rb2601'), rate('rb'), rate('hc2610'), { ...rate('rb'), hedgeFlag: '2' }]; };
   ok(await td.syncMarginRates(['rb2510', 'rb2601']) === 2 && requests.join() === 'rb', 'one product query covers multiple months and filters unrelated rows');
@@ -662,6 +699,7 @@ ok((await td.syncMarginRates(["rb2510"])) === 1,
 ok(exchangeMarginQueries === 0,
   "syncMarginRates skips the exchange-base query for an absolute investor row");
 td.reqQryInstrumentMarginRate = async () => [{
+  ...ownMarginRow,
   instrumentId: "rb2510", hedgeFlag: "1",
   isRelative: 1,
   longMarginRatioByMoney: 0, longMarginRatioByVolume: 0,
@@ -673,19 +711,26 @@ ok(td.readMarginRates(['rb2510'], '1')[0].longMarginRatioByMoney === .08, 'relat
 ok(exchangeMarginQueries === 1,
   "syncMarginRates queries the exchange base exactly once for a relative row");
 td.reqQryInstrumentMarginRate = async () => [{
+  ...ownMarginRow,
   instrumentId: "rb2510", hedgeFlag: "1",
   isRelative: 0,
   longMarginRatioByMoney: 0.1, longMarginRatioByVolume: 0,
   shortMarginRatioByMoney: 0.1, shortMarginRatioByVolume: 0,
 }, {
+  ...ownMarginRow,
   instrumentId: "rb2510", hedgeFlag: "1",
   isRelative: 0,
   longMarginRatioByMoney: Number.MAX_VALUE, longMarginRatioByVolume: 0,
   shortMarginRatioByMoney: 0.1, shortMarginRatioByVolume: 0,
 }];
-ok((await td.syncMarginRates(["rb2510"])) === 0,
-  "syncMarginRates judges the last row of a duplicated instrument, not an earlier usable row");
+{
+  let conflict;
+  await td.syncMarginRates(["rb2510"]).catch((e) => { conflict = e; });
+  ok(conflict?.message === "CTP investor margin rate rb2510 (range 3) has conflicting rows",
+    "syncMarginRates fails on disagreeing rows of one instrument instead of taking either row");
+}
 td.reqQryInstrumentMarginRate = async () => [{
+  ...ownMarginRow,
   instrumentId: "rb2510", hedgeFlag: "1", isRelative: 0,
   longMarginRatioByMoney: 0, longMarginRatioByVolume: 0,
   shortMarginRatioByMoney: 0.1, shortMarginRatioByVolume: 0,
@@ -693,6 +738,7 @@ td.reqQryInstrumentMarginRate = async () => [{
 ok((await td.syncMarginRates(["rb2510"])) === 0,
   "syncMarginRates rejects a schedule with no positive long-side component");
 td.reqQryInstrumentMarginRate = async () => [{
+  ...ownMarginRow,
   instrumentId: "rb2510", hedgeFlag: "1", isRelative: 0,
   longMarginRatioByMoney: 0.1, longMarginRatioByVolume: 0,
   shortMarginRatioByMoney: 0, shortMarginRatioByVolume: 0,

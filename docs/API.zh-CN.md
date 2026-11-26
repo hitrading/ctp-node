@@ -365,7 +365,9 @@ const td2 = new Trader("./flow/td/", ["tcp://182.254.243.31:30002", "tcp://182.2
 
 `session()` 也是把原生报单闸门绑定到交易账户的那一步。握手一开始就会撤销上一会话的报单权限；
 只有本次握手确认了新登录的 `frontId` / `sessionId` 和交易账户（`investorId`）之后，普通报单才会
-重新被接受。新建的 Trader 处于未确认状态，每次前置连接/断开以及每次登录/登出请求都会撤销确认，
+重新被接受。登录本身只是协议步骤：账户要等结算单确认成功之后（或 `confirmSettlement: false` 时
+紧接登录之后）、且期间连接没有换代，才在原生与 JS 两侧同时确认。确认之前不接受任何绑定账户的发送；
+确认之后的步骤（乘数或保证金率同步）失败时，确认会被重新撤销。新建的 Trader 处于未确认状态，每次前置连接/断开以及每次登录/登出请求都会撤销确认，
 所以每次 `front-connected` 都要跑 `session()`。它不查询持仓或挂单：这些放在你自己的账本里（见
 [账户事实与账户级上限](#账户事实与账户级上限)）。
 
@@ -384,7 +386,7 @@ const td2 = new Trader("./flow/td/", ["tcp://182.254.243.31:30002", "tcp://182.2
 | `password` | `string` | 密码（必填）。 |
 | `appId` | `string?` | 终端认证的 app id。SimNow：`"simnow_client_test"`。 |
 | `authCode` | `string?` | 终端授权码。SimNow：16 个零。两者都省略则跳过认证。 |
-| `confirmSettlement` | `boolean?` | 登录后确认结算单（实盘账户必须确认，否则报单被拒）。默认 `true`。 |
+| `confirmSettlement` | `boolean?` | 登录后确认结算单（实盘账户必须确认，否则报单被拒）。每一条带经纪商或投资者字段的回执行都必须是本账户，否则握手失败；合法的空末包可以接受。默认 `true`。 |
 | `sync` | `object?` | `{ multipliers?: boolean \| string[], marginRates?: { instrumentIds: string[], hedgeFlag: "1" \| "2" \| "3" \| "5" \| "6" \| "7" } }`。乘数默认拉取（全部合约；传列表限定范围，传 `false` 跳过）；保证金表必须显式给出有限合约列表和套保标志，因为 CTP 每个合约需一次查询，且不同套保标志使用不同费率表。 |
 
 ```ts
@@ -411,9 +413,11 @@ await td.session({ brokerId: "9999", userId: "id", password: "pw", confirmSettle
 ```
 
 > 每一步都包装了对应的请求/同步方法：`reqAuthenticate(...)` → `reqUserLogin(...)` →
-> `reqSettlementInfoConfirm(...)` → `syncMultipliers()` → `syncMarginRates([...])`。手写流程可以查询，
-> 但只有 `session()` 会向原生报单闸门确认交易账户：手写登录之后的普通报单会以 `-10001`
-> （`order account does not match confirmed session`）被拒。
+> `reqSettlementInfoConfirm(...)` → `syncMultipliers()` → `syncMarginRates([...])`。手写流程可以发
+> 原始查询和 `syncMultipliers()`，但裸 `reqUserLogin()` 不会发布报单账户：只有 `session()` 会在
+> 原生与 JS 两侧确认交易账户。手写登录之后 `reqOrderInsert()` 与 `syncMarginRates()` 会被拒绝
+> （`a confirmed Trader login is required` / `syncMarginRates requires a successful trader login first`），
+> 其余绑定账户的发送由原生闸门拒绝（`session account not confirmed`）。
 
 ### `td.reqOrderInsert(req?)` → `Promise<void>`
 
@@ -527,7 +531,9 @@ const trades = await td.reqQryTrade({ brokerId: "9999", investorId: "id" });
 冷启动限频重试，返回最终回调行含可用乘数的合约数量。
 
 合约刷新会在请求发出前先使旧乘数失效，因此失败/空刷新不会继续使用陈旧元数据；在刷新成功前，
-已启用的 `maxNotional` 校验对该合约 fail-closed。
+已启用的 `maxNotional` 校验对该合约 fail-closed。一次合约查询的各行先按请求号在原生侧暂存，
+只有该查询的末包无错误到达时才一起生效；错误末包、前置连接/断开或更新的合约查询都会丢弃暂存行，
+被取代查询的迟到行也会被忽略。
 
 ```ts
 const n = await td.syncMultipliers();           // 全部合约
@@ -541,6 +547,12 @@ console.log(n, "个合约带有乘数");
 保证金——原生闸门不使用它们。投资者表按当次完整合约目录中的 ProductID 分组查询；合约级行优先于
 品种行，即使合约级行非法也不继承品种设置。仅当返回 `IsRelative` 时才追加交易所基础表查询，相对
 投资者表与该基础表逐字段相加。共享调度器会自动间隔发送每笔查询。返回得到可用费率的合约数量。
+
+6.0 起每一行先核对归属再使用：经纪商必须是本账户、投资单元必须为空；单一投资者范围的行须是本
+投资者号，投资者组范围的行须是本账户的投资者组号（仅在出现此类行时用 `reqQryInvestor` 查询一次），
+全部投资者范围的行不核对投资者字段（可能是通配值）。同一合约有多个适用范围时取最具体的一种（单一投资者
+＞投资者组＞全部）；同一范围数值冲突、交易所基础表来自其他经纪商或取不到投资者组时，整次同步失败，
+不再静默取最后一行。
 
 刷新过程中会丢弃所请求合约（以及同品种其他合约）此前解析的结果；只有全部所请求合约都解析成功时
 才保留新结果，部分成功的刷新一个都不保留。
@@ -640,7 +652,7 @@ td.trackMarketData(md);
 ```
 
 > 合约乘数与产品类别（用于 `maxNotional`）**不**从 JS 喂入：C++ 风控引擎直接从 CTP 的
-> `OnRspQryInstrument` 回调里取，所以任何 `reqQryInstrument` 都会保持它们最新（见
+> `OnRspQryInstrument` 回调里取，`reqQryInstrument` 的末包无错误到达时即刷新它们（见
 > [`syncMultipliers`](#tdsyncmultipliersinstrumentids--promisenumber)）。原生闸门完全不使用保证金率；
 > [`syncMarginRates()`](#tdsyncmarginratesinstrumentids-hedgeflag--promisenumber) 与 `readMarginRates()`
 > 只为你自己的计算解析它们。缺失元数据不会被猜测。
@@ -798,7 +810,12 @@ td.on("error", (err) => console.error("一个交易处理函数抛了异常:", e
   `reqQuoteInsert`、`reqForQuoteInsert`、`reqOptionSelfCloseInsert`、`reqCombActionInsert`，以及
   它们的 `*Action` 撤单）→ `Promise<void>`，**提交成功即** resolve（CTP 不返回成功响应；结果
   通过 `rtn-*` 事件到达）。发送被拒则 reject。
-- **其余所有请求** → `Promise<...>`，以单条 `OnRsp*` 响应行 resolve。
+- **其余所有请求** → `Promise<...>`，以其自身 `OnRsp*` 响应的首行 resolve；`reqSettlementInfoConfirm`
+  返回全部回执行（`Promise<unknown[]>`），便于调用方逐行核对账户。
+
+请求只会被它自己的响应回调（`ReqXxx` → `OnRspXxx`；各种登录方式 → `OnRspUserLogin`）或通用
+`rsp-error` 结束。带着相同请求号的其他类型回调仍照常作为事件发出，但不会 resolve、reject 该请求，
+也不会计入其结果行；若之后再无应答，请求按空闲超时失败，错误信息会写明被忽略的回调。
 
 ```ts
 // 手动认证 / 登录 / 确认（session() 自动化的就是这些）

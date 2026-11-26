@@ -159,6 +159,7 @@ private:
   Napi::Value Close(const Napi::CallbackInfo &info);
   Napi::Value BurstEvents(const Napi::CallbackInfo &info);
   Napi::Value InjectTestLogin(const Napi::CallbackInfo &info);
+  Napi::Value InjectTestInstrumentRow(const Napi::CallbackInfo &info);
 
   // Non-null only between _start() (CreateFtdcTraderApi + Init) and close():
   // CTP's Release() on an instance that never ran Init() joins a reactor thread
@@ -196,6 +197,8 @@ Napi::Function Trader::Init(Napi::Env env) {
           InstanceMethod("_beginSessionHandshake",
                          &Trader::BeginSessionHandshake),
           InstanceMethod("_injectTestLogin", &Trader::InjectTestLogin),
+          InstanceMethod("_injectTestInstrumentRow",
+                         &Trader::InjectTestInstrumentRow),
           InstanceMethod("_attachSnapshot", &Trader::AttachSnapshot),
           InstanceMethod("_start", &Trader::Start),
           InstanceMethod("_buffer", &Trader::Buffer),
@@ -523,7 +526,9 @@ Napi::Value Trader::BeginSessionHandshake(const Napi::CallbackInfo &info) {
 // acceptLoginSession, as the SPI OnRspUserLogin would, then confirmSessionAccount
 // as the high-level session() does), so an order test can reach a confirmed
 // account without a live front. Gated behind CTP_NODE_TEST_HOOKS like the other
-// injection hooks; returns whether the confirmed session was established.
+// injection hooks; returns whether the session was established. An optional
+// fifth argument false stops after the login (as the SPI does), leaving the
+// account unconfirmed until session() confirms it.
 Napi::Value Trader::InjectTestLogin(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
   if (!testHooksEnabled(env)) {
@@ -550,8 +555,50 @@ Napi::Value Trader::InjectTestLogin(const Napi::CallbackInfo &info) {
   if (!risk_.acceptLoginSession(kTestLoginRequestId, frontId, sessionId,
                                 brokerId, investorId))
     return Napi::Boolean::New(env, false);
+  if (info.Length() > 4 && !info[4].ToBoolean().Value())
+    return Napi::Boolean::New(env, true);
   return Napi::Boolean::New(
       env, risk_.confirmSessionAccount(frontId, sessionId, brokerId, investorId));
+}
+
+// Test-only: deliver one OnRspQryInstrument callback through the real generated
+// SPI (requestId, instrumentId or null for an empty packet, multiplier, CTP
+// error id, isLast), so the native multiplier publication can be exercised
+// offline. Gated behind CTP_NODE_TEST_HOOKS like the other injection hooks.
+Napi::Value Trader::InjectTestInstrumentRow(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  if (!testHooksEnabled(env)) {
+    Napi::Error::New(env,
+                     "test hook disabled; set CTP_NODE_TEST_HOOKS=1 explicitly")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  if (info.Length() < 5 || !isInt32Number(info[0]) ||
+      !(info[1].IsString() || info[1].IsNull()) || !isInt32Number(info[2]) ||
+      !isInt32Number(info[3]) || !info[4].IsBoolean()) {
+    Napi::TypeError::New(
+        env, "_injectTestInstrumentRow requires requestId, instrumentId|null, multiplier, errorId, isLast")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  if (!spi_ || closed_)
+    return env.Undefined();
+  CThostFtdcInstrumentField row;
+  std::memset(&row, 0, sizeof(row));
+  const bool hasRow = info[1].IsString();
+  if (hasRow) {
+    const std::string id = info[1].As<Napi::String>().Utf8Value();
+    std::strncpy(row.InstrumentID, id.c_str(), sizeof(row.InstrumentID) - 1);
+    row.VolumeMultiple = info[2].As<Napi::Number>().Int32Value();
+    row.ProductClass = '1';
+  }
+  CThostFtdcRspInfoField rsp;
+  std::memset(&rsp, 0, sizeof(rsp));
+  rsp.ErrorID = info[3].As<Napi::Number>().Int32Value();
+  spi_->OnRspQryInstrument(hasRow ? &row : nullptr, &rsp,
+                           info[0].As<Napi::Number>().Int32Value(),
+                           info[4].As<Napi::Boolean>().Value());
+  return env.Undefined();
 }
 
 // (mdSnapshotExternal) - attach a MarketData's snapshot cache so the deviation

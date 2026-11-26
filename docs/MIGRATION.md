@@ -1,3 +1,27 @@
+# Migrating 5.x → 6.0
+
+6.0 tightens the session handshake, response matching and rate attribution.
+Three changes are breaking for code that relied on the old behaviour:
+
+| Change | Before (5.x) | Now (6.0) | What to do |
+|---|---|---|---|
+| `reqSettlementInfoConfirm()` result | the first response row (object) | **every** response row (`unknown[]`); a legal empty final packet adds none | iterate the rows; reading `.brokerId` on the result now yields `undefined` |
+| `CtpClient` subclasses: `request(send, responseEvent)` / `queryRequest(send, responseEvent)` | second argument was `single: boolean` | second argument is the **expected response event**; only that callback (or `rsp-error`) settles the request, a same-id callback of another type is ignored and named in the idle-timeout error | pass the event code of the matching `OnRspXxx` (the generated `reqXxx` methods already do) |
+| Raw `reqUserLogin()` | the login response published `broker`/`investor` (the operator UserID as investor) | publishes no order-capable identity; `reqOrderInsert()` and `syncMarginRates()` after a hand-rolled login reject with `a confirmed Trader login is required` / `syncMarginRates requires a successful trader login first` | use `session()`, which confirms the trading account natively and in JS only after the settlement confirmation succeeds (or is explicitly skipped) on the same connection |
+
+Other 6.0 behaviour:
+
+- `session()` checks every settlement-confirmation row: a row naming another
+  broker or investor fails the handshake. A failure after the account
+  confirmation (metadata or margin sync) revokes the session identity.
+- `syncMarginRates()` checks each rate row's ownership and investor range (see
+  *Behaviour changes* below and the API reference).
+- Instrument metadata from `reqQryInstrument()` is staged per request and
+  published only on the query's successful final packet; an error packet, a
+  disconnect or a newer catalog query discards it. While a full catalog query
+  is in flight, an enabled `maxNotional` check refuses openings for lack of a
+  multiplier, so run catalog/margin synchronization before you start trading.
+
 # Migrating 4.x → 5.0
 
 5.0 makes the native pre-trade risk gate **stateless** and removes armed orders
@@ -82,6 +106,18 @@ Unchanged: `-10001` (stateless gate refusal), `-10002` (rate limit), `-10006`
 - **`syncMarginRates()` feeds only `readMarginRates()`.** Schedules are resolved
   in TypeScript for your own calculations; they are no longer published to the
   native gate.
+- **From 6.0 `syncMarginRates()` checks each rate row's attribution and
+  investor range.** An investor row must name the confirmed BrokerID, carry an
+  empty InvestUnitID (the Trader sends no investment unit) and match by
+  InvestorRange: single investor (`3`) — the confirmed InvestorID; investor
+  group (`2`) — the account's InvestorGroupID from `reqQryInvestor`, queried
+  only when such a row appears, and unavailable means the sync fails; all
+  investors (`1`) — no InvestorID check, since it may carry a wildcard. Single
+  investor overrides group, which overrides all; a contract row still overrides
+  a product row. An exchange base row must name the confirmed BrokerID.
+  Disagreeing rows of one range (or of one contract's exchange base) fail the
+  sync instead of the last row winning, and the "rate is missing" error names
+  the rows excluded as belonging to other accounts.
 - The 3.0 notes below about the position ledger turning uncertain after close
   fills, and about calling `syncPositions()` after `syncOrders()`, no longer
   apply.
@@ -105,19 +141,43 @@ await td.session({ ...creds }); // also synced orders + positions into the C++ l
 
 // 5.0
 td.setRiskLimits({ maxOrderVolume: 10 }); // per-order gates stay in C++
-await td.session({ ...creds });
-const acct = { brokerId: creds.brokerId, investorId: creds.userId };
-book.reset(
-  await td.reqQryInvestorPosition(acct),
-  await td.reqQryOrder(acct),
-  (await td.reqQryTradingAccount(acct))[0],
-);
-td.on("rtn-order", (o) => book.onOrder(o));
-td.on("rtn-trade", (t) => book.onTrade(t));
-// ...and check your caps against `book` before every reqOrderInsert().
+// Subscribe first and buffer: returns keep arriving while the queries run.
+let ready = false, generation = 0;
+const pending = [];
+td.on("rtn-order", (o) => (ready ? book.onOrder(o) : pending.push(["order", o])));
+td.on("rtn-trade", (t) => (ready ? book.onTrade(t) : pending.push(["trade", t])));
+td.on("front-connected", () => {
+  generation++; ready = false; pending.length = 0; // the new snapshot supersedes them
+  /* ...and run this recovery again */
+});
+
+const started = generation;
+// The confirmed trading account. Pass investorId explicitly whenever the login
+// UserID is not the InvestorID; never query with the login user ID.
+const { identity } = await td.session({ ...creds, investorId: creds.investorId });
+const acct = { brokerId: creds.brokerId, investorId: creds.investorId };
+const orders = await td.reqQryOrder(acct);
+const trades = await td.reqQryTrade(acct);
+const positions = await td.reqQryInvestorPosition(acct);
+const funds = (await td.reqQryTradingAccount({ ...acct, currencyId: "CNY" })).filter((f) =>
+  f.brokerId === acct.brokerId && f.accountId === acct.investorId && f.currencyId === "CNY");
+if (generation !== started || funds.length !== 1 || funds[0].tradingDay !== td.tradingDay)
+  throw new Error("snapshot does not belong to this session; run the recovery again");
+book.reset({ identity, orders, trades, positions, funds: funds[0] });
+// Merge the buffered returns (the book dedupes by order and trade identity)...
+for (const [kind, row] of pending.splice(0))
+  kind === "order" ? book.onOrder(row) : book.onTrade(row);
+ready = true; // ...and only then admit new exposure.
+// Check your caps against `book` before every reqOrderInsert().
 ```
 
-`book` stands for your own ledger; the binding does not provide one.
+`book` stands for your own ledger; the binding does not provide one. Query with
+the investor ID that `session()` confirmed, not the login user ID, and never
+take the first funds record unchecked: verify its broker, account, currency and
+trading day, and that no reconnect (a new session generation) happened while
+the snapshot was taken. A return that arrives while the queries run may or may
+not be in the snapshot; merge the buffered returns, deduplicated, before
+opening new exposure.
 
 Armed order:
 
@@ -126,26 +186,27 @@ Armed order:
 td.arm(md, { instrumentId: "rb2610", side: "sell", triggerPrice: 3450, order: exitOrder });
 
 // 5.0
-let exitSent = false;
-md.on("rtn-depth-market-data", async (t) => {
-  if (exitSent || t.instrumentId !== "rb2610") return;
+md.on("rtn-depth-market-data", (t) => {
+  if (t.instrumentId !== "rb2610") return;
   const bid = t.bidPrice1;
   if (!(bid > 0 && bid < 1e300) || bid < 3450) return; // skip the DBL_MAX no-bid sentinel
-  exitSent = true;
-  try {
-    // run your own pre-send checks here, then:
-    await td.reqOrderInsert(exitOrder);
-  } catch (e) {
-    exitSent = false; // re-arm on the next tick
-    console.warn("exit order refused:", e);
-  }
+  // Hand the intent to your one trading gateway; the trigger never sends.
+  gateway.submit({ intentKey: "rb2610-exit", order: exitOrder });
 });
 ```
 
-`reqOrderInsert()` throws synchronously when the order fails parameter
-validation and rejects its Promise when the send is refused. A bare `.catch()`
-misses the first case: the throw escapes the handler and `exitSent` stays
-`true`. `await` inside `try` handles both.
+A resolved `reqOrderInsert()` means only that the request was sent. The
+counter rejects asynchronously — `rsp-order-insert` / `err-rtn-order-insert`,
+or an `rtn-order` that ends cancelled — and that rejection never reaches a
+`catch` around the call. (The call itself throws synchronously on invalid
+parameters and rejects when the local send is refused: risk gate, rate limit,
+API return code. Those orders were definitely not sent.) So the gateway, the
+only component that calls `reqOrderInsert()`, owns the order: it deduplicates
+intents by key, tracks each sent order by its identity (FrontID, SessionID,
+OrderRef) until a terminal `rtn-order` or a rejection, and reports a definite
+rejection to the strategy, which decides whether to retry. When delivery is in
+doubt — a disconnect or timeout after the send — the gateway first reconciles
+with `reqQryOrder` and the returns, and never blindly sends again.
 
 # Migrating 2.x → 3.0
 

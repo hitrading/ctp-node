@@ -10,14 +10,18 @@ static int eid(CThostFtdcRspInfoField *e) { return e ? e->ErrorID : 0; }
 static const char *emsg(CThostFtdcRspInfoField *e) { return (e && e->ErrorID) ? e->ErrorMsg : ""; }
 
 void TraderSpi::OnFrontConnected() {
-  if (risk_)
+  if (risk_) {
     risk_->invalidateSession();
+    risk_->abandonInstrumentQuery();
+  }
   ch_->push(ET_FrontConnected, 0, -1, 0, "", -1, nullptr, 0);
 }
 
 void TraderSpi::OnFrontDisconnected(int arg) {
-  if (risk_)
+  if (risk_) {
     risk_->invalidateSession();
+    risk_->abandonInstrumentQuery();
+  }
   ch_->push(ET_FrontDisconnected, 0, -1, 0, "", -2, &arg, sizeof(arg));
 }
 
@@ -180,12 +184,20 @@ void TraderSpi::OnRspQryProduct(CThostFtdcProductField *p, CThostFtdcRspInfoFiel
 }
 
 void TraderSpi::OnRspQryInstrument(CThostFtdcInstrumentField *p, CThostFtdcRspInfoField *e, int id, bool last) {
-  if (p && risk_ && eid(e) == 0) {
-    std::string instrument;
-    if (boundedCtpField(p->InstrumentID, instrument))
-      risk_->setInstrument(instrument, p->VolumeMultiple, p->ProductClass);
-    else
-      risk_->invalidateInstrument("");
+  if (risk_) {
+    if (eid(e) != 0) {
+      risk_->finishInstrumentQuery(id, false);
+    } else {
+      if (p) {
+        std::string instrument;
+        if (boundedCtpField(p->InstrumentID, instrument))
+          risk_->stageInstrument(id, instrument, p->VolumeMultiple, p->ProductClass);
+        else
+          risk_->stageUnreadableInstrument(id);
+      }
+      if (last)
+        risk_->finishInstrumentQuery(id, true);
+    }
   }
   ch_->push(ET_RspQryInstrument, id, last ? 1 : 0, eid(e), emsg(e), p ? SID_Instrument : -1, p, p ? (int)sizeof(*p) : 0);
 }

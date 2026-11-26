@@ -4,8 +4,9 @@
  * Owns the JS side of the data plane: on each coalesced doorbell it drains the
  * whole ring, decodes each record straight from the zero-copy buffer into a
  * plain object, and dispatches it - emitting a named event AND, when the record
- * is a response to an in-flight request (matched by requestId), settling its
- * Promise (accumulating multi-row query responses until isLast).
+ * is the expected response callback (or the generic rsp-error) of an in-flight
+ * request (matched by requestId), settling its Promise (accumulating multi-row
+ * responses until isLast).
  *
  * Slot header offsets must match src/native/channel.h.
  */
@@ -82,9 +83,15 @@ interface Pending {
   resolve: (v: unknown) => void;
   reject: (e: unknown) => void;
   single: boolean;
-  zeroIdEvent?: number;
+  /** The one response callback (event code) that answers this request. */
+  responseEvent: number;
+  /** SimNow MD login/logout answer with requestId 0; such a request also
+   *  accepts an id-0 response of its own responseEvent. */
+  zeroId?: boolean;
   sessionTransition?: boolean;
   timer?: ReturnType<typeof setTimeout>;
+  /** Another callback type that reused this request id (diagnostic only). */
+  ignoredEvent?: string;
 }
 
 /** One decoded ring record. The keep-newest path decodes a claimed batch before
@@ -146,6 +153,8 @@ export abstract class CtpClient extends EventEmitter {
   private readonly layouts: StructLayout[];
   private readonly decoders: (Decoder | undefined)[];
   private readonly events: Map<number, string>;
+  /** Code of the generic OnRspError callback, which may reject any request. */
+  private readonly errorEvent: number;
   private view!: DataView;
   private u8!: Uint8Array;
   private slotSize = 0;
@@ -203,6 +212,9 @@ export abstract class CtpClient extends EventEmitter {
     this.layouts = parseLayouts(layoutBlob);
     this.decoders = new Array(this.layouts.length);
     this.events = events;
+    let errorEvent = -1;
+    for (const [code, name] of events) if (name === "rsp-error") errorEvent = code;
+    this.errorEvent = errorEvent;
     // A front transition invalidates both in-flight requests and query calls
     // which are still queued behind them. This also covers providers that emit
     // a new connected event without a preceding disconnected callback.
@@ -456,10 +468,10 @@ export abstract class CtpClient extends EventEmitter {
 
     // Responses (Rsp*) carry isLast (0/1 -> boolean); streaming pushes (Rtn*,
     // front, …) use -1 (-> undefined). Correlate a response to its pending
-    // request by requestId. SimNow's MD login/logout don't echo the id (server
-    // requestId 0), so those requests tag themselves with the event they await
-    // (zeroIdEvent); an id-0 response then matches only the pending request
-    // expecting THIS event — see the id-0 branch below.
+    // request by requestId, and let only that request's own response callback
+    // (or the generic rsp-error) settle it. SimNow's MD login/logout don't echo
+    // the id (server requestId 0), so those requests also accept an id-0
+    // response of their own event — see the id-0 branch below.
     if (options.isLast !== undefined && this.pending.size > 0) {
       let key: number | undefined =
         reqId !== 0 && this.pending.has(reqId) ? reqId : undefined;
@@ -468,7 +480,7 @@ export abstract class CtpClient extends EventEmitter {
         // that explicitly expects THIS response event; a concurrent logout can
         // no longer consume a login response (or vice versa).
         for (const [candidate, pending] of this.pending) {
-          if (pending.zeroIdEvent === evt) {
+          if (pending.zeroId === true && pending.responseEvent === evt) {
             key = candidate;
             break;
           }
@@ -476,7 +488,13 @@ export abstract class CtpClient extends EventEmitter {
       }
       const p = key !== undefined ? this.pending.get(key) : undefined;
       if (p && key !== undefined) {
-        if (rspInfo) {
+        if (evt !== p.responseEvent && evt !== this.errorEvent) {
+          // Another callback type carrying the same request id (e.g. a late
+          // response to a reused id) is not this request's answer: it neither
+          // settles nor feeds it. The request keeps waiting for its own
+          // callback; the idle timeout names what was ignored.
+          p.ignoredEvent = this.events.get(evt) ?? `event:${evt}`;
+        } else if (rspInfo) {
           if (p.timer) clearTimeout(p.timer);
           this.pending.delete(key);
           p.reject(
@@ -566,13 +584,16 @@ export abstract class CtpClient extends EventEmitter {
   }
 
   /**
-   * Send a request and resolve when its response arrives (matched by id).
-   * `single` resolves with the one row; otherwise with the accumulated rows.
+   * Send a request and resolve when its response callback `responseEvent`
+   * arrives (matched by id; the generic rsp-error may reject it). `single`
+   * resolves with the first row; otherwise with the accumulated rows.
+   * `zeroId` additionally accepts an id-0 response of `responseEvent`.
    */
   protected request<T>(
     send: (id: number) => number,
+    responseEvent: number,
     single = false,
-    zeroIdEvent?: number,
+    zeroId = false,
     sessionTransition = false
   ): Promise<T> {
     if (this.closing) return Promise.reject(new Error("client closed"));
@@ -583,7 +604,8 @@ export abstract class CtpClient extends EventEmitter {
         resolve: resolve as (v: unknown) => void,
         reject,
         single,
-        zeroIdEvent,
+        responseEvent,
+        zeroId,
         sessionTransition,
       };
       this.pending.set(id, entry);
@@ -616,6 +638,7 @@ export abstract class CtpClient extends EventEmitter {
    *  only the higher-level sync helpers. */
   protected queryRequest<T>(
     send: (id: number) => number,
+    responseEvent: number,
     single = false
   ): Promise<T> {
     if (this.closing) return Promise.reject(new Error("client closed"));
@@ -675,7 +698,7 @@ export abstract class CtpClient extends EventEmitter {
       }
       this.lastQuerySentAt = performance.now();
       try {
-        resolveOuter(await this.request<T>(send, single));
+        resolveOuter(await this.request<T>(send, responseEvent, single));
       } catch (error) {
         rejectOuter(error);
       }
@@ -716,7 +739,11 @@ export abstract class CtpClient extends EventEmitter {
         this.armRequestTimer(id, entry);
         return;
       }
-      if (this.pending.delete(id)) entry.reject(new Error("request timed out"));
+      if (this.pending.delete(id)) {
+        entry.reject(new Error(entry.ignoredEvent === undefined
+          ? "request timed out"
+          : `request timed out (ignored ${entry.ignoredEvent} carrying the same request id)`));
+      }
     }, this.requestTimeoutMs);
     if (typeof entry.timer.unref === "function") entry.timer.unref();
   }

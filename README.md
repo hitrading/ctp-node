@@ -118,12 +118,14 @@ td.on("front-connected", async () => {
     },
   });
 
-  // ...or hand-roll the steps if you need finer control. A hand-rolled login can
-  // query, but only session() confirms the account for ordinary order inserts:
+  // ...or hand-roll the steps if you need finer control. A bare login publishes
+  // no order account: it can query (raw reqQry*, syncMultipliers), but only
+  // session() confirms the account - after the settlement confirmation - for
+  // order inserts and syncMarginRates():
   //   await td.reqAuthenticate({ brokerId, userId, appId, authCode });
   //   await td.reqUserLogin({ brokerId, userId, password });
-  //   await td.reqSettlementInfoConfirm({ brokerId, investorId }); // real accounts
-  //   await td.syncMultipliers(); await td.syncMarginRates(["rb2510"]);
+  //   await td.reqSettlementInfoConfirm({ brokerId, investorId }); // real accounts; resolves every echoed row
+  //   await td.syncMultipliers(); // multipliers apply when the query completes successfully
 
   // Promise-based queries return all rows. Your own books start here, and stay
   // current from rtn-order / rtn-trade:

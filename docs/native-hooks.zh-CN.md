@@ -38,10 +38,11 @@
      启用时其他产品类别会 fail-closed。
    - **数据来源：元数据和会话身份直接从 SPI 回调进入 C++。** 在
      `scripts/codegen/generate-trader.mjs` 中特判（生成进 `traderspi.gen.cc` / `traderreq.gen.cc`）：
-     - 合约乘数与产品类别 ← `OnRspQryInstrument`（内部 `setInstrument`）；发送 `reqQryInstrument` 前
-       会先使所查合约（或全部合约）失效，因此失败/空刷新不会留下陈旧元数据
+     - 合约乘数与产品类别 ← `OnRspQryInstrument`；发送 `reqQryInstrument` 前会先使所查合约（或全部合约）
+       失效，并为该请求号开启暂存区。各行先暂存，只有该查询无错误的末包才一起发布；错误末包、前置连接/断开或
+       更新的合约查询都会丢弃暂存行，因此失败、残缺或被取代的刷新不会留下陈旧或残缺的元数据
      - 登录会话（FrontID/SessionID/BrokerID）← `OnRspUserLogin`，按最近一次登录请求的 request id
-       关联；随后 `session()` 确认交易账户（InvestorID），之后普通报单才会被接受。前置连接/断开以及每次
+       关联；随后 `session()` 在结算单确认之后确认交易账户（InvestorID），之后普通报单才会被接受。前置连接/断开以及每次
        登录/登出请求都会撤销该确认。
 
      因此任何 `reqQryInstrument` 都会保持乘数最新——无需 JS 转交元数据。保证金率不喂给原生闸门。
