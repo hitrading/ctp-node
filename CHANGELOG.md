@@ -1,3 +1,19 @@
+# [5.0.0-rc.1](https://github.com/hitrading/ctp-node/compare/v4.3.1-rc.1...v5.0.0-rc.1) (2026-11-26)
+
+
+* feat(risk)!: 原生风控只保留无状态闸门，删除持仓委托账本与预授权单 ([a043bf3](https://github.com/hitrading/ctp-node/commit/a043bf337a32fd61bb06ffc5347c000dbd0af9cc))
+
+
+### BREAKING CHANGES
+
+* 删除 RiskLimits.maxAccountMargin、setInstrumentPositionLimit(s)、
+setInstrumentMarginLimit(s)、syncPositions、syncOrders、seedPositions、seedFromPositions、
+resetPositions、accountMargin、arm、armStats、MarketData.attachArm，以及 session() 的
+sync.positions/sync.orders 选项与结果字段；返回码 -10003、-10004、-10005、-10007 退役。
+迁移说明见 docs/MIGRATION.md。
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 ## [4.3.1-rc.1](https://github.com/hitrading/ctp-node/compare/v4.3.0...v4.3.1-rc.1) (2026-11-25)
 
 
