@@ -129,6 +129,17 @@ function assertObjectKeys(
     if (!allowed.has(key)) throw new TypeError(`${label}: unknown field ${key}`);
 }
 
+/** CTP echoes the confirmed statement's account. An echo naming another broker
+ *  or investor does not confirm this session's account; an empty echo (a legal
+ *  successful response) proves nothing either way and is accepted. */
+function assertSettlementEcho(echo: unknown, account: { brokerId: string; investorId: string }): void {
+  const row = (echo ?? {}) as { brokerId?: unknown; investorId?: unknown };
+  const differs = (value: unknown, expected: string) =>
+    typeof value === "string" && value !== "" && value !== expected;
+  if (differs(row.brokerId, account.brokerId) || differs(row.investorId, account.investorId))
+    throw new Error("settlement confirmation names a different broker or investor");
+}
+
 const SESSION_KEYS = new Set([
   "brokerId", "userId", "investorId", "password", "appId", "authCode",
   "confirmSettlement", "sync",
@@ -405,12 +416,37 @@ export class Trader extends TraderBase {
     this.broker = brokerId;
     this.investor = investorId;
     if (maxRef > this.orderRefSeq) this.orderRefSeq = maxRef;
-    if (cleanOpts.confirmSettlement ?? true) {
-      // idempotent: confirming an already-confirmed statement is fine
-      await this.reqSettlementInfoConfirm({ brokerId, investorId });
-      this.assertRequestContext(contextToken, "trader session settlement confirmation");
+    try {
+      return await this.finishSession(cleanOpts.confirmSettlement ?? true, cleanSync,
+        { brokerId, investorId }, login, maxRef, contextToken);
+    } catch (error) {
+      // Any failure after the native account confirmation leaves no usable
+      // session: revoke the JS identity and the native confirmed account,
+      // unless a newer connection epoch already owns them.
+      if (this.requestContextToken() === contextToken) {
+        this.broker = undefined;
+        this.investor = undefined;
+        this.native._beginSessionHandshake();
+      }
+      throw error;
     }
-    const sync = cleanSync;
+  }
+
+  /** The handshake steps that follow the native account confirmation. */
+  private async finishSession(
+    confirmSettlement: boolean,
+    sync: NonNullable<SessionOptions["sync"]>,
+    account: { brokerId: string; investorId: string },
+    login: RspUserLogin,
+    maxRef: number,
+    contextToken: number
+  ): Promise<TraderSessionResult> {
+    if (confirmSettlement) {
+      // idempotent: confirming an already-confirmed statement is fine
+      const echo = await this.reqSettlementInfoConfirm(account);
+      this.assertRequestContext(contextToken, "trader session settlement confirmation");
+      assertSettlementEcho(echo, account);
+    }
     const mul = sync.multipliers ?? true;
     const result: TraderSessionResult = {
       identity: Object.freeze({

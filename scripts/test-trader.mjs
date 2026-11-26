@@ -130,6 +130,56 @@ const describe = (...outcomes) => outcomes.map((o) => `${o.code} ${o.message}`).
   fresh.close();
 }
 
+// 4b) The settlement confirmation must echo the confirmed account. A mismatched
+//     echo, a refused confirmation or a failed step after it fails the handshake
+//     and revokes both the JS identity and the native confirmed account.
+{
+  mkdirSync("flow-td-settle", { recursive: true });
+  const settle = new Trader("./flow-td-settle/", "tcp://127.0.0.1:1");
+  settle.reqUserLogin = async () => {
+    settle.native._injectTestLogin(1, 7, "9999", "u");
+    return { brokerId: "9999", userId: "u", frontId: 1, sessionId: 7 };
+  };
+  const session = (sync = { multipliers: false }) =>
+    settle.session({ brokerId: "9999", userId: "u", password: "p", sync }).then(() => null, (e) => e);
+  const UNCONFIRMED = {
+    code: -10006,
+    message: "request is unavailable in the current risk mode or cannot be fully covered by configured local risk controls: session account not confirmed",
+  };
+  const expectRevoked = async (label) => {
+    const outcome = await outcomeOf(settle.reqCombActionInsert({}));
+    check(settle.broker === undefined && settle.investor === undefined && same(outcome, UNCONFIRMED),
+      `${label} leaves no JS or native session identity (${describe(outcome)})`);
+  };
+  for (const [label, confirm, expected] of [
+    ["an echo naming another broker", async () => ({ brokerId: "8888", investorId: "u" }),
+      "settlement confirmation names a different broker or investor"],
+    ["an echo naming another investor", async () => ({ brokerId: "9999", investorId: "other" }),
+      "settlement confirmation names a different broker or investor"],
+    ["a refused confirmation", async () => { throw new Error("CTP refused the settlement confirmation"); },
+      "CTP refused the settlement confirmation"],
+  ]) {
+    settle.reqSettlementInfoConfirm = confirm;
+    const error = await session();
+    check(error?.message === expected, `${label} fails the handshake (${error?.message})`);
+    await expectRevoked(label);
+  }
+  for (const [label, echo] of [["a matching echo", { brokerId: "9999", investorId: "u" }],
+    ["an empty echo", undefined], ["an echo without account fields", {}]]) {
+    settle.reqSettlementInfoConfirm = async () => echo;
+    const error = await session();
+    check(error === null && settle.broker === "9999" && settle.investor === "u",
+      `${label} completes the handshake (${error?.message ?? "ok"})`);
+  }
+  settle.reqSettlementInfoConfirm = async () => ({});
+  settle.reqQryInstrument = async () => { throw new Error("instrument catalog unavailable"); };
+  const syncError = await session({ multipliers: true });
+  check(syncError?.message === "instrument catalog unavailable",
+    `a failed metadata sync after confirmation fails the handshake (${syncError?.message})`);
+  await expectRevoked("a failed metadata sync after confirmation");
+  settle.close();
+}
+
 // 5) Opening and closing inserts draw from separate token buckets, and HALT_ALL
 //    refuses closes too. A rate of one token per 1000 s cannot refill mid-test.
 {
