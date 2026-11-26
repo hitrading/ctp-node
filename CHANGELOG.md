@@ -1,3 +1,10 @@
+## [6.0.1](https://github.com/hitrading/ctp-node/compare/v6.0.0...v6.0.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **trader:** 费率行按合约交易所归属，合约暂存随失败、超时与切换撤销 ([50d9074](https://github.com/hitrading/ctp-node/commit/50d90741e243c335ba8082d642e8e6d99d65c55c))
+
 # [6.0.0](https://github.com/hitrading/ctp-node/compare/v5.0.1...v6.0.0) (2026-11-26)
 
 
