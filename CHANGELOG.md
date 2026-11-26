@@ -1,3 +1,10 @@
+## [6.0.3](https://github.com/hitrading/ctp-node/compare/v6.0.2...v6.0.3) (2026-11-26)
+
+
+### Bug Fixes
+
+* **trader:** 记入身份不明标记时立即作废该合约已发布的乘数 ([46b257f](https://github.com/hitrading/ctp-node/commit/46b257f427c1339b50c566139d6654e108846c05))
+
 ## [6.0.2](https://github.com/hitrading/ctp-node/compare/v6.0.1...v6.0.2) (2026-11-26)
 
 

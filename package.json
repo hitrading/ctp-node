@@ -1,6 +1,6 @@
 {
   "name": "@hitrading/ctp-node",
-  "version": "6.0.2",
+  "version": "6.0.3",
   "description": "High-performance, type-safe CTP (Chinese futures) binding for Node.js",
   "keywords": [
     "ctp",
