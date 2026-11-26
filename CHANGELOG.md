@@ -1,3 +1,10 @@
+## [6.0.4](https://github.com/hitrading/ctp-node/compare/v6.0.3...v6.0.4) (2026-11-26)
+
+
+### Bug Fixes
+
+* **trader:** 暂存时发现身份冲突即刻记标记并作废旧乘数 ([67e6952](https://github.com/hitrading/ctp-node/commit/67e6952f96518791e17bdf267e565c02ca2a35f8))
+
 ## [6.0.3](https://github.com/hitrading/ctp-node/compare/v6.0.2...v6.0.3) (2026-11-26)
 
 
