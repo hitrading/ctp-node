@@ -1,3 +1,10 @@
+# [6.1.0](https://github.com/hitrading/ctp-node/compare/v6.0.4...v6.1.0) (2026-11-27)
+
+
+### Features
+
+* **trader:** 逐请求原生发布表、按合约判定生效费率键与保证金同步串行化 ([a8cf179](https://github.com/hitrading/ctp-node/commit/a8cf1792a731503c02c62ff710ab56e235048dfd))
+
 ## [6.0.4](https://github.com/hitrading/ctp-node/compare/v6.0.3...v6.0.4) (2026-11-26)
 
 
