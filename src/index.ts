@@ -8,13 +8,18 @@ export { Trader, TraderEvent } from "./trader.js";
 export type {
   RiskLimits,
   MarginRateSyncOptions,
+  MarginRateCatalogRow,
   TraderSessionIdentity,
   TraderSessionResult,
   SessionOptions,
 } from "./trader.js";
 export { CtpClient } from "./client.js";
-export { groupCtpInstrumentsByProduct, selectCtpProductRate } from "./product-rates.js";
-export type { CtpProductInstrument, CtpResolvedMarginRate } from "./product-rates.js";
+export {
+  ctpInvestorGroupNeeded, ctpProductExchange, groupCtpInstrumentsByProduct, selectCtpInvestorRates, selectCtpProductRate,
+} from "./product-rates.js";
+export type {
+  CtpInvestorRateRow, CtpProductInstrument, CtpProductRateRequest, CtpRateAccount, CtpRateRowSelection, CtpResolvedMarginRate, InvestorRateKind,
+} from "./product-rates.js";
 export { isTransientQueryFailure } from "./query-pacing.js";
 export type { CallbackOptions, RspInfo } from "./client.js";
 

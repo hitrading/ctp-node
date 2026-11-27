@@ -9,13 +9,14 @@
 import { native } from "./native-binding.js";
 import {
   ctpInvestorGroupNeeded,
+  ctpProductExchange,
   ctpMarginRateMissing,
   groupCtpInstrumentsByProduct,
   selectCtpExchangeMarginRates,
   selectCtpInvestorMarginRates,
   selectCtpProductRate,
 } from "./product-rates.js";
-import type { CtpResolvedMarginRate } from "./product-rates.js";
+import type { CtpRateAccount, CtpResolvedMarginRate } from "./product-rates.js";
 import { isTransientQueryFailure, queryIntervalMs, QUERY_RETRY_DELAY_MS } from "./query-pacing.js";
 import { TraderBase, TRADER_EVENTS, TraderEvent } from "./generated/trader.gen.js";
 import { STRUCT_ID } from "./generated/structs.gen.js";
@@ -61,6 +62,18 @@ export interface RiskLimits {
 export interface MarginRateSyncOptions {
   instrumentIds: string[];
   hedgeFlag: "1" | "2" | "3" | "5" | "6" | "7";
+}
+
+/** One row of a complete instrument catalog the caller already holds. Passed
+ *  to {@link Trader.syncMarginRates}, the catalog groups the rate queries and
+ *  attributes their exchange instead of a second catalog query, so the
+ *  caller's contract specifications, the native multipliers published by that
+ *  same answer and the margin attribution all come from one snapshot. Pass
+ *  every row of that answer, conflicting duplicates included. */
+export interface MarginRateCatalogRow {
+  instrumentId: string;
+  productId: string;
+  exchangeId: string;
 }
 
 /** The request-correlated identity established by a successful trader login. */
@@ -154,6 +167,25 @@ function assertSettlementEchoes(
   }
 }
 
+/** Snapshot a caller-supplied catalog. Rows carry the decoded string fields of
+ *  the answer as they are: a blank contract, product or exchange is judged
+ *  exactly as in a queried catalog (a blank contract is never requested; a
+ *  blank product or exchange cannot identify or attribute a requested one). */
+function copyMarginRateCatalog(catalog: unknown): MarginRateCatalogRow[] {
+  if (!Array.isArray(catalog) || catalog.length === 0)
+    throw new TypeError("syncMarginRates catalog must be a non-empty array of catalog rows");
+  const field = (value: unknown) => typeof value === "string" && !value.includes("\0");
+  return Array.from({ length: catalog.length }, (_, index) => {
+    if (!Object.prototype.hasOwnProperty.call(catalog, index))
+      throw new TypeError("syncMarginRates catalog must not be sparse");
+    const row = catalog[index] as Partial<MarginRateCatalogRow> | null;
+    const { instrumentId, productId, exchangeId } = row !== null && typeof row === "object" ? row : {};
+    if (!field(instrumentId) || !field(productId) || !field(exchangeId))
+      throw new TypeError("syncMarginRates catalog rows need string instrumentId, productId and exchangeId");
+    return { instrumentId, productId, exchangeId } as MarginRateCatalogRow;
+  });
+}
+
 const SESSION_KEYS = new Set([
   "brokerId", "userId", "investorId", "password", "appId", "authCode",
   "confirmSettlement", "sync",
@@ -164,8 +196,12 @@ const MARGIN_RATE_SYNC_KEYS = new Set(["instrumentIds", "hedgeFlag"]);
 export class Trader extends TraderBase {
   private readonly resolvedMarginRates = new Map<string, CtpResolvedMarginRate>();
   private resolvedMarginContext = 0;
-  /** Native publication count of each settled instrument-query result. */
-  private readonly instrumentPublications = new WeakMap<object, number>();
+  /** What the native engine published for each settled instrument-query
+   *  result (InstrumentID -> multiplier), recorded as that request settled. */
+  private readonly instrumentPublications = new WeakMap<object, ReadonlyMap<string, number>>();
+  /** Margin synchronizations run one at a time, in call order: a sync that
+   *  started later is never overwritten by one that started earlier. */
+  private marginSyncTail: Promise<unknown> = Promise.resolve();
   private broker?: string;
   private investor?: string;
   private orderRefSeq = 0;
@@ -202,7 +238,11 @@ export class Trader extends TraderBase {
       // Read the native publication of exactly this request while it settles:
       // no later instrument query can have begun yet. A catalog query always
       // settles with its rows array (anything else throws and rejects it).
-      this.instrumentPublications.set(value as unknown[], this.native._instrumentQueryPublished(options.requestId) as number);
+      const record = this.native._instrumentQueryPublication(options.requestId) as
+        { instrumentIds: string[]; multipliers: number[] } | null;
+      const published = new Map<string, number>();
+      if (record) record.instrumentIds.forEach((id, index) => published.set(id, record.multipliers[index]));
+      this.instrumentPublications.set(value as unknown[], published);
       return;
     }
     if (eventName === "rsp-user-logout") {
@@ -479,15 +519,30 @@ export class Trader extends TraderBase {
       multipliers: 0,
       marginRates: 0,
     };
-    if (mul) {
-      result.multipliers = await this.syncMultipliers(Array.isArray(mul) ? mul : undefined);
+    // Margin attribution needs a full catalog. Count the requested multipliers
+    // from that same publication instead of issuing earlier filtered queries.
+    let catalog: MarginRateCatalogRow[] | undefined;
+    const marginRateSync = sync.marginRates;
+    if (mul !== false && marginRateSync !== undefined) {
+      const subset = mul === true ? undefined : [...new Set(mul)];
+      const { rows, published } = await this.queryFullCatalog(contextToken,
+        [...(subset ?? []), ...marginRateSync.instrumentIds]);
+      result.multipliers = subset ? subset.filter(id => published.has(id)).length : published.size;
+      // Decoded char fields are strings; anything else is judged as blank, exactly as the
+      // queried path judges a missing product or exchange.
+      const text = (value: unknown) => (typeof value === "string" ? value : "");
+      catalog = rows.map(row => ({ instrumentId: text(row.instrumentId), productId: text(row.productId),
+        exchangeId: text(row.exchangeId) }));
+      this.assertRequestContext(contextToken, "trader session multiplier sync");
+    } else if (mul) {
+      result.multipliers = await this.syncMultipliers(mul === true ? undefined : mul);
       this.assertRequestContext(contextToken, "trader session multiplier sync");
     }
-    const marginRateSync = sync.marginRates;
     if (marginRateSync !== undefined) {
       result.marginRates = await this.syncMarginRates(
         marginRateSync.instrumentIds,
-        marginRateSync.hedgeFlag
+        marginRateSync.hedgeFlag,
+        catalog
       );
       this.assertRequestContext(contextToken, "trader session margin sync");
     }
@@ -700,8 +755,9 @@ export class Trader extends TraderBase {
   private async queryWithRetry<T>(
     query: () => Promise<T[]>,
     contextToken: number,
-    attempts = 5
+    requestedInstruments?: readonly string[]
   ): Promise<T[]> {
+    const attempts = 5;
     let lastErr: unknown;
     for (let i = 0; i < attempts; i++) {
       if (i > 0) await sleep(this.queryRetryDelayMs);
@@ -719,7 +775,8 @@ export class Trader extends TraderBase {
       }
     }
     if (lastErr) throw lastErr;
-    throw new Error(`CTP query returned no rows after ${attempts} attempts`);
+    const detail = requestedInstruments?.length ? `; requested instruments: ${requestedInstruments.join(", ")}` : "";
+    throw new Error(`CTP query returned no rows after ${attempts} attempts${detail}`);
   }
 
   /** Query instruments so the C++ risk engine picks up their multipliers (it
@@ -744,20 +801,45 @@ export class Trader extends TraderBase {
     let published = 0;
     const query = async (request: { instrumentId?: string }) => {
       const rows = await this.reqQryInstrument(request) as Array<{ instrumentId: string }>;
-      published = this.instrumentPublications.get(rows) ?? 0;
+      published = this.instrumentPublications.get(rows)?.size ?? 0;
       return rows;
     };
     if (instrumentIds) {
       for (const instrumentId of new Set(instrumentIds)) {
         await this.queryWithRetry(async () =>
-          (await query({ instrumentId })).filter((row) => row.instrumentId === instrumentId), contextToken);
+          (await query({ instrumentId })).filter((row) => row.instrumentId === instrumentId), contextToken, [instrumentId]);
         count += published;
       }
     } else {
-      await this.queryWithRetry(() => query({}), contextToken);
-      count = published;
+      count = (await this.queryFullCatalog(contextToken)).published.size;
     }
     return count;
+  }
+
+  /** One complete catalog query, retried through cold-start flow control, and
+   *  the native publication for that exact answer. */
+  private async queryFullCatalog(contextToken: number, required?: readonly string[]): Promise<{ rows: Instrument[]; published: ReadonlyMap<string, number> }> {
+    const requested = [...new Set(required)];
+    const rows = await this.queryWithRetry(async () => {
+      const answer = await this.reqQryInstrument({}) as Instrument[];
+      if (requested.length) {
+        // reqQryInstrument settles only on the successful final response. An
+        // answer without a contract is still a possible cold start.
+        const missing = new Set(requested);
+        let hasContract = false;
+        for (const { instrumentId } of answer) {
+          if (typeof instrumentId !== "string" || !instrumentId.trim()) continue;
+          hasContract = true;
+          missing.delete(instrumentId);
+          if (!missing.size) break;
+        }
+        if (!hasContract) return [];
+        if (missing.size)
+          throw new Error(`CTP full instrument catalog is missing requested instruments: ${[...missing].join(", ")}`);
+      }
+      return answer;
+    }, contextToken, requested);
+    return { rows, published: this.instrumentPublications.get(rows) ?? new Map() };
   }
 
   /** Query investor margin schedules for a bounded universe. The exchange-base
@@ -769,54 +851,67 @@ export class Trader extends TraderBase {
    *  other than the contract's catalog exchange belongs to another contract.
    *  The investor group is queried only when an otherwise attributable row is an
    *  investor-group row. Single investor overrides investor group, which
-   *  overrides all investors; disagreeing rows of one range fail the sync. */
+   *  overrides all investors; disagreeing rows of one range fail the sync.
+   *  Product membership and exchange come from `catalog` when given (see
+   *  {@link MarginRateCatalogRow}), otherwise from one fresh catalog query.
+   *  Calls run one at a time in call order, so a sync that started later is
+   *  never overwritten by one that started earlier. */
   async syncMarginRates(
     instrumentIds: string[],
-    hedgeFlag: "1" | "2" | "3" | "5" | "6" | "7" = "1"
+    hedgeFlag: "1" | "2" | "3" | "5" | "6" | "7" = "1",
+    catalog?: readonly MarginRateCatalogRow[]
   ): Promise<number> {
     const contextToken = this.requestContextToken();
     instrumentIds = copyDenseStringArray(instrumentIds, "syncMarginRates", false);
     if (typeof hedgeFlag !== "string" || !/^[123567]$/.test(hedgeFlag)) {
       throw new TypeError("syncMarginRates hedgeFlag must be 1, 2, 3, 5, 6 or 7");
     }
+    const suppliedCatalog = catalog === undefined ? undefined : copyMarginRateCatalog(catalog);
     const brokerId = this.broker;
     const investorId = this.investor;
     if (!brokerId || !investorId) {
       throw new Error("syncMarginRates requires a successful trader login first");
     }
+    // One synchronization at a time, in call order: interleaved syncs could let
+    // the earlier one publish its older reading over the later one's.
+    const run = this.marginSyncTail.then(() => this.synchronizeMarginRates(
+      contextToken, instrumentIds, hedgeFlag, brokerId, investorId, suppliedCatalog));
+    this.marginSyncTail = run.catch(() => undefined);
+    return run;
+  }
+
+  private async synchronizeMarginRates(
+    contextToken: number,
+    instrumentIds: string[],
+    hedgeFlag: "1" | "2" | "3" | "5" | "6" | "7",
+    brokerId: string,
+    investorId: string,
+    suppliedCatalog: MarginRateCatalogRow[] | undefined
+  ): Promise<number> {
+    // A sync queued behind another belongs to the session it was called in.
+    this.assertRequestContext(contextToken, "margin synchronization");
     for (const id of instrumentIds) this.resolvedMarginRates.delete(`${id}|${hedgeFlag}`);
     const completed: CtpResolvedMarginRate[] = [];
-    // A fresh catalog supplies the authoritative ProductID membership used to
-    // group the rate queries below (the same reply also refreshes the native
-    // multipliers). It is one request, independent of the number of traded months.
-    const catalog = await this.queryWithRetry(() => this.reqQryInstrument({}), contextToken) as Instrument[];
+    // The catalog supplies the authoritative ProductID membership and exchange
+    // used to group and attribute the rate queries below. Without a supplied
+    // snapshot it is one fresh request (whose reply also refreshes the native
+    // multipliers), independent of the number of traded months.
     // Rejects a requested contract whose catalog rows disagree on product or
     // exchange; the maps below are therefore unambiguous for every member.
+    // A row without a contract code names no contract: it takes part in no
+    // product membership or exchange attribution, whichever path supplied it.
+    const catalog = (suppliedCatalog ?? (await this.queryFullCatalog(contextToken, instrumentIds)).rows)
+      .filter(row => typeof row.instrumentId === "string" && row.instrumentId.trim() !== "");
     const groups = groupCtpInstrumentsByProduct(instrumentIds, catalog);
     const productByInstrument = new Map(catalog.map(row => [row.instrumentId, row.productId]));
-    // Queried once, and only when a reply carries an investor-group row.
-    let investorGroupId: string | undefined;
-    const loadInvestorGroup = async () => {
-      const rows = (await this.queryWithRetry(
-        () => this.reqQryInvestor({ brokerId, investorId }), contextToken
-      ) as Array<{ brokerId: string; investorId: string; investorGroupId: string }>)
-        .filter(row => row.brokerId === brokerId && row.investorId === investorId);
-      const groupIds = new Set(rows.map(row => row.investorGroupId));
-      const [groupId] = groupIds;
-      if (groupIds.size !== 1 || !groupId)
-        throw new Error(`CTP investor group is unavailable for ${brokerId}/${investorId}`);
-      return groupId;
-    };
+    const rateAccount: CtpRateAccount = { brokerId, investorId };
     let count = 0;
     for (const [productId, members] of groups) {
       for (const row of catalog)
         if (row.productId === productId) this.resolvedMarginRates.delete(`${row.instrumentId}|${hedgeFlag}`);
       // Rate rows are attributed to the exchange of the product: every catalog
       // row of the product, not only the requested months, must name it.
-      const exchanges = new Set(catalog.filter(row => row.productId === productId).map(row => row.exchangeId));
-      const [exchangeId] = exchanges;
-      if (exchanges.size !== 1 || typeof exchangeId !== "string" || !exchangeId)
-        throw new Error(`CTP product ${productId} has no single exchange in the instrument catalog`);
+      const exchangeId = ctpProductExchange(catalog, productId);
       type InvestorMarginRow = {
         instrumentId: string;
         exchangeId: string;
@@ -841,14 +936,10 @@ export class Trader extends TraderBase {
           (row) => row.hedgeFlag === hedgeFlag && (row.instrumentId === productId ||
             productByInstrument.get(row.instrumentId) === productId)
         ), contextToken);
-      // Only the requested contracts and their product row count: another
-      // month's row can neither trigger the group lookup nor fail the sync.
-      const relevant = new Set([productId, ...members]);
-      const targetRows = investorRows.filter(row => relevant.has(row.instrumentId));
-      if (investorGroupId === undefined && ctpInvestorGroupNeeded(targetRows, brokerId, exchangeId))
-        investorGroupId = await loadInvestorGroup();
-      const { rates, excluded } = selectCtpInvestorMarginRates(
-        targetRows, { brokerId, investorId, investorGroupId }, exchangeId);
+      const rateRequest = { exchangeId, productId, instrumentIds: members };
+      if (ctpInvestorGroupNeeded(investorRows, rateAccount, rateRequest, 'margin'))
+        rateAccount.investorGroupId = await this.investorGroupOf(contextToken, brokerId, investorId);
+      const { rates, excluded } = selectCtpInvestorMarginRates(investorRows, rateAccount, rateRequest);
       for (const instrumentId of members) {
       const investor = selectCtpProductRate(rates, instrumentId, productId, excluded);
       const relative = investor.isRelative === 1;
@@ -912,6 +1003,42 @@ export class Trader extends TraderBase {
       for (const rate of completed) this.resolvedMarginRates.set(`${rate.instrumentId}|${hedgeFlag}`, rate);
     }
     return count;
+  }
+
+  /** The confirmed account's investor group (InvestorGroupID), needed to
+   *  attribute an investor-group (range 2) rate row with
+   *  `selectCtpInvestorRates`. One `reqQryInvestor` query; its row must name
+   *  this account and exactly one non-empty group, or it throws. */
+  async queryInvestorGroup(): Promise<string> {
+    const contextToken = this.requestContextToken();
+    const brokerId = this.broker, investorId = this.investor;
+    if (!brokerId || !investorId) throw new Error("queryInvestorGroup requires a successful trader login first");
+    return this.investorGroupOf(contextToken, brokerId, investorId);
+  }
+
+  private async investorGroupOf(contextToken: number, brokerId: string, investorId: string): Promise<string> {
+    const rows = (await this.queryWithRetry(
+      () => this.reqQryInvestor({ brokerId, investorId }), contextToken
+    ) as Array<{ brokerId: string; investorId: string; investorGroupId: string }>)
+      .filter(row => row.brokerId === brokerId && row.investorId === investorId);
+    const groupIds = new Set(rows.map(row => row.investorGroupId));
+    const [groupId] = groupIds;
+    if (groupIds.size !== 1 || !groupId)
+      throw new Error(`CTP investor group is unavailable for ${brokerId}/${investorId}`);
+    return groupId;
+  }
+
+  /** The native multipliers that one settled `reqQryInstrument` answer
+   *  published, keyed by InstrumentID: the risk engine's own judgment of that
+   *  exact answer (an unreadable answer, a conflicting, ambiguous or unusable
+   *  row publishes nothing). A caller building contract specifications from
+   *  the decoded rows can require each contract it uses to appear here with
+   *  the same multiplier, without another catalog request. `rows` must be the
+   *  array that request settled with; anything else throws. */
+  instrumentPublication(rows: readonly object[]): ReadonlyMap<string, number> {
+    const published = this.instrumentPublications.get(rows);
+    if (!published) throw new Error("not a settled reqQryInstrument result of this Trader");
+    return new Map(published);
   }
 
   /** Only completed synchronization results from the current authenticated

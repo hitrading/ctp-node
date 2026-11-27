@@ -11,6 +11,7 @@
  */
 #include "risk.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -832,22 +833,46 @@ static void testInstrumentQueryStaging() {
   CHECK(voidedWhileStaging,
         "a conflict staged by an in-flight filtered query voids the old multiplier before the query ends");
   publishInstrument(r, "cu", 5, '1');
-  // The publication count of exactly one finished query.
+  // The publication of exactly one finished query: which instruments, with
+  // which multipliers; a conflicting instrument is not among them.
+  typedef std::vector<std::pair<std::string, double>> Publication;
+  const auto publicationOf = [&r](int q, bool &found) {
+    Publication published;
+    found = r.instrumentQueryPublication(q, published);
+    std::sort(published.begin(), published.end()); // the record has no order
+    return published;
+  };
   r.beginInstrumentQuery(83, scopeOf(""));
   r.stageInstrument(83, rowOf("rb"), 10, '1');
   r.stageInstrument(83, rowOf("ag"), 15, '1');
   r.stageInstrument(83, rowOf("cu"), 5, '1');
   r.stageInstrument(83, rowOf("cu"), 6, '1');
+  r.stageInstrument(83, rowOf("zn"), 0, '1');
   r.finishInstrumentQuery(83, true);
-  const size_t publishedBy83 = r.instrumentQueryPublished(83);
-  const bool otherIds = r.instrumentQueryPublished(82) == 0 && r.instrumentQueryPublished(0) == 0 &&
-                   r.instrumentQueryPublished(-1) == 0;
+  bool found83 = false, found82 = false, found0 = false, foundNeg = false;
+  const Publication publishedBy83 = publicationOf(83, found83);
+  const bool exact83 = found83 && publishedBy83 == Publication{{"ag", 15.0}, {"rb", 10.0}};
+  const bool otherIds = publicationOf(82, found82).empty() && !found82 && publicationOf(0, found0).empty() &&
+                        !found0 && publicationOf(-1, foundNeg).empty() && !foundNeg;
   r.abandonInstrumentQuery();
-  const bool keptAfterAbandon = r.instrumentQueryPublished(83) == 2;
+  bool foundAfterAbandon = false;
+  const bool keptAfterAbandon = publicationOf(83, foundAfterAbandon) == publishedBy83 && foundAfterAbandon;
   r.beginInstrumentQuery(84, scopeOf("au"));
-  CHECK(publishedBy83 == 2 && otherIds && keptAfterAbandon && r.instrumentQueryPublished(83) == 0,
-        "instrumentQueryPublished reports only the finished query's own publication");
+  bool foundAfterNext = true;
+  const bool droppedByNext = publicationOf(83, foundAfterNext).empty() && !foundAfterNext;
+  CHECK(exact83 && otherIds && keptAfterAbandon && droppedByNext,
+        "instrumentQueryPublication reports only the finished query's own instruments and multipliers");
   r.finishInstrumentQuery(84, false);
+  bool found84 = false;
+  CHECK(publicationOf(84, found84).empty() && found84,
+        "a failed instrument query is found but published nothing");
+  r.beginInstrumentQuery(85, scopeOf(""));
+  r.stageInstrument(85, rowOf("rb"), 10, '1');
+  r.stageUnreadableInstrument(85);
+  r.finishInstrumentQuery(85, true);
+  bool found85 = false;
+  CHECK(publicationOf(85, found85).empty() && found85,
+        "an unreadable answer publishes nothing, however readable its other rows are");
   publishInstrument(r, "rb", 10, '1');
   publishInstrument(r, "ag", 15, '1');
   // Scope: rows outside the query's filter never stage.

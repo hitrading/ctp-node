@@ -21,6 +21,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "ctp_field.h"
@@ -184,10 +185,13 @@ public:
   // publish; false means its final packet already published or discarded them
   // and the queued lossless response should settle the Promise.
   bool timeoutInstrumentQuery(int requestId);
-  // How many instruments the query with this request id published when its
-  // final packet ran (0 for a failed, unreadable or unknown query). Read while
-  // JS settles that request, so no later query can interfere.
-  size_t instrumentQueryPublished(int requestId) const;
+  // The instruments (and multipliers) the query with this request id published
+  // when its final packet ran: false, with nothing, for a request that is not
+  // the latest finished query; true with an empty list for a failed or
+  // unreadable answer. Read while JS settles that request, so no later query
+  // can interfere.
+  bool instrumentQueryPublication(
+      int requestId, std::vector<std::pair<std::string, double>> &published) const;
 
   // Our login identity. A front transition invalidates it; account-bound order
   // inserts remain fail-closed until a concrete login response supplies the new
@@ -265,7 +269,8 @@ private:
   // The latest query whose final packet ran natively; its response may still
   // be queued for JS.
   int finishedInstrumentQueryId_ = 0;
-  size_t finishedPublishedCount_ = 0;
+  // What that query published: InstrumentID and multiplier (no particular order).
+  std::vector<std::pair<std::string, double>> finishedPublished_;
   bool instrumentQueryUnreadable_ = false;
   InstrumentIdentity instrumentQueryScope_;
   // InstrumentIDs seen outside the current query's scope.

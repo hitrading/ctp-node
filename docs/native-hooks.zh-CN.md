@@ -47,7 +47,7 @@
        JS 侧任何撤销全部在途请求的情形（前置连接/断开、`session()` 开始、主动登录/登出）或更新的合约查询都会
        丢弃暂存行，因此失败、超时、残缺或被取代的刷新不会留下陈旧或残缺的元数据（末包已执行之后的撤销不会回滚
        已发布的结果）。有一行身份字段无法读取时，即便是过滤查询，成功后也会清空全部合约（失败即拒绝）。
-       `syncMultipliers()` 返回的数量即每个请求实际发布的结果，在该请求结算时按请求号记录（`_instrumentQueryPublished`）
+       `syncMultipliers()` 与 `instrumentPublication(rows)` 报告的即每个请求实际发布的结果（哪些合约、各自的乘数），在该请求结算时按请求号记录（`_instrumentQueryPublication`）
      - 登录会话（FrontID/SessionID/BrokerID）← `OnRspUserLogin`，按最近一次登录请求的 request id
        关联；随后 `session()` 在结算单确认之后确认交易账户（InvestorID），之后普通报单才会被接受。前置连接/断开以及每次
        登录/登出请求都会撤销该确认。

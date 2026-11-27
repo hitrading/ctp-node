@@ -100,7 +100,9 @@ for (const st of structs) {
   s += `/** ${st.cName} */\nexport interface ${st.name} {\n`;
   for (const f of st.fields) {
     if (f.comment) s += `  /** ${jsdoc(f.comment)} */\n`;
-    s += `  ${f.js}: ${tsTypeOf(f.t)};\n`;
+    // SimNow's commission response can carry an empty BizType byte.
+    const emptyBizType = st.name === "InstrumentCommissionRate" && f.js === "bizType";
+    s += `  ${f.js}: ${tsTypeOf(f.t)}${emptyBizType ? ' | ""' : ""};\n`;
   }
   s += `}\n\n`;
 }

@@ -857,7 +857,7 @@ export interface InstrumentCommissionRate {
   /** 交易所代码 */
   exchangeId: string;
   /** 业务类型 */
-  bizType: `${enums.BizType}`;
+  bizType: `${enums.BizType}` | "";
   /** 投资单元代码 */
   investUnitId: string;
   /** 合约代码 */

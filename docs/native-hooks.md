@@ -79,9 +79,10 @@ an order was refused.
        rejection after the final packet already ran does not roll that
        publication back). A row whose identity cannot be read makes even a
        filtered query clear every contract on success (fail closed).
-       `syncMultipliers()` reports exactly what was published
-       for each request, recorded by request id when that request settles
-       (`_instrumentQueryPublished`)
+       `syncMultipliers()` and `instrumentPublication(rows)` report exactly
+       what was published for each request (which contracts, with which
+       multipliers), recorded by request id when that request settles
+       (`_instrumentQueryPublication`)
      - login session (FrontID/SessionID/BrokerID) ← `OnRspUserLogin`, correlated
        with the request id of the latest login request; `session()` then confirms
        the trading account (InvestorID), after the settlement confirmation,

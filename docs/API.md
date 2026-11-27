@@ -437,7 +437,7 @@ orders go out under a stale identity.
 | `appId` | `string?` | Terminal app id for authentication. SimNow: `"simnow_client_test"`. |
 | `authCode` | `string?` | Terminal auth code. SimNow: 16 zeros. Omit both `appId`/`authCode` to skip authentication. |
 | `confirmSettlement` | `boolean?` | Confirm the settlement statement after login (real accounts must, or orders are rejected). Every echoed row that carries a broker or investor must name this account, otherwise the handshake fails; a legal empty final packet is accepted. Default `true`. |
-| `sync` | `object?` | `{ multipliers?: boolean \| string[], marginRates?: { instrumentIds: string[], hedgeFlag: "1" \| "2" \| "3" \| "5" \| "6" \| "7" } }`. Multipliers default on (all instruments; pass a list to scope it, `false` to skip); margin rates require an explicit bounded contract list and hedge flag because CTP needs one query per contract and keeps separate schedules per hedge flag. |
+| `sync` | `object?` | `{ multipliers?: boolean \| string[], marginRates?: { instrumentIds: string[], hedgeFlag: "1" \| "2" \| "3" \| "5" \| "6" \| "7" } }`. Multipliers default on (all instruments; a list scopes the count, `false` skips it); margin rates require an explicit bounded contract list and hedge flag because CTP needs one query per contract and keeps separate schedules per hedge flag. |
 
 ```ts
 // SimNow full handshake
@@ -449,7 +449,7 @@ td.on("front-connected", async () => {
   console.log("synced", counts); // { identity, multipliers, marginRates }
 });
 
-// scope the multiplier sync to the symbols you trade (faster cold start)
+// share the full margin catalog and count multipliers for the selected symbols
 await td.session({
   brokerId: "9999", userId: "id", password: "pw",
   sync: {
@@ -642,12 +642,13 @@ await td.syncMultipliers(["rb2510", "au2508"]); // just these
 console.log(n, "contracts with a multiplier");
 ```
 
-### `td.syncMarginRates(instrumentIds, hedgeFlag?)` → `Promise<number>`
+### `td.syncMarginRates(instrumentIds, hedgeFlag?, catalog?)` → `Promise<number>`
 
 Resolve investor long/short by-money/by-volume margin schedules for a bounded
 contract universe (default hedge flag `"1"`, speculation), for **your own**
 margin calculations — the native gate does not use them. Investor queries are
-grouped by the ProductID in a fresh complete CTP catalog; a contract-level row
+grouped by the ProductID in a complete CTP catalog — the `catalog` rows you
+pass, otherwise a fresh `reqQryInstrument({})`; a contract-level row
 takes precedence over the product row even when it is invalid. A second
 exchange-base query is issued only for a relative (`IsRelative`) row, and the
 relative investor schedule is added to that base. The shared scheduler spaces
@@ -658,7 +659,7 @@ BrokerID and no InvestUnitID, and an ExchangeID, when present, must be the
 contract's exchange in the instrument catalog (6.0.1+; both investor and
 exchange-base rows); a single-investor row must name your InvestorID, an
 investor-group row your InvestorGroupID (queried once with `reqQryInvestor`
-only when an otherwise attributable investor-group row appears), and an
+only for a key a requested contract may use, with an attributable group row and no applicable personal rate), and an
 all-investors row is accepted whatever wildcard InvestorID it carries. The
 instrument catalog must give every requested contract one identity (catalog rows
 of it that disagree on product or exchange fail the sync, 6.0.2+) and every
@@ -670,15 +671,91 @@ applies, an exchange-base row of another broker or an unavailable investor group
 fail the sync rather than silently taking the last row. The requested product
 must also name one exchange across all of its catalog rows (6.0.2+).
 
-The catalog it reads is a full `reqQryInstrument({})`, which (see above)
-invalidates every native multiplier until that catalog completes; run it before
-admitting orders, not while an enabled `maxNotional` check must keep passing.
+Catalog rows without a contract code name no contract and are skipped before
+product membership and exchange attribution, on both paths (6.1+); two real
+contracts of one product on two exchanges still fail the sync. In `session()`,
+requesting multipliers together with margin rates shares one full catalog query (6.1+).
+With `true` the count includes all native publications from that answer. With a list it
+counts only distinct requested symbols published by that answer; an empty list counts zero.
+Once the full catalog reaches its successful final response and contains at least one named contract,
+the SDK checks the symbols requested for both multipliers and margin rates. It reports every missing
+symbol once and fails the handshake immediately. A catalog with no named contracts or a transient
+flow-control error still gets up to five attempts. If every answer is empty, the error lists the
+requested symbols. A multiplier-only list uses filtered queries and reports the symbol of an
+exhausted query.
+
+Pass `catalog` (6.1+) when you already hold one complete `reqQryInstrument({})`
+answer: every row of it as `{ instrumentId, productId, exchangeId }`
+(`MarginRateCatalogRow`), conflicting duplicates included. The sync then sends no
+catalog query, so your contract specifications, the native multipliers that
+answer published and the margin attribution all come from one snapshot; the rows
+are copied at the call and judged exactly like a queried catalog. Without it the
+sync reads a full `reqQryInstrument({})`, which (see above) invalidates every
+native multiplier until that catalog completes; run it before admitting orders,
+not while an enabled `maxNotional` check must keep passing.
+
+Calls run one at a time in call order (6.1+): a sync waits for the previous one
+to settle, so one that started later is never overwritten by an earlier one, and
+a failed sync does not block the next. A queued sync still belongs to the
+session it was called in and fails if that session ended while it waited.
 The requested contracts' previously resolved schedules are dropped as soon as
-the sync starts, and the other contracts of each product as the sync reaches
-that product.
+the sync starts (a queued sync starts when the one before it settles; until
+then they stay readable), and the other contracts of each product as the sync
+reaches that product.
 The new results are kept only when every requested contract resolved; a partial
 refresh keeps none of them, and any reconnect, login/logout or `session()` drops
 every resolved schedule.
+
+### `td.instrumentPublication(rows)` → `ReadonlyMap<string, number>`
+
+(6.1+) The native multipliers that one settled `reqQryInstrument` answer
+published, keyed by InstrumentID, recorded by request id when that request
+settled: the risk engine's own judgment of that exact answer (an unreadable
+answer publishes nothing; a conflicting, ambiguous or unusable row publishes
+nothing for its contract). A caller that builds contract specifications from the
+decoded rows should require every contract it trades to appear here with the
+same multiplier — a row decoding fine in JS does not mean the native gate holds
+its multiplier — and needs no second catalog request to check. `rows` must be
+the very array that request settled with (a copy or any other array throws);
+the returned map is a copy.
+
+### `td.queryInvestorGroup()` → `Promise<string>`
+
+(6.1+) The confirmed account's InvestorGroupID, from one `reqQryInvestor` query
+(retried through cold-start flow control within the current session). Its rows
+must name this account and exactly one non-empty group, or it throws. Needed to
+attribute an investor-group (range 2) rate row with `selectCtpInvestorRates`;
+`syncMarginRates()` uses the same lookup.
+
+### `selectCtpInvestorRates(rows, account, request, fields, kind)` and `ctpInvestorGroupNeeded(rows, account, request, kind)`
+
+(6.1+) The attribution rule `syncMarginRates()` applies to investor margin rows,
+exported so commission rows (`CThostFtdcInstrumentCommissionRateField`) can be
+judged by the same code. For futures commission queries, accept an empty BizType
+or `'1'`. SimNow returned an empty string on the personal `ao` product row on
+2026-11-27. The selection helper also accepts an omitted or null value. Any other
+explicit code, including securities (`'2'`), excludes the row. All accepted rows
+undergo the same account, exchange, investor-range and rate-conflict checks.
+With kind `margin`, the counter structure has no BizType.
+The request `{ exchangeId, productId, instrumentIds }` lists every requested contract of one product.
+Each contract takes its applicable contract row first. Only months without one inherit the product row.
+This existing key precedence applies to both margin and commission. For example, an applicable
+all-investors contract row takes precedence over a single-investor product row. Confirm this case
+against the trading account's actual margin and commission statements before deployment.
+A group-only contract requires the group lookup and inherits the product row if its group does not match.
+Only keys that could supply a requested contract participate in group lookup and conflict checks.
+Both exclude another broker, any investment unit, or an explicit foreign exchange. A
+single-investor row must name `account.investorId`, an investor-group row
+`account.investorGroupId` (needed only when the key has an otherwise attributable
+group row and no applicable personal row), and an all-investors row is
+accepted whatever wildcard InvestorID it carries. Per instrument or product id
+the narrowest range wins (single > group > all) and several rows of that range
+must agree on `fields`, or it throws. It returns `{ rates, excluded }`; pick a
+contract's row with `selectCtpProductRate(rates, instrumentId, productId,
+excluded)`, which names the excluded rows when none applies.
+`ctpProductExchange(catalog, productId)` (6.1+) returns the one exchange the
+product's rate rows are attributed to — every catalog row of the product with a
+contract code must name it, or it throws — the rule `syncMarginRates()` uses.
 
 ### `td.readMarginRates(instrumentIds, hedgeFlag)` → `CtpResolvedMarginRate[]`
 
@@ -806,7 +883,7 @@ td.trackMarketData(md);
 > final packet arrives without an error
 > (see [`syncMultipliers`](#tdsyncmultipliersinstrumentids--promisenumber)).
 > Margin schedules are not used by the native gate at all;
-> [`syncMarginRates()`](#tdsyncmarginratesinstrumentids-hedgeflag--promisenumber)
+> [`syncMarginRates()`](#tdsyncmarginratesinstrumentids-hedgeflag-catalog--promisenumber)
 > and `readMarginRates()` resolve them for your own calculations. Missing
 > metadata is never guessed.
 

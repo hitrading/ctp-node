@@ -149,7 +149,7 @@ private:
   Napi::Value TimeoutSessionTransition(const Napi::CallbackInfo &info);
   Napi::Value TimeoutInstrumentQuery(const Napi::CallbackInfo &info);
   Napi::Value AbandonInstrumentQuery(const Napi::CallbackInfo &info);
-  Napi::Value InstrumentQueryPublished(const Napi::CallbackInfo &info);
+  Napi::Value InstrumentQueryPublication(const Napi::CallbackInfo &info);
   Napi::Value ConfirmSessionAccount(const Napi::CallbackInfo &info);
   Napi::Value BeginSessionHandshake(const Napi::CallbackInfo &info);
   Napi::Value AttachSnapshot(const Napi::CallbackInfo &info);
@@ -201,8 +201,8 @@ Napi::Function Trader::Init(Napi::Env env) {
                          &Trader::TimeoutInstrumentQuery),
           InstanceMethod("_abandonInstrumentQuery",
                          &Trader::AbandonInstrumentQuery),
-          InstanceMethod("_instrumentQueryPublished",
-                         &Trader::InstrumentQueryPublished),
+          InstanceMethod("_instrumentQueryPublication",
+                         &Trader::InstrumentQueryPublication),
           InstanceMethod("_confirmSessionAccount",
                          &Trader::ConfirmSessionAccount),
           InstanceMethod("_beginSessionHandshake",
@@ -512,13 +512,26 @@ Napi::Value Trader::AbandonInstrumentQuery(const Napi::CallbackInfo &info) {
   return info.Env().Undefined();
 }
 
-// How many instruments the instrument query with this request id published.
-Napi::Value Trader::InstrumentQueryPublished(const Napi::CallbackInfo &info) {
+// What the instrument query with this request id published natively:
+// { instrumentIds: string[], multipliers: number[] } (parallel arrays), or null
+// for a request that is not the latest finished instrument query.
+Napi::Value Trader::InstrumentQueryPublication(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
   int requestId = 0;
-  if (!requestIdArg(info, requestId))
-    return Napi::Number::New(info.Env(), 0);
-  return Napi::Number::New(
-      info.Env(), static_cast<double>(risk_.instrumentQueryPublished(requestId)));
+  std::vector<std::pair<std::string, double>> published;
+  if (!requestIdArg(info, requestId) ||
+      !risk_.instrumentQueryPublication(requestId, published))
+    return env.Null();
+  Napi::Array ids = Napi::Array::New(env, published.size());
+  Napi::Array multipliers = Napi::Array::New(env, published.size());
+  for (uint32_t i = 0; i < published.size(); ++i) {
+    ids.Set(i, Napi::String::New(env, published[i].first));
+    multipliers.Set(i, Napi::Number::New(env, published[i].second));
+  }
+  Napi::Object result = Napi::Object::New(env);
+  result.Set("instrumentIds", ids);
+  result.Set("multipliers", multipliers);
+  return result;
 }
 
 Napi::Value Trader::ConfirmSessionAccount(const Napi::CallbackInfo &info) {

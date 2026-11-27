@@ -387,7 +387,7 @@ const td2 = new Trader("./flow/td/", ["tcp://182.254.243.31:30002", "tcp://182.2
 | `appId` | `string?` | 终端认证的 app id。SimNow：`"simnow_client_test"`。 |
 | `authCode` | `string?` | 终端授权码。SimNow：16 个零。两者都省略则跳过认证。 |
 | `confirmSettlement` | `boolean?` | 登录后确认结算单（实盘账户必须确认，否则报单被拒）。每一条带经纪商或投资者字段的回执行都必须是本账户，否则握手失败；合法的空末包可以接受。默认 `true`。 |
-| `sync` | `object?` | `{ multipliers?: boolean \| string[], marginRates?: { instrumentIds: string[], hedgeFlag: "1" \| "2" \| "3" \| "5" \| "6" \| "7" } }`。乘数默认拉取（全部合约；传列表限定范围，传 `false` 跳过）；保证金表必须显式给出有限合约列表和套保标志，因为 CTP 每个合约需一次查询，且不同套保标志使用不同费率表。 |
+| `sync` | `object?` | `{ multipliers?: boolean \| string[], marginRates?: { instrumentIds: string[], hedgeFlag: "1" \| "2" \| "3" \| "5" \| "6" \| "7" } }`。乘数默认拉取（全部合约；传列表限定计数范围，传 `false` 跳过）；保证金表必须显式给出有限合约列表和套保标志，因为 CTP 每个合约需一次查询，且不同套保标志使用不同费率表。 |
 
 ```ts
 // SimNow 完整握手
@@ -399,7 +399,7 @@ td.on("front-connected", async () => {
   console.log("已同步", counts); // { identity, multipliers, marginRates }
 });
 
-// 把乘数同步限定到你交易的合约（冷启动更快）
+// 与保证金共用一份全目录，乘数只统计指定合约
 await td.session({
   brokerId: "9999", userId: "id", password: "pw",
   sync: {
@@ -551,16 +551,16 @@ await td.syncMultipliers(["rb2510", "au2508"]);  // 仅这些
 console.log(n, "个合约带有乘数");
 ```
 
-### `td.syncMarginRates(instrumentIds, hedgeFlag?)` → `Promise<number>`
+### `td.syncMarginRates(instrumentIds, hedgeFlag?, catalog?)` → `Promise<number>`
 
 为有限交易合约集解析投资者多空按金额/按手保证金率（套保标志默认 `"1"`，投机），供**你自己**计算
-保证金——原生闸门不使用它们。投资者表按当次完整合约目录中的 ProductID 分组查询；合约级行优先于
+保证金——原生闸门不使用它们。投资者表按完整合约目录中的 ProductID 分组查询（目录取你传入的 `catalog` 行，未传时现查一次 `reqQryInstrument({})`）；合约级行优先于
 品种行，即使合约级行非法也不继承品种设置。仅当返回 `IsRelative` 时才追加交易所基础表查询，相对
 投资者表与该基础表逐字段相加。共享调度器会自动间隔发送每笔查询。返回得到可用费率的合约数量。
 
 6.0 起每一行先核对归属再使用：经纪商必须是本账户、投资单元必须为空；行带交易所代码时须是该合约在
 合约目录中的交易所（6.0.1 起，投资者表与交易所基础表都核对）；单一投资者范围的行须是本投资者号，投资者组
-范围的行须是本账户的投资者组号（仅在出现经纪商、投资单元与交易所都归属本账户的投资者组行时，才用
+范围的行须是本账户的投资者组号（仅当所请求合约可能采用的费率键缺少适用个人行且组行的经纪商、投资单元与交易所均符合时，才用
 `reqQryInvestor` 查询一次），
 全部投资者范围的行不核对投资者字段（可能是通配值）。合约目录须给每个所请求合约唯一的身份（同一合约的目录行
 在品种或交易所上不一致时整次同步失败，6.0.2 起），并给每个所请求品种唯一且非空的交易所（CTP 合约目录都会给）。
@@ -569,10 +569,48 @@ console.log(n, "个合约带有乘数");
 ＞投资者组＞全部）；所适用范围内数值冲突、交易所基础表来自其他经纪商或取不到投资者组时，整次同步失败，
 不再静默取最后一行。所请求品种在合约目录中的全部行还必须是同一个交易所（6.0.2 起）。
 
-它读取的目录是一次完整的 `reqQryInstrument({})`，按上文会在该目录完成前使全部原生乘数失效；请在放行报单
-之前运行，不要在已启用的 `maxNotional` 校验必须持续通过时运行。所请求合约此前解析的结果在同步一开始就被丢弃，
+没有合约代码的目录行不指代任何合约，两条路径都在品种归属与交易所归属之前略过它（6.1 起）；同一品种的两个真实合约分属
+两个交易所时仍整次同步失败。6.1 起，`session()` 同时同步乘数与保证金时共用一次全目录应答。
+乘数选项为 `true` 时返回原生发布的合约总数；为列表时只统计本次原生实际发布的指定合约，重复代码只计一次，空列表计零。
+全量目录收到成功的结束应答且至少含有一个具名合约时，SDK 核对乘数和保证金所请求的合约，一次列出全部缺失代码并立即结束握手。
+目录没有具名合约或柜台报告瞬时流控时最多尝试五次。若每次都是空应答，错误会列出本次请求的代码。
+只同步乘数列表时按合约过滤查询，连续未取得匹配行时，错误会指明本次查询的合约。
+
+已持有一次完整 `reqQryInstrument({})` 应答时可传 `catalog`（6.1 起）：该应答的每一行写成
+`{ instrumentId, productId, exchangeId }`（`MarginRateCatalogRow`），冲突的重复行也要传。此时同步不再发目录查询，
+你的合约规格、该应答发布的原生乘数与保证金归属出自同一个快照；这些行在调用时复制，判定方式与现查的目录完全相同。
+未传时同步读取一次完整的 `reqQryInstrument({})`，按上文会在该目录完成前使全部原生乘数失效；请在放行报单
+之前运行，不要在已启用的 `maxNotional` 校验必须持续通过时运行。
+
+多次调用按调用顺序逐个执行（6.1 起）：后一次等前一次结束再开始，所以后开始的同步不会被先开始的覆盖，失败的同步
+也不会卡住下一次。排队中的同步仍属于调用它时的会话，等待期间该会话结束则它失败。所请求合约此前解析的结果在同步一开始就被丢弃（排队中的同步在前一次结束后才开始，此前旧结果仍可读），
 同品种其他合约的结果在同步进行到该品种时丢弃；只有全部所请求合约都解析成功时才保留新结果，部分成功的刷新一个都不保留；
 任何重连、登录/登出或 `session()` 都会丢弃全部已解析结果。
+
+### `td.instrumentPublication(rows)` → `ReadonlyMap<string, number>`
+
+（6.1 起）返回某次已结算的 `reqQryInstrument` 应答在原生层实际发布的乘数（合约代码 → 乘数），在该请求结算时按请求号记录，
+即风控引擎对这一次应答本身的判定：不可读的应答什么都不发布，冲突、身份不明或乘数不可用的行不发布其合约。用解码行自建合约规格的
+调用方，应要求每个要交易的合约都在其中且乘数相同——JS 侧解码正常并不代表原生闸门持有其乘数——且无需为核对再发目录请求。
+`rows` 必须正是该请求结算时给出的那个数组（副本或其他数组会报错）；返回的映射是副本。
+
+### `td.queryInvestorGroup()` → `Promise<string>`
+
+（6.1 起）用一次 `reqQryInvestor` 查询本账户的投资者组号（当前会话内按冷启动流控重试）。返回行须指向本账户且只有一个非空组号，
+否则报错。用 `selectCtpInvestorRates` 判定投资者组范围（2）的费率行时需要它；`syncMarginRates()` 用的是同一个查询。
+
+### `selectCtpInvestorRates(rows, account, request, fields, kind)` 与 `ctpInvestorGroupNeeded(rows, account, request, kind)`
+
+（6.1 起）`syncMarginRates()` 判定投资者保证金行所用的归属规则，导出后手续费行（`CThostFtdcInstrumentCommissionRateField`）可用同一份
+代码判定。期货手续费查询接受 `BizType` 为空串或 `'1'` 的行。2026-11-27，SimNow 在 `ao` 品种的本人行上返回了空串。筛选函数也接受未提供该字段或值为 `null` 的输入。其他显式代码（含证券 `'2'`）均排除。所有可参与定价的行仍按相同规则核对账户、交易所、投资者范围及费率冲突。保证金结构没有业务类型字段。
+请求 `{ exchangeId, productId, instrumentIds }` 列出同品种本次所需的全部合约。两者都排除其他经纪商、非空投资单元和明确属于其他交易所的行。
+单一投资者行须属于 `account.investorId`。每个合约优先用自身的适用行，仅缺少适用合约行的月份才继承品种行。只有可能用到的键上存在组行且没有本人行才需查组。
+保证金和手续费沿用同一优先级。例如合约键有适用的全体投资者行、品种键有本人行时，采用合约键的全体投资者行。部署前仍须用该账户的真实保证金和手续费账单核对这一组合。
+合约键只有组行时须先取得组号，组不匹配则采用品种行。全体投资者行的投资者字段允许通配值。每个合约或
+品种取最窄范围（单一 > 组 > 全体），该范围内多行须在 `fields` 上一致，否则报错。返回 `{ rates, excluded }`；用
+`selectCtpProductRate(rates, instrumentId, productId, excluded)` 取合约的行，没有适用行时报错并列出被排除的行。
+`ctpProductExchange(catalog, productId)`（6.1 起）返回品种费率行所归属的唯一交易所：目录里该品种所有带合约代码的行都须是它，
+否则报错——与 `syncMarginRates()` 用的是同一规则。
 
 ### `td.readMarginRates(instrumentIds, hedgeFlag)` → `CtpResolvedMarginRate[]`
 
@@ -672,7 +710,7 @@ td.trackMarketData(md);
 > 合约乘数与产品类别（用于 `maxNotional`）**不**从 JS 喂入：C++ 风控引擎直接从 CTP 的
 > `OnRspQryInstrument` 回调里取，`reqQryInstrument` 的末包无错误到达时即刷新它们（见
 > [`syncMultipliers`](#tdsyncmultipliersinstrumentids--promisenumber)）。原生闸门完全不使用保证金率；
-> [`syncMarginRates()`](#tdsyncmarginratesinstrumentids-hedgeflag--promisenumber) 与 `readMarginRates()`
+> [`syncMarginRates()`](#tdsyncmarginratesinstrumentids-hedgeflag-catalog--promisenumber) 与 `readMarginRates()`
 > 只为你自己的计算解析它们。缺失元数据不会被猜测。
 
 #### 账户事实与账户级上限

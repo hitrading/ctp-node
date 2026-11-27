@@ -117,7 +117,7 @@ Unchanged: `-10001` (stateless gate refusal), `-10002` (rate limit), `-10006`
   a product row. An exchange base row must name the confirmed BrokerID.
   Disagreeing rows of one range (or of one contract's exchange base) fail the
   sync instead of the last row winning, and the "rate is missing" error names
-  the rows excluded as belonging to other accounts.
+  the excluded rate rows and why each was excluded.
 - The 3.0 notes below about the position ledger turning uncertain after close
   fills, and about calling `syncPositions()` after `syncOrders()`, no longer
   apply.

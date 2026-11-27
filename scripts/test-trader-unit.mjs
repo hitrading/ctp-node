@@ -669,6 +669,77 @@ const res4 = await td.session({
 });
 ok(res4.marginRates === 1 && sessionMarginHedgeFlags.at(-1) === "2",
   "session synchronizes margin schedules for the explicitly selected hedge flag");
+{
+  // A full multiplier sync and a margin sync in one session share one catalog answer.
+  const countedQuery = td.reqQryInstrument;
+  let catalogQueries = 0;
+  td.reqQryInstrument = async (request) => { catalogQueries++; return countedQuery.call(td, request); };
+  try {
+    const res5 = await td.session({ brokerId: "9999", userId: "u", password: "p", confirmSettlement: false,
+      sync: { multipliers: true, marginRates: { instrumentIds: ["rb2510"], hedgeFlag: "1" } } });
+    ok(res5.multipliers === 1 && res5.marginRates === 1 && catalogQueries === 1,
+      "session multipliers and margin rates come from one catalog answer: one catalog query");
+    const rb = { instrumentId: "rb2510", productId: "rb", exchangeId: "SHFE", volumeMultiple: 10 };
+    const ag = { instrumentId: "ag2510", productId: "ag", exchangeId: "SHFE", volumeMultiple: 15 };
+    for (const [symbols, extra, expected] of [
+      [["rb2510", "rb2510"], ag, 1], [[], ag, 0],
+      [["rb2510"], { ...ag, unterminated: "ExchangeInstID" }, 0],
+    ]) {
+      const requests = [];
+      td.reqQryInstrument = async request => {
+        requests.push(request);
+        return simulateCatalog(td, request.instrumentId ? [rb] : [rb, extra], request);
+      };
+      const counts = await td.session({ brokerId: "9999", userId: "u", password: "p", confirmSettlement: false,
+        sync: { multipliers: symbols, marginRates: { instrumentIds: ["rb2510"], hedgeFlag: "1" } } });
+      ok(counts.multipliers === expected && counts.marginRates === 1 && requests.length === 1 &&
+        Object.keys(requests[0]).length === 0, "session counts only the requested subset of the final full publication");
+    }
+    let attempts = 0;
+    const withSubset = (multipliers = ["rb2510"], instrumentIds = ["rb2510"]) => td.session({
+      brokerId: "9999", userId: "u", password: "p", confirmSettlement: false,
+      sync: { multipliers, marginRates: { instrumentIds, hedgeFlag: "1" } } });
+    td.reqQryInstrument = async request => simulateCatalog(td, ++attempts === 1 ? [] : [ag, rb], request);
+    ok((await withSubset()).multipliers === 1 && attempts === 2, "an empty cold-start catalog retries and can succeed");
+    const missing = ["cu2510", "zn2510"];
+    const reason = promise => promise.then(() => null, error => error);
+    const feesBefore = sessionMarginHedgeFlags.length;
+    attempts = 0;
+    td.reqQryInstrument = async request => { attempts++; return simulateCatalog(td, [ag, rb], request); };
+    const absent = await reason(withSubset(["rb2510", missing[0], missing[0]], [missing[1], missing[0]]));
+    ok(absent?.message === "CTP full instrument catalog is missing requested instruments: cu2510, zn2510" &&
+      attempts === 1, "a completed catalog names every absent symbol once, across both lists, in one request");
+    ok(sessionMarginHedgeFlags.length === feesBefore && td.investor === undefined && td.broker === undefined,
+      "a failed catalog check issues no rate request and revokes the confirmed account");
+    attempts = 0;
+    const marginOnly = await reason(withSubset(false, [missing[0], "rb2510", missing[1], missing[0]]));
+    ok(marginOnly?.message === absent?.message && attempts === 1 && sessionMarginHedgeFlags.length === feesBefore,
+      "a margin-only session also names all absent contracts before querying rates");
+    attempts = 0;
+    td.reqQryInstrument = async request => simulateCatalog(td, ++attempts === 1
+      ? [{ ...ag, instrumentId: " " }] : [rb], request);
+    ok((await withSubset()).marginRates === 1 && attempts === 2,
+      "a catalog with only blank contract codes is still empty and can recover");
+    attempts = 0;
+    td.reqQryInstrument = async request => { attempts++; return simulateCatalog(td, [], request); };
+    const cold = await reason(withSubset(missing, [missing[1]]));
+    ok(cold?.message === "CTP query returned no rows after 5 attempts; requested instruments: cu2510, zn2510" &&
+      attempts === 5, "an exhausted empty catalog names the requested symbols without claiming they do not exist");
+    attempts = 0;
+    const busy = Object.assign(new Error("flow limited"), { ctpReturnCode: -3 });
+    td.reqQryInstrument = async request => {
+      if (++attempts === 1) throw busy;
+      return simulateCatalog(td, [ag], request);
+    };
+    ok((await reason(withSubset()))?.message === "CTP full instrument catalog is missing requested instruments: rb2510" &&
+      attempts === 2, "transient flow control retries until the first completed catalog establishes absence");
+    attempts = 0;
+    td.reqQryInstrument = async () => { attempts++; throw busy; };
+    ok((await reason(withSubset())) === busy && attempts === 5, "persistent flow control retains the original CTP failure");
+  } finally {
+    td.reqQryInstrument = countedQuery;
+  }
+}
 const validSessionLogin = td.reqUserLogin;
 td.reqUserLogin = async () => {
   td.native._injectTestLogin(1, 7, "9999", "u");
@@ -839,6 +910,112 @@ td.investor = "u";
     'a contract whose catalog rows disagree on its product loses its old schedule when either product refreshes');
   await rejects(td.syncMarginRates(['hc2610']), 'a contract with conflicting catalog identities cannot be synchronized');
   td.reqQryInstrument = oldCatalog; td.reqQryInstrumentMarginRate = oldMargins;
+}
+{
+  // Two syncs overlap: the older one reads rebar 12% and then waits on silver;
+  // the newer one starts while it waits. Whatever the interleaving, the final
+  // published rebar rate is the newer reading (18%), never the older one.
+  const oldCatalog = td.reqQryInstrument, oldMargins = td.reqQryInstrumentMarginRate;
+  td.reqQryInstrument = async () => [{ instrumentId: 'rb2601', productId: 'rb', exchangeId: 'SHFE', volumeMultiple: 10 },
+    { instrumentId: 'ag2602', productId: 'ag', exchangeId: 'SHFE', volumeMultiple: 15 }];
+  const rateOf = (instrumentId, money) => ({ ...ownMarginRow, instrumentId, hedgeFlag: '1', isRelative: 0,
+    longMarginRatioByMoney: money, longMarginRatioByVolume: 0, shortMarginRatioByMoney: money, shortMarginRatioByVolume: 0 });
+  let rebarMoney = .12, silverQueries = 0, releaseSilver, olderReadRebar;
+  const silverGate = new Promise(resolve => { releaseSilver = resolve; });
+  const rebarRead = new Promise(resolve => { olderReadRebar = resolve; });
+  td.reqQryInstrumentMarginRate = async q => {
+    if (q.instrumentId === 'rb') { const row = rateOf('rb2601', rebarMoney); olderReadRebar(); return [row]; }
+    if (++silverQueries === 1) await silverGate;
+    return [rateOf('ag2602', .2)];
+  };
+  try {
+    const older = td.syncMarginRates(['rb2601', 'ag2602']);
+    await rebarRead;
+    rebarMoney = .18;
+    const newer = td.syncMarginRates(['rb2601']); // the review's case: the newer sync asks for rebar only
+    await new Promise(resolve => setTimeout(resolve, 20)); // an unserialized newer sync would finish here
+    releaseSilver();
+    const counts = await Promise.all([older, newer]);
+    ok(counts.join() === '2,1' && td.readMarginRates(['rb2601'], '1')[0].longMarginRatioByMoney === .18,
+      'overlapping margin syncs publish in call order: the older reading never overwrites the newer one');
+    let refuse = true;
+    td.reqQryInstrumentMarginRate = async q => {
+      if (refuse) { refuse = false; throw new Error('rate query refused'); }
+      return [rateOf(q.instrumentId === 'rb' ? 'rb2601' : 'ag2602', .2)];
+    };
+    const failing = td.syncMarginRates(['rb2601'], '1', [{ instrumentId: 'rb2601', productId: 'rb', exchangeId: 'SHFE' }]);
+    const queued = td.syncMarginRates(['ag2602'], '1', [{ instrumentId: 'ag2602', productId: 'ag', exchangeId: 'SHFE' }]);
+    const failure = await failing.then(() => null, error => error);
+    ok(failure?.message === 'rate query refused' && await queued === 1,
+      'a failed margin sync does not wedge the sync queued behind it');
+    // A sync queued behind one whose session then ends belongs to that ended
+    // session: it fails when its turn comes, without querying anything.
+    let releaseBlocked;
+    const blockedGate = new Promise(resolve => { releaseBlocked = resolve; });
+    let rateQueries = 0;
+    td.reqQryInstrumentMarginRate = async q => { rateQueries++; await blockedGate; return [rateOf(q.instrumentId === 'rb' ? 'rb2601' : 'ag2602', .2)]; };
+    const running = td.syncMarginRates(['rb2601'], '1', [{ instrumentId: 'rb2601', productId: 'rb', exchangeId: 'SHFE' }]);
+    const waiting = td.syncMarginRates(['ag2602'], '1', [{ instrumentId: 'ag2602', productId: 'ag', exchangeId: 'SHFE' }]);
+    await new Promise(resolve => setTimeout(resolve, 5));
+    td.emit('front-disconnected', 4097, {});
+    releaseBlocked();
+    const [runningFailure, waitingFailure] = await Promise.all([running, waiting].map(p => p.then(() => null, error => error)));
+    ok(runningFailure instanceof Error && waitingFailure instanceof Error && rateQueries === 1,
+      'a queued margin sync whose session ended while it waited fails without sending a query');
+    seedConfirmedIdentity();
+  } finally {
+    td.reqQryInstrument = oldCatalog; td.reqQryInstrumentMarginRate = oldMargins;
+  }
+}
+{
+  // A caller-held catalog replaces the second catalog query: no instrument
+  // request is sent and grouping and exchange attribution follow the snapshot.
+  const oldCatalog = td.reqQryInstrument, oldMargins = td.reqQryInstrumentMarginRate;
+  let catalogQueries = 0;
+  td.reqQryInstrument = async () => { catalogQueries++; return []; };
+  const rateOf = (instrumentId, extra = {}) => ({ ...ownMarginRow, instrumentId, hedgeFlag: '1', isRelative: 0,
+    longMarginRatioByMoney: .1, longMarginRatioByVolume: 0, shortMarginRatioByMoney: .1, shortMarginRatioByVolume: 0, ...extra });
+  const requests = [];
+  td.reqQryInstrumentMarginRate = async q => { requests.push(q.instrumentId); return [rateOf('rb2601'), rateOf('rb2605', { exchangeId: 'DCE' })]; };
+  const snapshot = [{ instrumentId: 'rb2601', productId: 'rb', exchangeId: 'SHFE' },
+    { instrumentId: 'rb2605', productId: 'rb', exchangeId: 'SHFE' }];
+  const outcome = promise => promise.then(() => null, error => error);
+  try {
+    const synced = td.syncMarginRates(['rb2601'], '1', snapshot);
+    snapshot[0].productId = 'zz'; // after the call: the sync must still group by the snapshot it was given
+    ok(await synced === 1 && catalogQueries === 0 && requests.join() === 'rb',
+      'a supplied catalog is snapshotted at the call and groups the rate query without a catalog request');
+    ok(await outcome(td.syncMarginRates(['rb2601'], '1', [{ instrumentId: 'rb2601', productId: 'rb', exchangeId: 'SHFE' },
+      { instrumentId: 'rb2605', productId: 'rb', exchangeId: 'DCE' }])) instanceof Error,
+      'a supplied catalog whose product spans two exchanges fails like a queried one');
+    for (const [bad, label] of [[[], 'empty'], [[{ instrumentId: 'rb2601', productId: 'rb' }], 'exchange-less'],
+      [[{ instrumentId: 'rb2601', productId: 7, exchangeId: 'SHFE' }], 'non-string product'], [{ length: 1 }, 'non-array'],
+      [[{ instrumentId: 7, productId: 'rb', exchangeId: 'SHFE' }], 'non-string contract'], [Object.assign([], { length: 1 }), 'sparse']])
+      ok(await outcome(td.syncMarginRates(['rb2601'], '1', bad)) instanceof TypeError, `a ${label} supplied catalog is rejected`);
+    ok(/product identity is missing/.test((await outcome(td.syncMarginRates(['rb2601'], '1',
+      [{ instrumentId: 'rb2601', productId: '', exchangeId: 'SHFE' }])))?.message),
+      'a blank product in a supplied catalog is judged as in a queried one');
+    ok(/no single exchange/.test((await outcome(td.syncMarginRates(['rb2601'], '1',
+      [{ instrumentId: 'rb2601', productId: 'rb', exchangeId: '' }])))?.message),
+      'a blank exchange in a supplied catalog is judged as in a queried one');
+    ok(await td.syncMarginRates(['rb2601'], '1', [{ instrumentId: '', productId: '', exchangeId: '' },
+      { instrumentId: 'rb2601', productId: 'rb', exchangeId: 'SHFE' }]) === 1,
+      'a blank-contract row in a supplied catalog is ignored as in a queried one');
+    // The review's case: a blank-contract row naming the same product on another
+    // exchange must not make the product span two exchanges, on either path.
+    const strayRow = { instrumentId: '', productId: 'rb', exchangeId: 'DCE' };
+    ok(await td.syncMarginRates(['rb2601'], '1', [{ instrumentId: 'rb2601', productId: 'rb', exchangeId: 'SHFE' }, strayRow]) === 1,
+      'a blank-contract row of the same product on another exchange is ignored in a supplied catalog');
+    ok(catalogQueries === 0, 'rejected catalogs send no catalog request either');
+    td.reqQryInstrument = async () => { catalogQueries++; return [{ instrumentId: 'rb2601', productId: 'rb', exchangeId: 'SHFE' }, strayRow]; };
+    ok(await td.syncMarginRates(['rb2601'], '1') === 1 && catalogQueries === 1,
+      'a blank-contract row of the same product on another exchange is ignored in a queried catalog');
+    ok(/no single exchange/.test((await outcome(td.syncMarginRates(['rb2601'], '1', [{ instrumentId: 'rb2601', productId: 'rb', exchangeId: 'SHFE' },
+      { instrumentId: 'rb2605', productId: 'rb', exchangeId: 'DCE' }])))?.message),
+      'two real contracts of one product on two exchanges still fail');
+  } finally {
+    td.reqQryInstrument = oldCatalog; td.reqQryInstrumentMarginRate = oldMargins;
+  }
 }
 ok((await td.syncMarginRates(["rb2510"])) === 1,
   "syncMarginRates counts usable investor/base schedules");
@@ -1029,6 +1206,36 @@ td.resume();
       `an unreadable ${field} in the reply publishes nothing, and the count says so`);
   }
   td.reqQryInstrument = savedInstrumentQuery;
+  // instrumentPublication: which contracts, with which multipliers, this exact
+  // answer published natively. A caller building specifications from the
+  // decoded rows learns that the second row's unterminated ExchangeInstID made
+  // the whole answer unreadable even though rb2610 decoded fine.
+  const settled = simulateCatalog(td, [rowOf("rb2610", 10), rowOf("ag2610", 15, { productId: "ag" }),
+    rowOf("cu2610", 5, { productId: "cu" }), rowOf("cu2610", 6, { productId: "cu" })]);
+  const published = td.instrumentPublication(settled);
+  ok(published.size === 2 && published.get("rb2610") === 10 && published.get("ag2610") === 15 && !published.has("cu2610"),
+    "instrumentPublication lists exactly the contracts and multipliers this answer published");
+  published.set("cu2610", 5);
+  ok(!td.instrumentPublication(settled).has("cu2610"), "instrumentPublication returns a copy the caller cannot alter");
+  const unreadable = simulateCatalog(td, [rowOf("rb2610", 10), rowOf("ag2610", 15, { productId: "ag", unterminated: "ExchangeInstID" })]);
+  ok(td.instrumentPublication(unreadable).size === 0,
+    "an answer made unreadable by one row publishes nothing for any contract, readable rows included");
+  throws(() => td.instrumentPublication([rowOf("rb2610", 10)]), "an array that no instrument request settled with is refused");
+  throws(() => td.instrumentPublication(settled.slice()), "a copy of a settled answer is not that answer");
+}
+{
+  // queryInvestorGroup: one reqQryInvestor query naming this account and one group.
+  const savedInvestor = td.reqQryInvestor;
+  seedConfirmedIdentity();
+  td.reqQryInvestor = async () => [{ brokerId: "9999", investorId: "u", investorGroupId: "G1" },
+    { brokerId: "9999", investorId: "other", investorGroupId: "G9" }];
+  ok(await td.queryInvestorGroup() === "G1", "queryInvestorGroup returns the confirmed account's group");
+  td.reqQryInvestor = async () => [{ brokerId: "9999", investorId: "u", investorGroupId: "" }];
+  await rejects(td.queryInvestorGroup(), "an empty investor group is refused");
+  td.reqQryInvestor = async () => [{ brokerId: "9999", investorId: "u", investorGroupId: "G1" },
+    { brokerId: "9999", investorId: "u", investorGroupId: "G2" }];
+  await rejects(td.queryInvestorGroup(), "two groups for one account are refused");
+  td.reqQryInvestor = savedInvestor;
 }
 
 {
@@ -1088,7 +1295,9 @@ td.reqQryInstrument = async (request) => simulateCatalog(td, [
 ok((await td.syncMultipliers(["rb2510"])) === 0,
   "a targeted contract whose duplicate rows disagree counts as unpublished");
 td.reqQryInstrument = async () => [];
-await rejects(td.syncMultipliers(["rb2510"]), "syncMultipliers rejects when required instrument data stays empty");
+ok((await outcomeOf(td.syncMultipliers(["rb2510"])))?.message ===
+  "CTP query returned no rows after 5 attempts; requested instruments: rb2510",
+  "a targeted multiplier query names its symbol when no matching rows arrive");
 td.reqQryInstrument = async () => { throw new Error("flow control"); };
 ok((await td.syncMultipliers([])) === 0,
   "syncMultipliers treats an explicit empty universe as a no-op, not query-all");

@@ -219,7 +219,7 @@ void RiskEngine::beginInstrumentQuery(int requestId,
     instruments_.clear();
   resetInstrumentQueryLocked();
   finishedInstrumentQueryId_ = 0;
-  finishedPublishedCount_ = 0;
+  finishedPublished_.clear();
   instrumentQueryId_ = requestId > 0 ? requestId : 0;
   instrumentQueryScope_ = scope;
 }
@@ -286,7 +286,7 @@ void RiskEngine::finishInstrumentQuery(int requestId, bool succeeded) {
   if (requestId <= 0 || requestId != instrumentQueryId_)
     return;
   finishedInstrumentQueryId_ = requestId;
-  finishedPublishedCount_ = 0;
+  finishedPublished_.clear();
   if (succeeded && instrumentQueryUnreadable_) {
     // Publish nothing and lift no mark (the reset below records the conflicts).
     instruments_.clear();
@@ -303,7 +303,7 @@ void RiskEngine::finishInstrumentQuery(int requestId, bool succeeded) {
                           ambiguousInstruments_.count(id) == 0;
       if (usable) {
         instruments_[id] = staged.second.meta;
-        ++finishedPublishedCount_;
+        finishedPublished_.emplace_back(id, staged.second.meta.multiplier);
       } else {
         instruments_.erase(id);
       }
@@ -317,11 +317,14 @@ void RiskEngine::abandonInstrumentQuery() {
   resetInstrumentQueryLocked();
 }
 
-size_t RiskEngine::instrumentQueryPublished(int requestId) const {
+bool RiskEngine::instrumentQueryPublication(
+    int requestId, std::vector<std::pair<std::string, double>> &published) const {
   std::lock_guard<std::mutex> lk(stateMutex_);
-  return requestId > 0 && requestId == finishedInstrumentQueryId_
-             ? finishedPublishedCount_
-             : 0;
+  published.clear();
+  if (requestId <= 0 || requestId != finishedInstrumentQueryId_)
+    return false;
+  published = finishedPublished_;
+  return true;
 }
 
 bool RiskEngine::timeoutInstrumentQuery(int requestId) {
